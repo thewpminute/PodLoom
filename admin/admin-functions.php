@@ -99,13 +99,25 @@ function transistor_render_settings_page() {
                         </label>
                     </th>
                     <td>
-                        <input
-                            type="text"
-                            id="transistor_api_key"
-                            name="transistor_api_key"
-                            value="<?php echo esc_attr($api_key); ?>"
-                            class="regular-text"
-                        />
+                        <div style="position: relative; display: inline-block;">
+                            <input
+                                type="password"
+                                id="transistor_api_key"
+                                name="transistor_api_key"
+                                value="<?php echo esc_attr($api_key); ?>"
+                                class="regular-text"
+                                style="padding-right: 40px;"
+                            />
+                            <button
+                                type="button"
+                                id="toggle_api_key_visibility"
+                                class="button"
+                                style="position: absolute; right: 1px; top: 1px; height: calc(100% - 2px); padding: 0 8px; border-left: 1px solid #8c8f94;"
+                                aria-label="<?php esc_attr_e('Toggle API key visibility', 'podloom'); ?>"
+                            >
+                                <span class="dashicons dashicons-visibility" style="line-height: 1.4;"></span>
+                            </button>
+                        </div>
                         <p class="description">
                             <?php
                             printf(
@@ -254,5 +266,25 @@ function transistor_render_settings_page() {
             width: 200px;
         }
     </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggleButton = document.getElementById('toggle_api_key_visibility');
+            const apiKeyInput = document.getElementById('transistor_api_key');
+            const icon = toggleButton.querySelector('.dashicons');
+
+            toggleButton.addEventListener('click', function() {
+                if (apiKeyInput.type === 'password') {
+                    apiKeyInput.type = 'text';
+                    icon.classList.remove('dashicons-visibility');
+                    icon.classList.add('dashicons-hidden');
+                } else {
+                    apiKeyInput.type = 'password';
+                    icon.classList.remove('dashicons-hidden');
+                    icon.classList.add('dashicons-visibility');
+                }
+            });
+        });
+    </script>
     <?php
 }
