@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# WordPress
+wp-config.php
+wp-content/debug.log
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build files
+*.log
+*.cache
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
