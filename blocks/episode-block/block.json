@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 2,
+  "name": "transistor/episode-player",
+  "title": "Transistor Episode",
+  "category": "media",
+  "icon": "microphone",
+  "description": "Embed a Transistor.fm podcast episode player",
+  "keywords": ["podcast", "audio", "transistor", "episode"],
+  "textdomain": "transistor-podcast-player",
+  "supports": {
+    "html": false
+  }
+}
