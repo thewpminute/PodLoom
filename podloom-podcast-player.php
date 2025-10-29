@@ -191,7 +191,7 @@ function transistor_render_block($attributes) {
  */
 function transistor_add_admin_menu() {
     add_options_page(
-        __('Transistor API', 'podloom'),
+        __('PodLoom Settings', 'podloom'),
         __('PodLoom Settings', 'podloom'),
         'manage_options',
         'transistor-api-settings',
@@ -199,6 +199,16 @@ function transistor_add_admin_menu() {
     );
 }
 add_action('admin_menu', 'transistor_add_admin_menu');
+
+/**
+ * Add settings link on plugin page
+ */
+function transistor_add_plugin_action_links($links) {
+    $settings_link = '<a href="' . admin_url('options-general.php?page=transistor-api-settings') . '">' . __('Settings', 'podloom') . '</a>';
+    array_unshift($links, $settings_link);
+    return $links;
+}
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'transistor_add_plugin_action_links');
 
 /**
  * Register plugin settings

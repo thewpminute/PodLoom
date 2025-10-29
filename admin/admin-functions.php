@@ -43,8 +43,18 @@ function transistor_render_settings_page() {
         // Clear cache when settings change
         transistor_clear_all_cache();
 
+        // Test if API connection is working
+        $success_message = 'Settings saved successfully!';
+        if (!empty($api_key)) {
+            $test_api = new Transistor_API($api_key);
+            $test_result = $test_api->get_shows();
+            if (!is_wp_error($test_result)) {
+                $success_message .= ' Successfully connected to Transistor API!';
+            }
+        }
+
         echo '<div class="notice notice-success is-dismissible"><p>' .
-             esc_html__('Settings saved successfully!', 'podloom') .
+             esc_html__($success_message, 'podloom') .
              '</p></div>';
     }
 
@@ -62,14 +72,12 @@ function transistor_render_settings_page() {
         $shows_result = $api->get_shows();
 
         if (is_wp_error($shows_result)) {
-            $connection_status = '<div class="notice notice-error"><p>' .
-                                esc_html__('Error connecting to Transistor API: ', 'podloom') .
+            $connection_status = '<div class="notice notice-warning"><p>' .
+                                esc_html__('There is an error connecting to the Transistor API: ', 'podloom') .
                                 esc_html($shows_result->get_error_message()) .
                                 '</p></div>';
         } else {
-            $connection_status = '<div class="notice notice-success"><p>' .
-                                esc_html__('Successfully connected to Transistor API!', 'podloom') .
-                                '</p></div>';
+            // Connection successful - only show shows, no success message
             $shows = isset($shows_result['data']) ? $shows_result['data'] : [];
         }
     }
