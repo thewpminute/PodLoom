@@ -38,10 +38,17 @@ function transistor_render_settings_page() {
     if (isset($_POST['transistor_settings_submit'])) {
         check_admin_referer('transistor_settings_save', 'transistor_settings_nonce');
 
-        $api_key = sanitize_text_field($_POST['transistor_api_key']);
-        $default_show = sanitize_text_field($_POST['transistor_default_show']);
-        $enable_cache = isset($_POST['transistor_enable_cache']) ? true : false;
-        $cache_duration = absint($_POST['transistor_cache_duration']);
+        $api_key = isset($_POST['transistor_api_key']) ? sanitize_text_field($_POST['transistor_api_key']) : '';
+        $default_show = isset($_POST['transistor_default_show']) ? sanitize_text_field($_POST['transistor_default_show']) : '';
+        // Handle both checkbox (from General tab) and hidden field (from Transistor tab)
+        // Checkbox: value='1' when checked, field not present when unchecked
+        // Hidden field: value='1' or '0' as string
+        $enable_cache = false;
+        if (isset($_POST['transistor_enable_cache'])) {
+            $value = $_POST['transistor_enable_cache'];
+            $enable_cache = ($value === '1' || $value === 1 || $value === true);
+        }
+        $cache_duration = isset($_POST['transistor_cache_duration']) ? absint($_POST['transistor_cache_duration']) : 21600;
 
         update_option('transistor_api_key', $api_key);
         update_option('transistor_default_show', $default_show);
@@ -159,6 +166,9 @@ function transistor_render_settings_page() {
                             </p>
                         </td>
                     </tr>
+                    <?php else: ?>
+                        <!-- Hidden field to preserve default_show when no shows available -->
+                        <input type="hidden" name="transistor_default_show" value="<?php echo esc_attr($default_show); ?>" />
                     <?php endif; ?>
 
                     <tr>
