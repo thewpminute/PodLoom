@@ -20,18 +20,15 @@ function transistor_render_settings_page() {
     // Get current tab
     $current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'general';
 
+    // Success/error messages
+    $success_message = '';
+    $error_message = '';
+
     // Handle clear cache request
     if (isset($_POST['transistor_clear_cache'])) {
         check_admin_referer('transistor_clear_cache', 'transistor_clear_cache_nonce');
         transistor_clear_all_cache();
-
-        // Redirect to maintain tab and show success message
-        wp_redirect(add_query_arg([
-            'page' => 'transistor-api-settings',
-            'tab' => $current_tab,
-            'cache-cleared' => '1'
-        ], admin_url('options-general.php')));
-        exit;
+        $success_message = __('Cache cleared successfully!', 'podloom');
     }
 
     // Handle form submission
@@ -40,14 +37,9 @@ function transistor_render_settings_page() {
 
         $api_key = isset($_POST['transistor_api_key']) ? sanitize_text_field($_POST['transistor_api_key']) : '';
         $default_show = isset($_POST['transistor_default_show']) ? sanitize_text_field($_POST['transistor_default_show']) : '';
-        // Handle both checkbox (from General tab) and hidden field (from Transistor tab)
-        // Checkbox: value='1' when checked, field not present when unchecked
-        // Hidden field: value='1' or '0' as string
-        $enable_cache = false;
-        if (isset($_POST['transistor_enable_cache'])) {
-            $value = $_POST['transistor_enable_cache'];
-            $enable_cache = ($value === '1' || $value === 1 || $value === true);
-        }
+
+        // Handle checkbox - when checked it's '1', when unchecked the field is not submitted
+        $enable_cache = isset($_POST['transistor_enable_cache']) && $_POST['transistor_enable_cache'] == '1';
         $cache_duration = isset($_POST['transistor_cache_duration']) ? absint($_POST['transistor_cache_duration']) : 21600;
 
         update_option('transistor_api_key', $api_key);
@@ -59,40 +51,14 @@ function transistor_render_settings_page() {
         transistor_clear_all_cache();
 
         // Test if API connection is working
-        $api_success = false;
+        $success_message = __('Settings saved successfully!', 'podloom');
         if (!empty($api_key)) {
             $test_api = new Transistor_API($api_key);
             $test_result = $test_api->get_shows();
             if (!is_wp_error($test_result)) {
-                $api_success = true;
+                $success_message .= ' ' . __('Successfully connected to Transistor API!', 'podloom');
             }
         }
-
-        // Redirect to maintain tab and show success message
-        wp_redirect(add_query_arg([
-            'page' => 'transistor-api-settings',
-            'tab' => $current_tab,
-            'settings-updated' => '1',
-            'api-connected' => $api_success ? '1' : '0'
-        ], admin_url('options-general.php')));
-        exit;
-    }
-
-    // Display success messages
-    if (isset($_GET['settings-updated'])) {
-        $message = 'Settings saved successfully!';
-        if (isset($_GET['api-connected']) && $_GET['api-connected'] === '1') {
-            $message .= ' Successfully connected to Transistor API!';
-        }
-        echo '<div class="notice notice-success is-dismissible"><p>' .
-             esc_html__($message, 'podloom') .
-             '</p></div>';
-    }
-
-    if (isset($_GET['cache-cleared'])) {
-        echo '<div class="notice notice-success is-dismissible"><p>' .
-             esc_html__('Cache cleared successfully!', 'podloom') .
-             '</p></div>';
     }
 
     // Get current settings
@@ -122,6 +88,18 @@ function transistor_render_settings_page() {
     ?>
     <div class="wrap">
         <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+
+        <?php if (!empty($success_message)): ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?php echo esc_html($success_message); ?></p>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($error_message)): ?>
+            <div class="notice notice-error is-dismissible">
+                <p><?php echo esc_html($error_message); ?></p>
+            </div>
+        <?php endif; ?>
 
         <!-- Tab Navigation -->
         <h2 class="nav-tab-wrapper">
