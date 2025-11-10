@@ -280,3 +280,18 @@ function transistor_clear_all_cache() {
         wp_cache_flush();
     }
 }
+
+/**
+ * Delete all PodLoom plugin data from the database
+ * This includes all options and cached data
+ */
+function transistor_delete_all_plugin_data() {
+    // Delete all plugin options
+    delete_option('transistor_api_key');
+    delete_option('transistor_default_show');
+    delete_option('transistor_enable_cache');
+    delete_option('transistor_cache_duration');
+
+    // Clear all cached data
+    transistor_clear_all_cache();
+}

@@ -31,6 +31,29 @@ function transistor_render_settings_page() {
         $success_message = __('Cache cleared successfully!', 'podloom');
     }
 
+    // Handle plugin reset request
+    if (isset($_POST['transistor_reset_plugin'])) {
+        check_admin_referer('transistor_reset_plugin', 'transistor_reset_plugin_nonce');
+
+        $reset_confirmation = isset($_POST['reset_confirmation']) ? sanitize_text_field($_POST['reset_confirmation']) : '';
+
+        if ($reset_confirmation === 'RESET') {
+            // Delete all plugin options and cache
+            transistor_delete_all_plugin_data();
+            $success_message = __('All PodLoom settings and cache have been deleted successfully. The plugin has been reset to default state.', 'podloom');
+
+            // Refresh variables since we just deleted everything
+            $api_key = '';
+            $default_show = '';
+            $enable_cache = true;
+            $cache_duration = 21600;
+            $shows = [];
+            $connection_status = '';
+        } else {
+            $error_message = __('Reset failed: You must type RESET in the confirmation field.', 'podloom');
+        }
+    }
+
     // Handle form submission
     if (isset($_POST['transistor_settings_submit'])) {
         check_admin_referer('transistor_settings_save', 'transistor_settings_nonce');
@@ -215,6 +238,71 @@ function transistor_render_settings_page() {
                 <?php submit_button(__('Clear Cache', 'podloom'), 'secondary', 'transistor_clear_cache'); ?>
             </form>
 
+            <hr style="margin-top: 40px; border: none; border-top: 2px solid #dc3232;">
+
+            <!-- Danger Zone Section -->
+            <div class="danger-zone-container">
+                <div class="danger-zone-header" id="danger-zone-toggle">
+                    <span class="dashicons dashicons-warning" style="color: #dc3232;"></span>
+                    <strong style="color: #dc3232;"><?php esc_html_e('Danger Zone!', 'podloom'); ?></strong>
+                    <span class="description" style="margin-left: 10px;">
+                        <?php esc_html_e('Click to expand destructive actions', 'podloom'); ?>
+                    </span>
+                    <span class="dashicons dashicons-arrow-down-alt2 danger-zone-arrow" style="float: right;"></span>
+                </div>
+
+                <div class="danger-zone-content" id="danger-zone-content" style="display: none;">
+                    <div class="danger-zone-warning">
+                        <p><strong><?php esc_html_e('⚠️ WARNING: This action cannot be undone!', 'podloom'); ?></strong></p>
+                        <p><?php esc_html_e('Resetting the plugin will permanently delete:', 'podloom'); ?></p>
+                        <ul style="margin-left: 20px; list-style-type: disc;">
+                            <li><?php esc_html_e('Your Transistor API key', 'podloom'); ?></li>
+                            <li><?php esc_html_e('Default show setting', 'podloom'); ?></li>
+                            <li><?php esc_html_e('Cache settings and all cached data', 'podloom'); ?></li>
+                            <li><?php esc_html_e('All other PodLoom plugin settings', 'podloom'); ?></li>
+                        </ul>
+                        <p><?php esc_html_e('This will NOT affect your posts or existing episode blocks - they will simply need to be reconfigured after you re-enter your API key.', 'podloom'); ?></p>
+                        <p><strong><?php esc_html_e('To confirm, type RESET in the field below and click the button.', 'podloom'); ?></strong></p>
+                    </div>
+
+                    <form method="post" action="" onsubmit="return confirmReset();">
+                        <?php wp_nonce_field('transistor_reset_plugin', 'transistor_reset_plugin_nonce'); ?>
+
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row">
+                                    <label for="reset_confirmation">
+                                        <?php esc_html_e('Type RESET to confirm', 'podloom'); ?>
+                                    </label>
+                                </th>
+                                <td>
+                                    <input
+                                        type="text"
+                                        id="reset_confirmation"
+                                        name="reset_confirmation"
+                                        value=""
+                                        class="regular-text"
+                                        placeholder="RESET"
+                                        autocomplete="off"
+                                    />
+                                    <p class="description">
+                                        <?php esc_html_e('This field is case-sensitive. You must type exactly: RESET', 'podloom'); ?>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <?php submit_button(
+                            __('Delete All Plugin Data', 'podloom'),
+                            'delete',
+                            'transistor_reset_plugin',
+                            true,
+                            array('style' => 'background-color: #a83232; border-color: #a83232; color: #fff;')
+                        ); ?>
+                    </form>
+                </div>
+            </div>
+
         <?php elseif ($current_tab === 'transistor'): ?>
             <!-- Transistor API Tab -->
             <?php echo $connection_status; ?>
@@ -314,26 +402,105 @@ function transistor_render_settings_page() {
         .nav-tab-wrapper {
             margin-bottom: 20px;
         }
+
+        /* Danger Zone Styles */
+        .danger-zone-container {
+            border: 2px solid #dc3232;
+            border-radius: 4px;
+            margin-top: 20px;
+            background: #fff;
+        }
+        .danger-zone-header {
+            padding: 15px 20px;
+            cursor: pointer;
+            background: #fff;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        .danger-zone-header:hover {
+            background: #fef7f7;
+        }
+        .danger-zone-arrow {
+            transition: transform 0.3s;
+            color: #dc3232;
+        }
+        .danger-zone-arrow.rotated {
+            transform: rotate(180deg);
+        }
+        .danger-zone-content {
+            padding: 0 20px 20px 20px;
+            border-top: 1px solid #dc3232;
+            margin-top: 0;
+        }
+        .danger-zone-warning {
+            background: #fef7f7;
+            border-left: 4px solid #dc3232;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .danger-zone-warning p:first-child {
+            margin-top: 0;
+        }
+        .danger-zone-warning p:last-child {
+            margin-bottom: 0;
+        }
     </style>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // API Key Visibility Toggle
             const toggleButton = document.getElementById('toggle_api_key_visibility');
-            const apiKeyInput = document.getElementById('transistor_api_key');
-            const icon = toggleButton.querySelector('.dashicons');
+            if (toggleButton) {
+                const apiKeyInput = document.getElementById('transistor_api_key');
+                const icon = toggleButton.querySelector('.dashicons');
 
-            toggleButton.addEventListener('click', function() {
-                if (apiKeyInput.type === 'password') {
-                    apiKeyInput.type = 'text';
-                    icon.classList.remove('dashicons-visibility');
-                    icon.classList.add('dashicons-hidden');
-                } else {
-                    apiKeyInput.type = 'password';
-                    icon.classList.remove('dashicons-hidden');
-                    icon.classList.add('dashicons-visibility');
-                }
-            });
+                toggleButton.addEventListener('click', function() {
+                    if (apiKeyInput.type === 'password') {
+                        apiKeyInput.type = 'text';
+                        icon.classList.remove('dashicons-visibility');
+                        icon.classList.add('dashicons-hidden');
+                    } else {
+                        apiKeyInput.type = 'password';
+                        icon.classList.remove('dashicons-hidden');
+                        icon.classList.add('dashicons-visibility');
+                    }
+                });
+            }
+
+            // Danger Zone Toggle
+            const dangerZoneToggle = document.getElementById('danger-zone-toggle');
+            if (dangerZoneToggle) {
+                const dangerZoneContent = document.getElementById('danger-zone-content');
+                const arrow = dangerZoneToggle.querySelector('.danger-zone-arrow');
+
+                dangerZoneToggle.addEventListener('click', function() {
+                    if (dangerZoneContent.style.display === 'none') {
+                        dangerZoneContent.style.display = 'block';
+                        arrow.classList.add('rotated');
+                    } else {
+                        dangerZoneContent.style.display = 'none';
+                        arrow.classList.remove('rotated');
+                    }
+                });
+            }
         });
+
+        // Confirm Reset Function
+        function confirmReset() {
+            const confirmationInput = document.getElementById('reset_confirmation');
+            const confirmationValue = confirmationInput ? confirmationInput.value : '';
+
+            if (confirmationValue !== 'RESET') {
+                alert('You must type RESET (in uppercase) to confirm this action.');
+                return false;
+            }
+
+            return confirm(
+                'Are you absolutely sure you want to delete all PodLoom settings and cache?\n\n' +
+                'This action cannot be undone!\n\n' +
+                'Click OK to proceed with deletion, or Cancel to abort.'
+            );
+        }
     </script>
     <?php
 }
