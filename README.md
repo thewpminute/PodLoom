@@ -17,6 +17,7 @@ A WordPress plugin that allows you to connect to your Transistor.fm account and 
 - **Default Show Setting**: Set a default show for quick episode embedding
 - **Smart Caching**: Automatic caching of API responses to improve performance and reduce API calls
 - **Cache Control**: Configurable cache duration and manual cache clearing from admin panel
+- **Danger Zone**: Complete plugin reset option to delete all stored settings and cache data
 
 ## Installation
 
@@ -158,6 +159,7 @@ The **PodLoom Settings** page (Settings → PodLoom Settings) shows:
 - **Clear Cache Button**: Manually clear all cached API responses
 - **Connection Status**: Visual confirmation that your API key is working
 - **Shows List**: Table displaying all your available podcasts with their details
+- **Danger Zone**: Complete plugin reset option (requires typing "RESET" to confirm)
 
 ### Caching
 
@@ -174,6 +176,36 @@ Benefits of caching:
 - Reduced API usage (avoids rate limiting)
 - Better performance when multiple users edit posts simultaneously
 - Appropriate for podcast content which updates infrequently
+
+### Danger Zone - Reset Plugin
+
+Located at the bottom of the General Settings tab, the Danger Zone allows you to completely reset the plugin:
+
+**What gets deleted:**
+- Your Transistor API key
+- Default show setting
+- Cache settings and all cached data
+- All other PodLoom plugin settings
+
+**What is NOT affected:**
+- Your posts and pages
+- Existing episode blocks (they will need to be reconfigured after you re-enter your API key)
+- Your Transistor.fm account and episodes
+
+**How to use:**
+1. Click "Danger Zone!" to expand the section
+2. Read the warnings carefully
+3. Type `RESET` (in uppercase) in the confirmation field
+4. Click "Delete All Plugin Data"
+5. Confirm the action in the browser dialog
+
+This is useful when:
+- You need to start fresh with a new API key or account
+- Troubleshooting persistent issues
+- Preparing to transfer the site to a new owner
+- Removing all traces of your Transistor credentials from the database
+
+**Warning**: This action cannot be undone. Make sure you have your API key saved elsewhere before proceeding.
 
 ## Troubleshooting
 
