@@ -164,14 +164,6 @@ class Transistor_API {
         $episode_id = sanitize_text_field($episode_id);
         return $this->request("/episodes/{$episode_id}");
     }
-
-    /**
-     * Test API connection
-     */
-    public function test_connection() {
-        $result = $this->get_shows(1, 1);
-        return !is_wp_error($result);
-    }
 }
 
 /**
@@ -194,6 +186,48 @@ function transistor_ajax_get_shows() {
     wp_send_json_success($shows);
 }
 add_action('wp_ajax_transistor_get_shows', 'transistor_ajax_get_shows');
+
+/**
+ * AJAX handler to get initial block data (combines shows, feeds, typography)
+ * Reduces 3 separate requests to 1 on block mount
+ */
+function transistor_ajax_get_block_init_data() {
+    check_ajax_referer('transistor_nonce', 'nonce');
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'Unauthorized'], 403);
+    }
+
+    $data = array();
+
+    // Get Transistor shows (cached)
+    $api = new Transistor_API();
+    $shows = $api->get_shows();
+    $data['transistor_shows'] = is_wp_error($shows) ? array() : $shows;
+
+    // Get RSS feeds
+    $data['rss_feeds'] = Transistor_RSS::get_feeds();
+
+    // Get RSS typography (only if RSS is enabled)
+    $rss_enabled = get_option('transistor_rss_enabled', false);
+    if ($rss_enabled && !empty($data['rss_feeds'])) {
+        $typo = transistor_get_rss_typography_styles();
+        $typo['background_color'] = get_option('transistor_rss_background_color', '#f9f9f9');
+        $typo['display'] = array(
+            'artwork' => get_option('transistor_rss_display_artwork', true),
+            'title' => get_option('transistor_rss_display_title', true),
+            'date' => get_option('transistor_rss_display_date', true),
+            'duration' => get_option('transistor_rss_display_duration', true),
+            'description' => get_option('transistor_rss_display_description', true)
+        );
+        $data['rss_typography'] = $typo;
+    } else {
+        $data['rss_typography'] = null;
+    }
+
+    wp_send_json_success($data);
+}
+add_action('wp_ajax_transistor_get_block_init_data', 'transistor_ajax_get_block_init_data');
 
 /**
  * AJAX handler to get episodes
@@ -267,18 +301,40 @@ function transistor_clear_all_cache() {
     global $wpdb;
 
     // Delete all transients that start with 'transistor_cache_'
-    $wpdb->query(
-        $wpdb->prepare(
-            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
-            $wpdb->esc_like('_transient_transistor_cache_') . '%',
-            $wpdb->esc_like('_transient_timeout_transistor_cache_') . '%'
-        )
-    );
+    // Use proper LIKE pattern preparation to prevent SQL injection
+    $pattern1 = $wpdb->esc_like('_transient_transistor_cache_') . '%';
+    $pattern2 = $wpdb->esc_like('_transient_timeout_transistor_cache_') . '%';
+
+    // Delete in batches of 100 to prevent long table locks
+    $batch_size = 100;
+    $deleted_count = 0;
+
+    do {
+        $deleted = $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$wpdb->options}
+                 WHERE (option_name LIKE %s OR option_name LIKE %s)
+                 LIMIT %d",
+                $pattern1,
+                $pattern2,
+                $batch_size
+            )
+        );
+
+        $deleted_count += $deleted;
+
+        // Small delay between batches to prevent overwhelming the database
+        if ($deleted >= $batch_size) {
+            usleep(50000); // 50ms delay
+        }
+    } while ($deleted >= $batch_size);
 
     // Clear object cache if enabled
     if (function_exists('wp_cache_flush')) {
         wp_cache_flush();
     }
+
+    return $deleted_count;
 }
 
 /**
@@ -292,6 +348,30 @@ function transistor_delete_all_plugin_data() {
     delete_option('transistor_enable_cache');
     delete_option('transistor_cache_duration');
 
+    // Delete RSS options
+    delete_option('transistor_rss_enabled');
+    delete_option('transistor_rss_feeds');
+    delete_option('transistor_rss_display_artwork');
+    delete_option('transistor_rss_display_title');
+    delete_option('transistor_rss_display_date');
+    delete_option('transistor_rss_display_duration');
+    delete_option('transistor_rss_display_description');
+
+    // Delete RSS typography options
+    $elements = ['title', 'date', 'duration', 'description'];
+    $properties = ['font_family', 'font_size', 'line_height', 'color', 'font_weight'];
+    foreach ($elements as $element) {
+        foreach ($properties as $property) {
+            delete_option("transistor_rss_{$element}_{$property}");
+        }
+    }
+    delete_option('transistor_rss_background_color');
+
     // Clear all cached data
     transistor_clear_all_cache();
+
+    // Clear RSS cached data
+    if (class_exists('Transistor_RSS')) {
+        Transistor_RSS::clear_all_caches();
+    }
 }

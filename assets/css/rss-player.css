@@ -1,0 +1,77 @@
+/**
+ * PodLoom RSS Player Styles
+ * Static styles for RSS episode players
+ */
+
+.wp-block-transistor-episode-player.rss-episode-player {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.rss-episode-wrapper {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.rss-episode-artwork {
+    flex-shrink: 0;
+    width: 200px;
+}
+
+.rss-episode-artwork img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+}
+
+.rss-episode-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.rss-episode-title {
+    margin: 0 0 10px 0;
+}
+
+.rss-episode-meta {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.rss-episode-meta span:not(:last-child)::after {
+    content: "•";
+    margin-left: 15px;
+}
+
+.rss-episode-audio {
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.rss-episode-audio.rss-audio-last {
+    margin-bottom: 0;
+}
+
+.rss-episode-description p:first-child {
+    margin-top: 0;
+}
+
+.rss-episode-description p:last-child {
+    margin-bottom: 0;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .rss-episode-wrapper {
+        gap: 15px;
+    }
+
+    .rss-episode-artwork {
+        width: 100px;
+    }
+}

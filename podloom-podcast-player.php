@@ -25,6 +25,7 @@ define('TRANSISTOR_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Include necessary files
 require_once TRANSISTOR_PLUGIN_DIR . 'includes/api.php';
+require_once TRANSISTOR_PLUGIN_DIR . 'includes/rss.php';
 require_once TRANSISTOR_PLUGIN_DIR . 'admin/admin-functions.php';
 
 /**
@@ -51,7 +52,7 @@ function transistor_init() {
     register_block_type('podloom/episode-player', [
         'api_version' => 2,
         'editor_script' => 'transistor-block-editor',
-        'title' => __('Podcast Episode', 'podloom'),
+        'title' => __('PodLoom Podcast Episode', 'podloom'),
         'description' => __('Embed a Transistor.fm podcast episode player', 'podloom'),
         'category' => 'media',
         'icon' => 'microphone',
@@ -60,6 +61,10 @@ function transistor_init() {
             'html' => false
         ],
         'attributes' => [
+            'sourceType' => [
+                'type' => 'string',
+                'default' => 'transistor'
+            ],
             'episodeId' => [
                 'type' => 'string',
                 'default' => ''
@@ -79,6 +84,14 @@ function transistor_init() {
             'showSlug' => [
                 'type' => 'string',
                 'default' => ''
+            ],
+            'rssFeedId' => [
+                'type' => 'string',
+                'default' => ''
+            ],
+            'rssEpisodeData' => [
+                'type' => 'object',
+                'default' => null
             ],
             'embedHtml' => [
                 'type' => 'string',
@@ -103,15 +116,155 @@ function transistor_init() {
 add_action('init', 'transistor_init');
 
 /**
+ * Generate dynamic typography CSS for RSS player
+ */
+function transistor_get_rss_dynamic_css() {
+    $minimal_styling = get_option('transistor_rss_minimal_styling', false);
+    if ($minimal_styling) {
+        return '';
+    }
+
+    $typo = transistor_get_rss_typography_styles();
+    $bg_color = get_option('transistor_rss_background_color', '#f9f9f9');
+
+    return sprintf('
+        .wp-block-transistor-episode-player.rss-episode-player {
+            background: %s;
+        }
+        .rss-episode-title {
+            font-family: %s;
+            font-size: %s;
+            line-height: %s;
+            color: %s;
+            font-weight: %s;
+        }
+        .rss-episode-date {
+            font-family: %s;
+            font-size: %s;
+            line-height: %s;
+            color: %s;
+            font-weight: %s;
+        }
+        .rss-episode-duration {
+            font-family: %s;
+            font-size: %s;
+            line-height: %s;
+            color: %s;
+            font-weight: %s;
+        }
+        .rss-episode-description {
+            font-family: %s;
+            font-size: %s;
+            line-height: %s;
+            color: %s;
+            font-weight: %s;
+        }',
+        esc_attr($bg_color),
+        esc_attr($typo['title']['font-family']),
+        esc_attr($typo['title']['font-size']),
+        esc_attr($typo['title']['line-height']),
+        esc_attr($typo['title']['color']),
+        esc_attr($typo['title']['font-weight']),
+        esc_attr($typo['date']['font-family']),
+        esc_attr($typo['date']['font-size']),
+        esc_attr($typo['date']['line-height']),
+        esc_attr($typo['date']['color']),
+        esc_attr($typo['date']['font-weight']),
+        esc_attr($typo['duration']['font-family']),
+        esc_attr($typo['duration']['font-size']),
+        esc_attr($typo['duration']['line-height']),
+        esc_attr($typo['duration']['color']),
+        esc_attr($typo['duration']['font-weight']),
+        esc_attr($typo['description']['font-family']),
+        esc_attr($typo['description']['font-size']),
+        esc_attr($typo['description']['line-height']),
+        esc_attr($typo['description']['color']),
+        esc_attr($typo['description']['font-weight'])
+    );
+}
+
+/**
+ * Enqueue frontend styles for RSS player
+ */
+function transistor_enqueue_rss_styles() {
+    wp_enqueue_style(
+        'podloom-rss-player',
+        TRANSISTOR_PLUGIN_URL . 'assets/css/rss-player.css',
+        [],
+        TRANSISTOR_PLUGIN_VERSION
+    );
+
+    $custom_css = transistor_get_rss_dynamic_css();
+    if ($custom_css) {
+        wp_add_inline_style('podloom-rss-player', $custom_css);
+    }
+}
+add_action('wp_enqueue_scripts', 'transistor_enqueue_rss_styles');
+
+/**
+ * Enqueue editor styles for RSS player (uses same CSS as frontend)
+ */
+function transistor_enqueue_editor_styles() {
+    wp_enqueue_style(
+        'podloom-rss-player-editor',
+        TRANSISTOR_PLUGIN_URL . 'assets/css/rss-player.css',
+        [],
+        TRANSISTOR_PLUGIN_VERSION
+    );
+
+    $custom_css = transistor_get_rss_dynamic_css();
+    if ($custom_css) {
+        wp_add_inline_style('podloom-rss-player-editor', $custom_css);
+    }
+}
+add_action('enqueue_block_editor_assets', 'transistor_enqueue_editor_styles');
+
+/**
  * Render callback for the block (frontend display)
  */
 function transistor_render_block($attributes) {
+    // Get source type
+    $source_type = isset($attributes['sourceType']) ? $attributes['sourceType'] : 'transistor';
+
     // Validate display mode
     $display_mode = isset($attributes['displayMode']) && in_array($attributes['displayMode'], ['specific', 'latest', 'playlist'], true)
         ? $attributes['displayMode']
         : 'specific';
 
-    // Handle "latest episode" mode
+    // Handle RSS episodes
+    if ($source_type === 'rss') {
+        $feed_id = isset($attributes['rssFeedId']) ? $attributes['rssFeedId'] : '';
+        if (empty($feed_id)) {
+            return '';
+        }
+
+        // Verify feed still exists
+        $feed = Transistor_RSS::get_feed($feed_id);
+        if (!$feed) {
+            // Feed was deleted - show user-friendly message
+            return '<div class="wp-block-transistor-episode-player" style="padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">' .
+                   '<p style="margin: 0; color: #856404;"><strong>' . esc_html__('RSS Feed Not Found', 'podloom') . '</strong></p>' .
+                   '<p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">' . esc_html__('The RSS feed used by this block has been removed. Please select a different feed or remove this block.', 'podloom') . '</p>' .
+                   '</div>';
+        }
+
+        if ($display_mode === 'latest') {
+            $latest_episode = Transistor_RSS::get_latest_episode($feed_id);
+            if (!$latest_episode) {
+                return '';
+            }
+
+            // Create temporary attributes with the latest episode data
+            $rss_attributes = $attributes;
+            $rss_attributes['rssEpisodeData'] = $latest_episode;
+
+            return transistor_render_rss_episode($rss_attributes);
+        } else {
+            return transistor_render_rss_episode($attributes);
+        }
+    }
+
+    // Handle "latest episode" mode (Transistor only)
     if ($display_mode === 'latest') {
         if (empty($attributes['showSlug'])) {
             return '';
@@ -132,7 +285,7 @@ function transistor_render_block($attributes) {
         return '<div class="wp-block-transistor-episode-player">' . $iframe . '</div>';
     }
 
-    // Handle "playlist" mode
+    // Handle "playlist" mode (Transistor only)
     if ($display_mode === 'playlist') {
         if (empty($attributes['showSlug'])) {
             return '';
@@ -162,7 +315,7 @@ function transistor_render_block($attributes) {
         return '<div class="wp-block-transistor-episode-player">' . $iframe . '</div>';
     }
 
-    // Handle specific episode mode
+    // Handle specific episode mode (Transistor)
     if (empty($attributes['embedHtml'])) {
         return '';
     }
@@ -184,6 +337,235 @@ function transistor_render_block($attributes) {
     $safe_embed = wp_kses($attributes['embedHtml'], $allowed_html);
 
     return '<div class="wp-block-transistor-episode-player">' . $safe_embed . '</div>';
+}
+
+/**
+ * Get typography styles for RSS elements (with caching)
+ */
+function transistor_get_rss_typography_styles() {
+    // Try to get from cache first
+    $cached_styles = get_transient('transistor_rss_typography_cache');
+    if ($cached_styles !== false) {
+        return $cached_styles;
+    }
+
+    $elements = ['title', 'date', 'duration', 'description'];
+    $styles = [];
+
+    // Default values
+    $defaults = [
+        'title' => [
+            'font_size' => '24px',
+            'line_height' => '1.3',
+            'color' => '#000000',
+            'font_weight' => '600'
+        ],
+        'date' => [
+            'font_size' => '14px',
+            'line_height' => '1.5',
+            'color' => '#666666',
+            'font_weight' => 'normal'
+        ],
+        'duration' => [
+            'font_size' => '14px',
+            'line_height' => '1.5',
+            'color' => '#666666',
+            'font_weight' => 'normal'
+        ],
+        'description' => [
+            'font_size' => '16px',
+            'line_height' => '1.6',
+            'color' => '#333333',
+            'font_weight' => 'normal'
+        ]
+    ];
+
+    foreach ($elements as $element) {
+        $styles[$element] = [
+            'font-family' => get_option("transistor_rss_{$element}_font_family", 'inherit'),
+            'font-size' => get_option("transistor_rss_{$element}_font_size", $defaults[$element]['font_size']),
+            'line-height' => get_option("transistor_rss_{$element}_line_height", $defaults[$element]['line_height']),
+            'color' => get_option("transistor_rss_{$element}_color", $defaults[$element]['color']),
+            'font-weight' => get_option("transistor_rss_{$element}_font_weight", $defaults[$element]['font_weight'])
+        ];
+    }
+
+    // Cache the styles for 1 hour
+    set_transient('transistor_rss_typography_cache', $styles, HOUR_IN_SECONDS);
+
+    return $styles;
+}
+
+/**
+ * Clear typography cache (called when settings are saved)
+ */
+function transistor_clear_typography_cache() {
+    delete_transient('transistor_rss_typography_cache');
+}
+
+/**
+ * Render RSS episode player
+ *
+ * When minimal styling mode is disabled (default):
+ * - Outputs semantic HTML with inline CSS styles
+ * - Applies typography settings from plugin options
+ *
+ * When minimal styling mode is enabled:
+ * - Outputs only semantic HTML with classes
+ * - No inline styles or typography settings applied
+ * - Users can apply their own CSS using these classes:
+ *   .wp-block-transistor-episode-player.rss-episode-player (container)
+ *   .rss-episode-artwork (artwork wrapper)
+ *   .rss-episode-content (content wrapper)
+ *   .rss-episode-title (title heading)
+ *   .rss-episode-meta (date/duration container)
+ *   .rss-episode-date (date span)
+ *   .rss-episode-duration (duration span)
+ *   .rss-episode-audio (audio element)
+ *   .rss-episode-audio.rss-audio-last (audio when last element)
+ *   .rss-episode-description (description div)
+ */
+function transistor_render_rss_episode($attributes) {
+    // Check if we have RSS episode data
+    if (empty($attributes['rssEpisodeData'])) {
+        return '';
+    }
+
+    $episode = $attributes['rssEpisodeData'];
+
+    // Get display settings
+    $show_artwork = get_option('transistor_rss_display_artwork', true);
+    $show_title = get_option('transistor_rss_display_title', true);
+    $show_date = get_option('transistor_rss_display_date', true);
+    $show_duration = get_option('transistor_rss_display_duration', true);
+    $show_description = get_option('transistor_rss_display_description', true);
+
+    // Get typography styles
+    $typo = transistor_get_rss_typography_styles();
+
+    // Get background color
+    $bg_color = get_option('transistor_rss_background_color', '#f9f9f9');
+
+    // Start building the output
+    $output = '<div class="wp-block-transistor-episode-player rss-episode-player">';
+
+    // Add a wrapper for flexbox layout
+    $output .= '<div class="rss-episode-wrapper">';
+
+    // Episode artwork
+    if ($show_artwork && !empty($episode['image'])) {
+        $output .= sprintf(
+            '<div class="rss-episode-artwork"><img src="%s" alt="%s" /></div>',
+            esc_url($episode['image']),
+            esc_attr($episode['title'])
+        );
+    }
+
+    // Episode content container
+    $output .= '<div class="rss-episode-content">';
+
+    // Episode title
+    if ($show_title && !empty($episode['title'])) {
+        $output .= sprintf(
+            '<h3 class="rss-episode-title">%s</h3>',
+            esc_html($episode['title'])
+        );
+    }
+
+    // Episode meta (date and duration)
+    if (($show_date && !empty($episode['date'])) || ($show_duration && !empty($episode['duration']))) {
+        $output .= '<div class="rss-episode-meta">';
+
+        if ($show_date && !empty($episode['date'])) {
+            $date = date_i18n(get_option('date_format'), $episode['date']);
+            $output .= sprintf(
+                '<span class="rss-episode-date">%s</span>',
+                esc_html($date)
+            );
+        }
+
+        if ($show_duration && !empty($episode['duration'])) {
+            $duration = transistor_format_duration($episode['duration']);
+            if ($duration) {
+                $output .= sprintf(
+                    '<span class="rss-episode-duration">%s</span>',
+                    esc_html($duration)
+                );
+            }
+        }
+
+        $output .= '</div>';
+    }
+
+    // Audio player (always shown)
+    if (!empty($episode['audio_url'])) {
+        // Add class if description is hidden to remove bottom margin
+        $audio_class = ($show_description && !empty($episode['description'])) ? 'rss-episode-audio' : 'rss-episode-audio rss-audio-last';
+        $output .= sprintf(
+            '<audio class="%s" controls preload="metadata"><source src="%s" type="%s">%s</audio>',
+            esc_attr($audio_class),
+            esc_url($episode['audio_url']),
+            esc_attr(!empty($episode['audio_type']) ? $episode['audio_type'] : 'audio/mpeg'),
+            esc_html__('Your browser does not support the audio player.', 'podloom')
+        );
+    }
+
+    // Episode description (character limit already applied in backend)
+    if ($show_description && !empty($episode['description'])) {
+        // Use restrictive HTML sanitization to prevent XSS from untrusted RSS feeds
+        $allowed_html = array(
+            'p' => array(),
+            'br' => array(),
+            'strong' => array(),
+            'b' => array(),
+            'em' => array(),
+            'i' => array(),
+            'u' => array(),
+            'a' => array(
+                'href' => array(),
+                'title' => array(),
+                'target' => array(),
+                'rel' => array()
+            ),
+            'ul' => array(),
+            'ol' => array(),
+            'li' => array(),
+            'blockquote' => array(),
+            'code' => array(),
+            'pre' => array()
+        );
+        $output .= sprintf(
+            '<div class="rss-episode-description">%s</div>',
+            wp_kses($episode['description'], $allowed_html)
+        );
+    }
+
+    $output .= '</div>'; // .rss-episode-content
+    $output .= '</div>'; // .rss-episode-wrapper
+    $output .= '</div>'; // .wp-block-transistor-episode-player
+
+    // Styles are now enqueued via wp_add_inline_style() in transistor_enqueue_rss_styles()
+    return $output;
+}
+
+/**
+ * Format duration from seconds to readable format
+ */
+function transistor_format_duration($seconds) {
+    if (empty($seconds) || !is_numeric($seconds)) {
+        return '';
+    }
+
+    $seconds = intval($seconds);
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+    $secs = $seconds % 60;
+
+    if ($hours > 0) {
+        return sprintf('%d:%02d:%02d', $hours, $minutes, $secs);
+    } else {
+        return sprintf('%d:%02d', $minutes, $secs);
+    }
 }
 
 /**
@@ -237,5 +619,186 @@ function transistor_register_settings() {
         'sanitize_callback' => 'absint',
         'default' => 21600
     ]);
+
+    register_setting('transistor_settings', 'transistor_rss_enabled', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => false
+    ]);
+
+    register_setting('transistor_settings', 'transistor_rss_feeds', [
+        'type' => 'array',
+        'sanitize_callback' => 'transistor_sanitize_rss_feeds',
+        'default' => []
+    ]);
+
+    register_setting('transistor_settings', 'transistor_rss_display_artwork', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('transistor_settings', 'transistor_rss_display_title', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('transistor_settings', 'transistor_rss_display_date', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('transistor_settings', 'transistor_rss_display_duration', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('transistor_settings', 'transistor_rss_display_description', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    // Typography settings for RSS title
+    register_setting('transistor_settings', 'transistor_rss_title_font_family', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'inherit'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_title_font_size', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '24px'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_title_line_height', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '1.3'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_title_color', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_hex_color',
+        'default' => '#000000'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_title_font_weight', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '600'
+    ]);
+
+    // Typography settings for RSS date
+    register_setting('transistor_settings', 'transistor_rss_date_font_family', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'inherit'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_date_font_size', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '14px'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_date_line_height', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '1.5'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_date_color', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_hex_color',
+        'default' => '#666666'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_date_font_weight', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'normal'
+    ]);
+
+    // Typography settings for RSS duration
+    register_setting('transistor_settings', 'transistor_rss_duration_font_family', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'inherit'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_duration_font_size', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '14px'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_duration_line_height', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '1.5'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_duration_color', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_hex_color',
+        'default' => '#666666'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_duration_font_weight', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'normal'
+    ]);
+
+    // Typography settings for RSS description
+    register_setting('transistor_settings', 'transistor_rss_description_font_family', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'inherit'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_description_font_size', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '16px'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_description_line_height', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '1.6'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_description_color', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_hex_color',
+        'default' => '#333333'
+    ]);
+    register_setting('transistor_settings', 'transistor_rss_description_font_weight', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'normal'
+    ]);
+
+    // Background color for RSS block
+    register_setting('transistor_settings', 'transistor_rss_background_color', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_hex_color',
+        'default' => '#f9f9f9'
+    ]);
+
+    // Minimal styling mode
+    register_setting('transistor_settings', 'transistor_rss_minimal_styling', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => false
+    ]);
+
+    // Description character limit
+    register_setting('transistor_settings', 'transistor_rss_description_limit', [
+        'type' => 'integer',
+        'sanitize_callback' => 'absint',
+        'default' => 0
+    ]);
 }
 add_action('admin_init', 'transistor_register_settings');
+
+/**
+ * Sanitize RSS feeds array
+ */
+function transistor_sanitize_rss_feeds($feeds) {
+    if (!is_array($feeds)) {
+        return [];
+    }
+    return $feeds;
+}
