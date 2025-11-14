@@ -23,40 +23,40 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('TRANSISTOR_PLUGIN_VERSION', '2.1.0');
-define('TRANSISTOR_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('TRANSISTOR_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('PODLOOM_PLUGIN_VERSION', '2.1.0');
+define('PODLOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('PODLOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Include necessary files
-require_once TRANSISTOR_PLUGIN_DIR . 'includes/api.php';
-require_once TRANSISTOR_PLUGIN_DIR . 'includes/rss.php';
-require_once TRANSISTOR_PLUGIN_DIR . 'admin/admin-functions.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/api.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/rss.php';
+require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
 
 /**
  * Initialize the plugin and register block
  */
-function transistor_init() {
+function podloom_init() {
     // Register the block editor script
     wp_register_script(
-        'transistor-block-editor',
-        TRANSISTOR_PLUGIN_URL . 'blocks/episode-block/index.js',
+        'podloom-block-editor',
+        PODLOOM_PLUGIN_URL . 'blocks/episode-block/index.js',
         ['wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n'],
-        filemtime(TRANSISTOR_PLUGIN_DIR . 'blocks/episode-block/index.js'),
+        filemtime(PODLOOM_PLUGIN_DIR . 'blocks/episode-block/index.js'),
         false // Block editor scripts must load in header
     );
 
     // Pass data to JavaScript
-    wp_localize_script('transistor-block-editor', 'transistorData', [
-        'defaultShow' => get_option('transistor_default_show', ''),
+    wp_localize_script('podloom-block-editor', 'podloomData', [
+        'defaultShow' => get_option('podloom_default_show', ''),
         'ajaxUrl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('transistor_nonce'),
-        'hasApiKey' => !empty(get_option('transistor_api_key', ''))
+        'nonce' => wp_create_nonce('podloom_nonce'),
+        'hasApiKey' => !empty(get_option('podloom_api_key', ''))
     ]);
 
     // Register the block type
     register_block_type('podloom/episode-player', [
         'api_version' => 2,
-        'editor_script' => 'transistor-block-editor',
+        'editor_script' => 'podloom-block-editor',
         'title' => __('PodLoom Podcast Episode', 'podloom-podcast-player'),
         'description' => __('Embed a Transistor.fm podcast episode player', 'podloom-podcast-player'),
         'category' => 'media',
@@ -119,25 +119,25 @@ function transistor_init() {
                 'default' => 390
             ]
         ],
-        'render_callback' => 'transistor_render_block'
+        'render_callback' => 'podloom_render_block'
     ]);
 }
-add_action('init', 'transistor_init');
+add_action('init', 'podloom_init');
 
 /**
  * Generate dynamic typography CSS for RSS player
  */
-function transistor_get_rss_dynamic_css() {
-    $minimal_styling = get_option('transistor_rss_minimal_styling', false);
+function podloom_get_rss_dynamic_css() {
+    $minimal_styling = get_option('podloom_rss_minimal_styling', false);
     if ($minimal_styling) {
         return '';
     }
 
-    $typo = transistor_get_rss_typography_styles();
-    $bg_color = get_option('transistor_rss_background_color', '#f9f9f9');
+    $typo = podloom_get_rss_typography_styles();
+    $bg_color = get_option('podloom_rss_background_color', '#f9f9f9');
 
     return sprintf('
-        .wp-block-transistor-episode-player.rss-episode-player {
+        .wp-block-podloom-episode-player.rss-episode-player {
             background: %s;
         }
         .rss-episode-title {
@@ -195,43 +195,43 @@ function transistor_get_rss_dynamic_css() {
 /**
  * Enqueue frontend styles for RSS player
  */
-function transistor_enqueue_rss_styles() {
+function podloom_enqueue_rss_styles() {
     wp_enqueue_style(
         'podloom-rss-player',
-        TRANSISTOR_PLUGIN_URL . 'assets/css/rss-player.css',
+        PODLOOM_PLUGIN_URL . 'assets/css/rss-player.css',
         [],
-        TRANSISTOR_PLUGIN_VERSION
+        PODLOOM_PLUGIN_VERSION
     );
 
-    $custom_css = transistor_get_rss_dynamic_css();
+    $custom_css = podloom_get_rss_dynamic_css();
     if ($custom_css) {
         wp_add_inline_style('podloom-rss-player', $custom_css);
     }
 }
-add_action('wp_enqueue_scripts', 'transistor_enqueue_rss_styles');
+add_action('wp_enqueue_scripts', 'podloom_enqueue_rss_styles');
 
 /**
  * Enqueue editor styles for RSS player (uses same CSS as frontend)
  */
-function transistor_enqueue_editor_styles() {
+function podloom_enqueue_editor_styles() {
     wp_enqueue_style(
         'podloom-rss-player-editor',
-        TRANSISTOR_PLUGIN_URL . 'assets/css/rss-player.css',
+        PODLOOM_PLUGIN_URL . 'assets/css/rss-player.css',
         [],
-        TRANSISTOR_PLUGIN_VERSION
+        PODLOOM_PLUGIN_VERSION
     );
 
-    $custom_css = transistor_get_rss_dynamic_css();
+    $custom_css = podloom_get_rss_dynamic_css();
     if ($custom_css) {
         wp_add_inline_style('podloom-rss-player-editor', $custom_css);
     }
 }
-add_action('enqueue_block_editor_assets', 'transistor_enqueue_editor_styles');
+add_action('enqueue_block_editor_assets', 'podloom_enqueue_editor_styles');
 
 /**
  * Render callback for the block (frontend display)
  */
-function transistor_render_block($attributes) {
+function podloom_render_block($attributes) {
     // Get source type
     $source_type = isset($attributes['sourceType']) ? $attributes['sourceType'] : 'transistor';
 
@@ -251,7 +251,7 @@ function transistor_render_block($attributes) {
         $feed = Transistor_RSS::get_feed($feed_id);
         if (!$feed) {
             // Feed was deleted - show user-friendly message
-            return '<div class="wp-block-transistor-episode-player" style="padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">' .
+            return '<div class="wp-block-podloom-episode-player" style="padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">' .
                    '<p style="margin: 0; color: #856404;"><strong>' . esc_html__('RSS Feed Not Found', 'podloom-podcast-player') . '</strong></p>' .
                    '<p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">' . esc_html__('The RSS feed used by this block has been removed. Please select a different feed or remove this block.', 'podloom-podcast-player') . '</p>' .
                    '</div>';
@@ -267,9 +267,9 @@ function transistor_render_block($attributes) {
             $rss_attributes = $attributes;
             $rss_attributes['rssEpisodeData'] = $latest_episode;
 
-            return transistor_render_rss_episode($rss_attributes);
+            return podloom_render_rss_episode($rss_attributes);
         } else {
-            return transistor_render_rss_episode($attributes);
+            return podloom_render_rss_episode($attributes);
         }
     }
 
@@ -291,7 +291,7 @@ function transistor_render_block($attributes) {
             esc_attr($theme_path)
         );
 
-        return '<div class="wp-block-transistor-episode-player">' . $iframe . '</div>';
+        return '<div class="wp-block-podloom-episode-player">' . $iframe . '</div>';
     }
 
     // Handle "playlist" mode (Transistor only)
@@ -321,7 +321,7 @@ function transistor_render_block($attributes) {
             esc_attr($theme_path)
         );
 
-        return '<div class="wp-block-transistor-episode-player">' . $iframe . '</div>';
+        return '<div class="wp-block-podloom-episode-player">' . $iframe . '</div>';
     }
 
     // Handle specific episode mode (Transistor)
@@ -345,15 +345,15 @@ function transistor_render_block($attributes) {
 
     $safe_embed = wp_kses($attributes['embedHtml'], $allowed_html);
 
-    return '<div class="wp-block-transistor-episode-player">' . $safe_embed . '</div>';
+    return '<div class="wp-block-podloom-episode-player">' . $safe_embed . '</div>';
 }
 
 /**
  * Get typography styles for RSS elements (with caching)
  */
-function transistor_get_rss_typography_styles() {
+function podloom_get_rss_typography_styles() {
     // Try to get from cache first
-    $cached_styles = get_transient('transistor_rss_typography_cache');
+    $cached_styles = get_transient('podloom_rss_typography_cache');
     if ($cached_styles !== false) {
         return $cached_styles;
     }
@@ -391,16 +391,16 @@ function transistor_get_rss_typography_styles() {
 
     foreach ($elements as $element) {
         $styles[$element] = [
-            'font-family' => get_option("transistor_rss_{$element}_font_family", 'inherit'),
-            'font-size' => get_option("transistor_rss_{$element}_font_size", $defaults[$element]['font_size']),
-            'line-height' => get_option("transistor_rss_{$element}_line_height", $defaults[$element]['line_height']),
-            'color' => get_option("transistor_rss_{$element}_color", $defaults[$element]['color']),
-            'font-weight' => get_option("transistor_rss_{$element}_font_weight", $defaults[$element]['font_weight'])
+            'font-family' => get_option("podloom_rss_{$element}_font_family", 'inherit'),
+            'font-size' => get_option("podloom_rss_{$element}_font_size", $defaults[$element]['font_size']),
+            'line-height' => get_option("podloom_rss_{$element}_line_height", $defaults[$element]['line_height']),
+            'color' => get_option("podloom_rss_{$element}_color", $defaults[$element]['color']),
+            'font-weight' => get_option("podloom_rss_{$element}_font_weight", $defaults[$element]['font_weight'])
         ];
     }
 
     // Cache the styles for 1 hour
-    set_transient('transistor_rss_typography_cache', $styles, HOUR_IN_SECONDS);
+    set_transient('podloom_rss_typography_cache', $styles, HOUR_IN_SECONDS);
 
     return $styles;
 }
@@ -408,8 +408,8 @@ function transistor_get_rss_typography_styles() {
 /**
  * Clear typography cache (called when settings are saved)
  */
-function transistor_clear_typography_cache() {
-    delete_transient('transistor_rss_typography_cache');
+function podloom_clear_typography_cache() {
+    delete_transient('podloom_rss_typography_cache');
 }
 
 /**
@@ -423,7 +423,7 @@ function transistor_clear_typography_cache() {
  * - Outputs only semantic HTML with classes
  * - No inline styles or typography settings applied
  * - Users can apply their own CSS using these classes:
- *   .wp-block-transistor-episode-player.rss-episode-player (container)
+ *   .wp-block-podloom-episode-player.rss-episode-player (container)
  *   .rss-episode-artwork (artwork wrapper)
  *   .rss-episode-content (content wrapper)
  *   .rss-episode-title (title heading)
@@ -434,7 +434,7 @@ function transistor_clear_typography_cache() {
  *   .rss-episode-audio.rss-audio-last (audio when last element)
  *   .rss-episode-description (description div)
  */
-function transistor_render_rss_episode($attributes) {
+function podloom_render_rss_episode($attributes) {
     // Check if we have RSS episode data
     if (empty($attributes['rssEpisodeData'])) {
         return '';
@@ -443,20 +443,20 @@ function transistor_render_rss_episode($attributes) {
     $episode = $attributes['rssEpisodeData'];
 
     // Get display settings
-    $show_artwork = get_option('transistor_rss_display_artwork', true);
-    $show_title = get_option('transistor_rss_display_title', true);
-    $show_date = get_option('transistor_rss_display_date', true);
-    $show_duration = get_option('transistor_rss_display_duration', true);
-    $show_description = get_option('transistor_rss_display_description', true);
+    $show_artwork = get_option('podloom_rss_display_artwork', true);
+    $show_title = get_option('podloom_rss_display_title', true);
+    $show_date = get_option('podloom_rss_display_date', true);
+    $show_duration = get_option('podloom_rss_display_duration', true);
+    $show_description = get_option('podloom_rss_display_description', true);
 
     // Get typography styles
-    $typo = transistor_get_rss_typography_styles();
+    $typo = podloom_get_rss_typography_styles();
 
     // Get background color
-    $bg_color = get_option('transistor_rss_background_color', '#f9f9f9');
+    $bg_color = get_option('podloom_rss_background_color', '#f9f9f9');
 
     // Start building the output
-    $output = '<div class="wp-block-transistor-episode-player rss-episode-player">';
+    $output = '<div class="wp-block-podloom-episode-player rss-episode-player">';
 
     // Add a wrapper for flexbox layout
     $output .= '<div class="rss-episode-wrapper">';
@@ -494,7 +494,7 @@ function transistor_render_rss_episode($attributes) {
         }
 
         if ($show_duration && !empty($episode['duration'])) {
-            $duration = transistor_format_duration($episode['duration']);
+            $duration = podloom_format_duration($episode['duration']);
             if ($duration) {
                 $output .= sprintf(
                     '<span class="rss-episode-duration">%s</span>',
@@ -551,16 +551,16 @@ function transistor_render_rss_episode($attributes) {
 
     $output .= '</div>'; // .rss-episode-content
     $output .= '</div>'; // .rss-episode-wrapper
-    $output .= '</div>'; // .wp-block-transistor-episode-player
+    $output .= '</div>'; // .wp-block-podloom-episode-player
 
-    // Styles are now enqueued via wp_add_inline_style() in transistor_enqueue_rss_styles()
+    // Styles are now enqueued via wp_add_inline_style() in podloom_enqueue_rss_styles()
     return $output;
 }
 
 /**
  * Format duration from seconds to readable format
  */
-function transistor_format_duration($seconds) {
+function podloom_format_duration($seconds) {
     if (empty($seconds) || !is_numeric($seconds)) {
         return '';
     }
@@ -580,232 +580,232 @@ function transistor_format_duration($seconds) {
 /**
  * Add admin menu
  */
-function transistor_add_admin_menu() {
+function podloom_add_admin_menu() {
     add_options_page(
         __('PodLoom Settings', 'podloom-podcast-player'),
         __('PodLoom Settings', 'podloom-podcast-player'),
         'manage_options',
-        'transistor-api-settings',
-        'transistor_render_settings_page'
+        'podloom-settings',
+        'podloom_render_settings_page'
     );
 }
-add_action('admin_menu', 'transistor_add_admin_menu');
+add_action('admin_menu', 'podloom_add_admin_menu');
 
 /**
  * Add settings link on plugin page
  */
-function transistor_add_plugin_action_links($links) {
-    $settings_link = '<a href="' . admin_url('options-general.php?page=transistor-api-settings') . '">' . __('Settings', 'podloom-podcast-player') . '</a>';
+function podloom_add_plugin_action_links($links) {
+    $settings_link = '<a href="' . admin_url('options-general.php?page=podloom-settings') . '">' . __('Settings', 'podloom-podcast-player') . '</a>';
     array_unshift($links, $settings_link);
     return $links;
 }
-add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'transistor_add_plugin_action_links');
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'podloom_add_plugin_action_links');
 
 /**
  * Register plugin settings
  */
-function transistor_register_settings() {
-    register_setting('transistor_settings', 'transistor_api_key', [
+function podloom_register_settings() {
+    register_setting('podloom_settings', 'podloom_api_key', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => ''
     ]);
 
-    register_setting('transistor_settings', 'transistor_default_show', [
+    register_setting('podloom_settings', 'podloom_default_show', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => ''
     ]);
 
-    register_setting('transistor_settings', 'transistor_enable_cache', [
+    register_setting('podloom_settings', 'podloom_enable_cache', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => true
     ]);
 
-    register_setting('transistor_settings', 'transistor_cache_duration', [
+    register_setting('podloom_settings', 'podloom_cache_duration', [
         'type' => 'integer',
         'sanitize_callback' => 'absint',
         'default' => 21600
     ]);
 
-    register_setting('transistor_settings', 'transistor_rss_enabled', [
+    register_setting('podloom_settings', 'podloom_rss_enabled', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => false
     ]);
 
-    register_setting('transistor_settings', 'transistor_rss_feeds', [
+    register_setting('podloom_settings', 'podloom_rss_feeds', [
         'type' => 'array',
-        'sanitize_callback' => 'transistor_sanitize_rss_feeds',
+        'sanitize_callback' => 'podloom_sanitize_rss_feeds',
         'default' => []
     ]);
 
-    register_setting('transistor_settings', 'transistor_rss_display_artwork', [
+    register_setting('podloom_settings', 'podloom_rss_display_artwork', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => true
     ]);
 
-    register_setting('transistor_settings', 'transistor_rss_display_title', [
+    register_setting('podloom_settings', 'podloom_rss_display_title', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => true
     ]);
 
-    register_setting('transistor_settings', 'transistor_rss_display_date', [
+    register_setting('podloom_settings', 'podloom_rss_display_date', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => true
     ]);
 
-    register_setting('transistor_settings', 'transistor_rss_display_duration', [
+    register_setting('podloom_settings', 'podloom_rss_display_duration', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => true
     ]);
 
-    register_setting('transistor_settings', 'transistor_rss_display_description', [
+    register_setting('podloom_settings', 'podloom_rss_display_description', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => true
     ]);
 
     // Typography settings for RSS title
-    register_setting('transistor_settings', 'transistor_rss_title_font_family', [
+    register_setting('podloom_settings', 'podloom_rss_title_font_family', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => 'inherit'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_title_font_size', [
+    register_setting('podloom_settings', 'podloom_rss_title_font_size', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '24px'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_title_line_height', [
+    register_setting('podloom_settings', 'podloom_rss_title_line_height', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '1.3'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_title_color', [
+    register_setting('podloom_settings', 'podloom_rss_title_color', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_hex_color',
         'default' => '#000000'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_title_font_weight', [
+    register_setting('podloom_settings', 'podloom_rss_title_font_weight', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '600'
     ]);
 
     // Typography settings for RSS date
-    register_setting('transistor_settings', 'transistor_rss_date_font_family', [
+    register_setting('podloom_settings', 'podloom_rss_date_font_family', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => 'inherit'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_date_font_size', [
+    register_setting('podloom_settings', 'podloom_rss_date_font_size', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '14px'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_date_line_height', [
+    register_setting('podloom_settings', 'podloom_rss_date_line_height', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '1.5'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_date_color', [
+    register_setting('podloom_settings', 'podloom_rss_date_color', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_hex_color',
         'default' => '#666666'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_date_font_weight', [
+    register_setting('podloom_settings', 'podloom_rss_date_font_weight', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => 'normal'
     ]);
 
     // Typography settings for RSS duration
-    register_setting('transistor_settings', 'transistor_rss_duration_font_family', [
+    register_setting('podloom_settings', 'podloom_rss_duration_font_family', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => 'inherit'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_duration_font_size', [
+    register_setting('podloom_settings', 'podloom_rss_duration_font_size', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '14px'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_duration_line_height', [
+    register_setting('podloom_settings', 'podloom_rss_duration_line_height', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '1.5'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_duration_color', [
+    register_setting('podloom_settings', 'podloom_rss_duration_color', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_hex_color',
         'default' => '#666666'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_duration_font_weight', [
+    register_setting('podloom_settings', 'podloom_rss_duration_font_weight', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => 'normal'
     ]);
 
     // Typography settings for RSS description
-    register_setting('transistor_settings', 'transistor_rss_description_font_family', [
+    register_setting('podloom_settings', 'podloom_rss_description_font_family', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => 'inherit'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_description_font_size', [
+    register_setting('podloom_settings', 'podloom_rss_description_font_size', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '16px'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_description_line_height', [
+    register_setting('podloom_settings', 'podloom_rss_description_line_height', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => '1.6'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_description_color', [
+    register_setting('podloom_settings', 'podloom_rss_description_color', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_hex_color',
         'default' => '#333333'
     ]);
-    register_setting('transistor_settings', 'transistor_rss_description_font_weight', [
+    register_setting('podloom_settings', 'podloom_rss_description_font_weight', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_text_field',
         'default' => 'normal'
     ]);
 
     // Background color for RSS block
-    register_setting('transistor_settings', 'transistor_rss_background_color', [
+    register_setting('podloom_settings', 'podloom_rss_background_color', [
         'type' => 'string',
         'sanitize_callback' => 'sanitize_hex_color',
         'default' => '#f9f9f9'
     ]);
 
     // Minimal styling mode
-    register_setting('transistor_settings', 'transistor_rss_minimal_styling', [
+    register_setting('podloom_settings', 'podloom_rss_minimal_styling', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => false
     ]);
 
     // Description character limit
-    register_setting('transistor_settings', 'transistor_rss_description_limit', [
+    register_setting('podloom_settings', 'podloom_rss_description_limit', [
         'type' => 'integer',
         'sanitize_callback' => 'absint',
         'default' => 0
     ]);
 }
-add_action('admin_init', 'transistor_register_settings');
+add_action('admin_init', 'podloom_register_settings');
 
 /**
  * Sanitize RSS feeds array
  */
-function transistor_sanitize_rss_feeds($feeds) {
+function podloom_sanitize_rss_feeds($feeds) {
     if (!is_array($feeds)) {
         return [];
     }

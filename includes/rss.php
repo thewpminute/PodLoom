@@ -11,10 +11,10 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Class Transistor_RSS
+ * Class Podloom_RSS
  * Handles RSS feed management, parsing, and caching
  */
-class Transistor_RSS {
+class Podloom_RSS {
 
     /**
      * Maximum number of episodes to cache per feed
@@ -55,7 +55,7 @@ class Transistor_RSS {
      * @return array Array of RSS feeds
      */
     public static function get_feeds() {
-        $feeds = get_option('transistor_rss_feeds', array());
+        $feeds = get_option('podloom_rss_feeds', array());
         return is_array($feeds) ? $feeds : array();
     }
 
@@ -88,7 +88,7 @@ class Transistor_RSS {
         }
 
         // Basic SSRF protection: Block localhost and common private IPs
-        $parsed_url = parse_url($url);
+        $parsed_url = wp_parse_url($url);
         if (!isset($parsed_url['host'])) {
             return array(
                 'success' => false,
@@ -137,12 +137,12 @@ class Transistor_RSS {
         );
 
         // Save feeds
-        update_option('transistor_rss_feeds', $feeds);
+        update_option('podloom_rss_feeds', $feeds);
 
         // Auto-enable RSS feeds if this is the first feed being added
-        $rss_enabled = get_option('transistor_rss_enabled', false);
+        $rss_enabled = get_option('podloom_rss_enabled', false);
         if (!$rss_enabled) {
-            update_option('transistor_rss_enabled', true);
+            update_option('podloom_rss_enabled', true);
         }
 
         // Always do initial refresh synchronously to ensure feed is validated before use
@@ -153,13 +153,13 @@ class Transistor_RSS {
         $feeds = self::get_feeds();
         if (isset($feeds[$feed_id])) {
             $feeds[$feed_id]['valid'] = !empty($refresh_result);
-            update_option('transistor_rss_feeds', $feeds);
+            update_option('podloom_rss_feeds', $feeds);
         }
 
         // For subsequent refreshes, use async if requested
         if ($async_refresh) {
             // Schedule periodic background refresh for this feed
-            wp_schedule_single_event(time() + 3600, 'transistor_refresh_rss_feed', array($feed_id));
+            wp_schedule_single_event(time() + 3600, 'podloom_refresh_rss_feed', array($feed_id));
         }
 
         return array(
@@ -187,7 +187,7 @@ class Transistor_RSS {
         }
 
         $feeds[$feed_id]['name'] = sanitize_text_field($name);
-        update_option('transistor_rss_feeds', $feeds);
+        update_option('podloom_rss_feeds', $feeds);
 
         return array(
             'success' => true,
@@ -213,11 +213,11 @@ class Transistor_RSS {
         }
 
         // Delete cached episodes
-        delete_transient('transistor_rss_episodes_' . $feed_id);
+        delete_transient('podloom_rss_episodes_' . $feed_id);
 
         // Remove feed
         unset($feeds[$feed_id]);
-        update_option('transistor_rss_feeds', $feeds);
+        update_option('podloom_rss_feeds', $feeds);
 
         return array(
             'success' => true,
@@ -307,7 +307,7 @@ class Transistor_RSS {
             $feeds = self::get_feeds();
             $feeds[$feed_id]['valid'] = false;
             $feeds[$feed_id]['last_checked'] = current_time('timestamp');
-            update_option('transistor_rss_feeds', $feeds);
+            update_option('podloom_rss_feeds', $feeds);
 
             return array(
                 'success' => false,
@@ -338,7 +338,7 @@ class Transistor_RSS {
             $feeds = self::get_feeds();
             $feeds[$feed_id]['valid'] = false;
             $feeds[$feed_id]['last_checked'] = current_time('timestamp');
-            update_option('transistor_rss_feeds', $feeds);
+            update_option('podloom_rss_feeds', $feeds);
 
             return array(
                 'success' => false,
@@ -371,15 +371,15 @@ class Transistor_RSS {
         }
 
         // Cache episodes
-        $cache_duration = get_option('transistor_cache_duration', 21600);
-        set_transient('transistor_rss_episodes_' . $feed_id, $episodes, $cache_duration);
+        $cache_duration = get_option('podloom_cache_duration', 21600);
+        set_transient('podloom_rss_episodes_' . $feed_id, $episodes, $cache_duration);
 
         // Update feed metadata
         $feeds = self::get_feeds();
         $feeds[$feed_id]['valid'] = true;
         $feeds[$feed_id]['last_checked'] = current_time('timestamp');
         $feeds[$feed_id]['episode_count'] = count($episodes);
-        update_option('transistor_rss_feeds', $feeds);
+        update_option('podloom_rss_feeds', $feeds);
 
         return array(
             'success' => true,
@@ -398,10 +398,10 @@ class Transistor_RSS {
      */
     public static function get_episodes($feed_id, $page = 1, $per_page = 20) {
         // Check if caching is enabled
-        $enable_cache = get_option('transistor_enable_cache', true);
+        $enable_cache = get_option('podloom_enable_cache', true);
 
         if ($enable_cache) {
-            $episodes = get_transient('transistor_rss_episodes_' . $feed_id);
+            $episodes = get_transient('podloom_rss_episodes_' . $feed_id);
         } else {
             $episodes = false;
         }
@@ -417,11 +417,11 @@ class Transistor_RSS {
                     'pages' => 0
                 );
             }
-            $episodes = get_transient('transistor_rss_episodes_' . $feed_id);
+            $episodes = get_transient('podloom_rss_episodes_' . $feed_id);
         }
 
         // Apply character limit to descriptions if set
-        $char_limit = get_option('transistor_rss_description_limit', 0);
+        $char_limit = get_option('podloom_rss_description_limit', 0);
         if ($char_limit > 0) {
             foreach ($episodes as &$episode) {
                 if (!empty($episode['description'])) {
@@ -516,14 +516,15 @@ class Transistor_RSS {
         global $wpdb;
 
         // Use proper LIKE pattern preparation to prevent SQL injection
-        $pattern1 = $wpdb->esc_like('_transient_transistor_rss_episodes_') . '%';
-        $pattern2 = $wpdb->esc_like('_transient_timeout_transistor_rss_episodes_') . '%';
+        $pattern1 = $wpdb->esc_like('_transient_podloom_rss_episodes_') . '%';
+        $pattern2 = $wpdb->esc_like('_transient_timeout_podloom_rss_episodes_') . '%';
 
         // Delete in batches of 100 to prevent long table locks
         $batch_size = 100;
         $deleted_count = 0;
 
         do {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deleting cache entries, caching not applicable for DELETE operations
             $deleted = $wpdb->query(
                 $wpdb->prepare(
                     "DELETE FROM {$wpdb->options}
@@ -552,32 +553,32 @@ class Transistor_RSS {
 /**
  * WordPress cron hook to refresh RSS feed in background
  */
-function transistor_cron_refresh_rss_feed($feed_id) {
-    Transistor_RSS::refresh_feed($feed_id);
+function podloom_cron_refresh_rss_feed($feed_id) {
+    Podloom_RSS::refresh_feed($feed_id);
 }
-add_action('transistor_refresh_rss_feed', 'transistor_cron_refresh_rss_feed');
+add_action('podloom_refresh_rss_feed', 'podloom_cron_refresh_rss_feed');
 
 /**
  * AJAX Handler: Get RSS Feeds
  */
-function transistor_ajax_get_rss_feeds() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_get_rss_feeds() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('edit_posts')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
         return;
     }
 
-    $feeds = Transistor_RSS::get_feeds();
+    $feeds = Podloom_RSS::get_feeds();
     wp_send_json_success($feeds);
 }
-add_action('wp_ajax_transistor_get_rss_feeds', 'transistor_ajax_get_rss_feeds');
+add_action('wp_ajax_podloom_get_rss_feeds', 'podloom_ajax_get_rss_feeds');
 
 /**
  * AJAX Handler: Add RSS Feed
  */
-function transistor_ajax_add_rss_feed() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_add_rss_feed() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
@@ -585,20 +586,20 @@ function transistor_ajax_add_rss_feed() {
     }
 
     // Rate limiting: 10 feed additions per minute per user
-    if (!Transistor_RSS::check_rate_limit('add_feed', 10, 60)) {
+    if (!Podloom_RSS::check_rate_limit('add_feed', 10, 60)) {
         wp_send_json_error(array('message' => 'Rate limit exceeded. Please wait before adding more feeds.'), 429);
         return;
     }
 
-    $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
-    $url = isset($_POST['url']) ? esc_url_raw($_POST['url']) : '';
+    $name = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
+    $url = isset($_POST['url']) ? esc_url_raw(wp_unslash($_POST['url'])) : '';
 
     if (empty($name) || empty($url)) {
         wp_send_json_error(array('message' => 'Name and URL are required'));
         return;
     }
 
-    $result = Transistor_RSS::add_feed($name, $url);
+    $result = Podloom_RSS::add_feed($name, $url);
 
     if ($result['success']) {
         wp_send_json_success($result);
@@ -606,28 +607,28 @@ function transistor_ajax_add_rss_feed() {
         wp_send_json_error($result);
     }
 }
-add_action('wp_ajax_transistor_add_rss_feed', 'transistor_ajax_add_rss_feed');
+add_action('wp_ajax_podloom_add_rss_feed', 'podloom_ajax_add_rss_feed');
 
 /**
  * AJAX Handler: Update RSS Feed Name
  */
-function transistor_ajax_update_rss_feed_name() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_update_rss_feed_name() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
         return;
     }
 
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field($_POST['feed_id']) : '';
-    $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
+    $name = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
 
     if (empty($feed_id) || empty($name)) {
         wp_send_json_error(array('message' => 'Feed ID and name are required'));
         return;
     }
 
-    $result = Transistor_RSS::update_feed_name($feed_id, $name);
+    $result = Podloom_RSS::update_feed_name($feed_id, $name);
 
     if ($result['success']) {
         wp_send_json_success($result);
@@ -635,27 +636,27 @@ function transistor_ajax_update_rss_feed_name() {
         wp_send_json_error($result);
     }
 }
-add_action('wp_ajax_transistor_update_rss_feed_name', 'transistor_ajax_update_rss_feed_name');
+add_action('wp_ajax_podloom_update_rss_feed_name', 'podloom_ajax_update_rss_feed_name');
 
 /**
  * AJAX Handler: Delete RSS Feed
  */
-function transistor_ajax_delete_rss_feed() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_delete_rss_feed() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
         return;
     }
 
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field($_POST['feed_id']) : '';
+    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
 
     if (empty($feed_id)) {
         wp_send_json_error(array('message' => 'Feed ID is required'));
         return;
     }
 
-    $result = Transistor_RSS::delete_feed($feed_id);
+    $result = Podloom_RSS::delete_feed($feed_id);
 
     if ($result['success']) {
         wp_send_json_success($result);
@@ -663,13 +664,13 @@ function transistor_ajax_delete_rss_feed() {
         wp_send_json_error($result);
     }
 }
-add_action('wp_ajax_transistor_delete_rss_feed', 'transistor_ajax_delete_rss_feed');
+add_action('wp_ajax_podloom_delete_rss_feed', 'podloom_ajax_delete_rss_feed');
 
 /**
  * AJAX Handler: Refresh RSS Feed
  */
-function transistor_ajax_refresh_rss_feed() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_refresh_rss_feed() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
@@ -677,22 +678,22 @@ function transistor_ajax_refresh_rss_feed() {
     }
 
     // Rate limiting: 30 refreshes per minute per user
-    if (!Transistor_RSS::check_rate_limit('refresh_feed', 30, 60)) {
+    if (!Podloom_RSS::check_rate_limit('refresh_feed', 30, 60)) {
         wp_send_json_error(array('message' => 'Rate limit exceeded. Please wait before refreshing feeds.'), 429);
         return;
     }
 
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field($_POST['feed_id']) : '';
+    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
 
     if (empty($feed_id)) {
         wp_send_json_error(array('message' => 'Feed ID is required'));
         return;
     }
 
-    $result = Transistor_RSS::refresh_feed($feed_id);
+    $result = Podloom_RSS::refresh_feed($feed_id);
 
     // Get updated feed data
-    $feed = Transistor_RSS::get_feed($feed_id);
+    $feed = Podloom_RSS::get_feed($feed_id);
 
     if ($result['success']) {
         wp_send_json_success(array(
@@ -706,53 +707,53 @@ function transistor_ajax_refresh_rss_feed() {
         ));
     }
 }
-add_action('wp_ajax_transistor_refresh_rss_feed', 'transistor_ajax_refresh_rss_feed');
+add_action('wp_ajax_podloom_refresh_rss_feed', 'podloom_ajax_refresh_rss_feed');
 
 /**
  * AJAX Handler: Get RSS Episodes
  */
-function transistor_ajax_get_rss_episodes() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_get_rss_episodes() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('edit_posts')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
         return;
     }
 
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field($_POST['feed_id']) : '';
-    $page = isset($_POST['page']) ? absint($_POST['page']) : 1;
-    $per_page = isset($_POST['per_page']) ? absint($_POST['per_page']) : 20;
+    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
+    $page = isset($_POST['page']) ? absint(wp_unslash($_POST['page'])) : 1;
+    $per_page = isset($_POST['per_page']) ? absint(wp_unslash($_POST['per_page'])) : 20;
 
     if (empty($feed_id)) {
         wp_send_json_error(array('message' => 'Feed ID is required'));
         return;
     }
 
-    $result = Transistor_RSS::get_episodes($feed_id, $page, $per_page);
+    $result = Podloom_RSS::get_episodes($feed_id, $page, $per_page);
 
     wp_send_json_success($result);
 }
-add_action('wp_ajax_transistor_get_rss_episodes', 'transistor_ajax_get_rss_episodes');
+add_action('wp_ajax_podloom_get_rss_episodes', 'podloom_ajax_get_rss_episodes');
 
 /**
  * AJAX Handler: Get Raw RSS Feed
  */
-function transistor_ajax_get_raw_rss_feed() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_get_raw_rss_feed() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
         return;
     }
 
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field($_POST['feed_id']) : '';
+    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
 
     if (empty($feed_id)) {
         wp_send_json_error(array('message' => 'Feed ID is required'));
         return;
     }
 
-    $result = Transistor_RSS::get_raw_feed($feed_id);
+    $result = Podloom_RSS::get_raw_feed($feed_id);
 
     if ($result['success']) {
         wp_send_json_success($result);
@@ -760,21 +761,21 @@ function transistor_ajax_get_raw_rss_feed() {
         wp_send_json_error($result);
     }
 }
-add_action('wp_ajax_transistor_get_raw_rss_feed', 'transistor_ajax_get_raw_rss_feed');
+add_action('wp_ajax_podloom_get_raw_rss_feed', 'podloom_ajax_get_raw_rss_feed');
 
 /**
  * AJAX Handler: Save All RSS Settings (Bulk)
  */
-function transistor_ajax_save_all_rss_settings() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_save_all_rss_settings() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
         return;
     }
 
-    $settings_json = isset($_POST['settings']) ? $_POST['settings'] : '';
-    $settings = json_decode(stripslashes($settings_json), true);
+    $settings_json = isset($_POST['settings']) ? sanitize_text_field(wp_unslash($_POST['settings'])) : '';
+    $settings = json_decode($settings_json, true);
 
     if (!is_array($settings)) {
         wp_send_json_error(array('message' => 'Invalid settings data'));
@@ -783,19 +784,19 @@ function transistor_ajax_save_all_rss_settings() {
 
     // List of boolean options
     $boolean_options = array(
-        'transistor_rss_enabled',
-        'transistor_rss_display_artwork',
-        'transistor_rss_display_title',
-        'transistor_rss_display_date',
-        'transistor_rss_display_duration',
-        'transistor_rss_display_description',
-        'transistor_rss_minimal_styling'
+        'podloom_rss_enabled',
+        'podloom_rss_display_artwork',
+        'podloom_rss_display_title',
+        'podloom_rss_display_date',
+        'podloom_rss_display_duration',
+        'podloom_rss_display_description',
+        'podloom_rss_minimal_styling'
     );
 
     $saved_count = 0;
     foreach ($settings as $option_name => $option_value) {
-        // Validate option name - must start with transistor_rss_
-        if (strpos($option_name, 'transistor_rss_') !== 0) {
+        // Validate option name - must start with podloom_rss_
+        if (strpos($option_name, 'podloom_rss_') !== 0) {
             continue;
         }
 
@@ -817,20 +818,20 @@ function transistor_ajax_save_all_rss_settings() {
     }
 
     // Clear typography cache when settings are saved
-    transistor_clear_typography_cache();
+    podloom_clear_typography_cache();
 
     wp_send_json_success(array(
         'message' => 'All settings saved successfully',
         'count' => $saved_count
     ));
 }
-add_action('wp_ajax_transistor_save_all_rss_settings', 'transistor_ajax_save_all_rss_settings');
+add_action('wp_ajax_podloom_save_all_rss_settings', 'podloom_ajax_save_all_rss_settings');
 
 /**
  * AJAX Handler: Get RSS Typography Settings
  */
-function transistor_ajax_get_rss_typography() {
-    check_ajax_referer('transistor_nonce', 'nonce');
+function podloom_ajax_get_rss_typography() {
+    check_ajax_referer('podloom_nonce', 'nonce');
 
     if (!current_user_can('edit_posts')) {
         wp_send_json_error(array('message' => 'Insufficient permissions'));
@@ -838,23 +839,23 @@ function transistor_ajax_get_rss_typography() {
     }
 
     // Get typography styles
-    $typo = transistor_get_rss_typography_styles();
+    $typo = podloom_get_rss_typography_styles();
 
     // Add background color
-    $typo['background_color'] = get_option('transistor_rss_background_color', '#f9f9f9');
+    $typo['background_color'] = get_option('podloom_rss_background_color', '#f9f9f9');
 
     // Add minimal styling mode
-    $typo['minimal_styling'] = get_option('transistor_rss_minimal_styling', false);
+    $typo['minimal_styling'] = get_option('podloom_rss_minimal_styling', false);
 
     // Add display settings
     $typo['display'] = array(
-        'artwork' => get_option('transistor_rss_display_artwork', true),
-        'title' => get_option('transistor_rss_display_title', true),
-        'date' => get_option('transistor_rss_display_date', true),
-        'duration' => get_option('transistor_rss_display_duration', true),
-        'description' => get_option('transistor_rss_display_description', true)
+        'artwork' => get_option('podloom_rss_display_artwork', true),
+        'title' => get_option('podloom_rss_display_title', true),
+        'date' => get_option('podloom_rss_display_date', true),
+        'duration' => get_option('podloom_rss_display_duration', true),
+        'description' => get_option('podloom_rss_display_description', true)
     );
 
     wp_send_json_success($typo);
 }
-add_action('wp_ajax_transistor_get_rss_typography', 'transistor_ajax_get_rss_typography');
+add_action('wp_ajax_podloom_get_rss_typography', 'podloom_ajax_get_rss_typography');

@@ -10,7 +10,7 @@
         // API Key Visibility Toggle
         const toggleButton = document.getElementById('toggle_api_key_visibility');
         if (toggleButton) {
-            const apiKeyInput = document.getElementById('transistor_api_key');
+            const apiKeyInput = document.getElementById('podloom_api_key');
             const icon = toggleButton.querySelector('.dashicons');
 
             toggleButton.addEventListener('click', function() {

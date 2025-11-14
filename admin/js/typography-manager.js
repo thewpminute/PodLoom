@@ -84,7 +84,7 @@
             });
 
             // Character limit input
-            const charLimitInput = document.getElementById('transistor_rss_description_limit');
+            const charLimitInput = document.getElementById('podloom_rss_description_limit');
             if (charLimitInput) {
                 charLimitInput.addEventListener('input', () => this.updatePreview());
                 charLimitInput.addEventListener('change', () => this.updatePreview());
@@ -137,7 +137,7 @@
             const elements = ['title', 'date', 'duration', 'description'];
 
             elements.forEach(element => {
-                const checkbox = document.getElementById(`transistor_rss_display_${element}`);
+                const checkbox = document.getElementById(`podloom_rss_display_${element}`);
                 if (checkbox) {
                     checkbox.addEventListener('change', () => {
                         this.updateSectionVisibility();
@@ -147,7 +147,7 @@
             });
 
             // Handle artwork checkbox (no typography section, but affects preview)
-            const artworkCheckbox = document.getElementById('transistor_rss_display_artwork');
+            const artworkCheckbox = document.getElementById('podloom_rss_display_artwork');
             if (artworkCheckbox) {
                 artworkCheckbox.addEventListener('change', () => {
                     this.updatePreview();
@@ -155,7 +155,7 @@
             }
 
             // Handle minimal styling toggle
-            const minimalStylingCheckbox = document.getElementById('transistor_rss_minimal_styling');
+            const minimalStylingCheckbox = document.getElementById('podloom_rss_minimal_styling');
             if (minimalStylingCheckbox) {
                 minimalStylingCheckbox.addEventListener('change', () => {
                     this.toggleTypographySettings();
@@ -166,7 +166,7 @@
         },
 
         toggleTypographySettings: function() {
-            const minimalStylingCheckbox = document.getElementById('transistor_rss_minimal_styling');
+            const minimalStylingCheckbox = document.getElementById('podloom_rss_minimal_styling');
             const typographyContainer = document.querySelector('.typography-settings-container');
 
             if (minimalStylingCheckbox && typographyContainer) {
@@ -201,7 +201,7 @@
             const elements = ['title', 'date', 'duration', 'description'];
 
             elements.forEach(element => {
-                const checkbox = document.getElementById(`transistor_rss_display_${element}`);
+                const checkbox = document.getElementById(`podloom_rss_display_${element}`);
                 const section = document.getElementById(`${element}_typography_section`);
 
                 if (checkbox && section) {
@@ -221,15 +221,15 @@
             }
 
             // Show/hide artwork based on checkbox
-            const artworkCheckbox = document.getElementById('transistor_rss_display_artwork');
+            const artworkCheckbox = document.getElementById('podloom_rss_display_artwork');
             const previewArtwork = document.getElementById('preview-artwork');
             if (artworkCheckbox && previewArtwork) {
                 previewArtwork.style.display = artworkCheckbox.checked ? 'block' : 'none';
             }
 
             // Handle date and duration in meta container
-            const dateCheckbox = document.getElementById('transistor_rss_display_date');
-            const durationCheckbox = document.getElementById('transistor_rss_display_duration');
+            const dateCheckbox = document.getElementById('podloom_rss_display_date');
+            const durationCheckbox = document.getElementById('podloom_rss_display_duration');
             const previewMeta = document.getElementById('preview-meta');
 
             if (dateCheckbox && durationCheckbox && previewMeta) {
@@ -242,7 +242,7 @@
             }
 
             // Handle audio player margin based on description visibility
-            const descriptionCheckbox = document.getElementById('transistor_rss_display_description');
+            const descriptionCheckbox = document.getElementById('podloom_rss_display_description');
             const audioPlayer = document.querySelector('.rss-episode-audio');
             if (descriptionCheckbox && audioPlayer) {
                 if (descriptionCheckbox.checked) {
@@ -257,14 +257,14 @@
                 if (!previewEl) return;
 
                 // Check if element should be displayed
-                const checkbox = document.getElementById(`transistor_rss_display_${element}`);
+                const checkbox = document.getElementById(`podloom_rss_display_${element}`);
                 if (checkbox) {
                     previewEl.style.display = checkbox.checked ? '' : 'none';
                 }
 
                 // Handle description character limit
                 if (element === 'description') {
-                    const charLimitInput = document.getElementById('transistor_rss_description_limit');
+                    const charLimitInput = document.getElementById('podloom_rss_description_limit');
                     const charLimit = charLimitInput ? parseInt(charLimitInput.value) : 0;
                     const originalText = 'This is a sample episode description. It gives listeners an overview of what the episode is about and what they can expect to learn.';
 

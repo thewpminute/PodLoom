@@ -230,8 +230,8 @@ registerBlockType('podloom/episode-player', {
 
         // Set default show if available and no show is selected
         useEffect(() => {
-            if (transistorShows.length > 0 && !showId && !rssFeedId && transistorData.defaultShow) {
-                const defaultShow = transistorShows.find(show => show.id === transistorData.defaultShow);
+            if (transistorShows.length > 0 && !showId && !rssFeedId && podloomData.defaultShow) {
+                const defaultShow = transistorShows.find(show => show.id === podloomData.defaultShow);
                 if (defaultShow) {
                     setAttributes({
                         sourceType: 'transistor',
@@ -287,10 +287,10 @@ registerBlockType('podloom/episode-player', {
 
             try {
                 const formData = new FormData();
-                formData.append('action', 'transistor_get_block_init_data');
-                formData.append('nonce', transistorData.nonce);
+                formData.append('action', 'podloom_get_block_init_data');
+                formData.append('nonce', podloomData.nonce);
 
-                const response = await fetch(transistorData.ajaxUrl, {
+                const response = await fetch(podloomData.ajaxUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -298,8 +298,8 @@ registerBlockType('podloom/episode-player', {
 
                 if (result.success) {
                     // Set Transistor shows
-                    if (result.data.transistor_shows && result.data.transistor_shows.data) {
-                        setTransistorShows(result.data.transistor_shows.data);
+                    if (result.data.podloom_shows && result.data.podloom_shows.data) {
+                        setTransistorShows(result.data.podloom_shows.data);
                     }
 
                     // Set RSS feeds
@@ -338,14 +338,14 @@ registerBlockType('podloom/episode-player', {
                 const perPage = '20';
 
                 const params = new URLSearchParams({
-                    action: 'transistor_get_episodes',
-                    nonce: transistorData.nonce,
+                    action: 'podloom_get_episodes',
+                    nonce: podloomData.nonce,
                     show_id: selectedShowId,
                     page: page.toString(),
                     per_page: perPage
                 });
 
-                const response = await fetch(`${transistorData.ajaxUrl}?${params.toString()}`);
+                const response = await fetch(`${podloomData.ajaxUrl}?${params.toString()}`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -382,13 +382,13 @@ registerBlockType('podloom/episode-player', {
                 const perPage = '20';
 
                 const formData = new FormData();
-                formData.append('action', 'transistor_get_rss_episodes');
-                formData.append('nonce', transistorData.nonce);
+                formData.append('action', 'podloom_get_rss_episodes');
+                formData.append('nonce', podloomData.nonce);
                 formData.append('feed_id', feedId);
                 formData.append('page', page.toString());
                 formData.append('per_page', perPage);
 
-                const response = await fetch(transistorData.ajaxUrl, {
+                const response = await fetch(podloomData.ajaxUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -448,10 +448,10 @@ registerBlockType('podloom/episode-player', {
 
             try {
                 const formData = new FormData();
-                formData.append('action', 'transistor_get_rss_typography');
-                formData.append('nonce', transistorData.nonce);
+                formData.append('action', 'podloom_get_rss_typography');
+                formData.append('nonce', podloomData.nonce);
 
-                const response = await fetch(transistorData.ajaxUrl, {
+                const response = await fetch(podloomData.ajaxUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -471,13 +471,13 @@ registerBlockType('podloom/episode-player', {
         const loadLatestRssEpisode = async (feedId) => {
             try {
                 const formData = new FormData();
-                formData.append('action', 'transistor_get_rss_episodes');
-                formData.append('nonce', transistorData.nonce);
+                formData.append('action', 'podloom_get_rss_episodes');
+                formData.append('nonce', podloomData.nonce);
                 formData.append('feed_id', feedId);
                 formData.append('page', '1');
                 formData.append('per_page', '1');
 
-                const response = await fetch(transistorData.ajaxUrl, {
+                const response = await fetch(podloomData.ajaxUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -695,7 +695,7 @@ registerBlockType('podloom/episode-player', {
             }, wrapperChildren);
 
             return wp.element.createElement('div', {
-                className: 'wp-block-transistor-episode-player rss-episode-player',
+                className: 'wp-block-podloom-episode-player rss-episode-player',
                 style: styles.container
             }, [wrapper]);
         };
@@ -859,7 +859,7 @@ registerBlockType('podloom/episode-player', {
             if (transistorShows.length > 0) {
                 options.push({
                     label: __('━━ Transistor.fm ━━', 'podloom-podcast-player'),
-                    value: '__transistor_header__',
+                    value: '__podloom_header__',
                     disabled: true
                 });
                 transistorShows.forEach(show => {
@@ -903,7 +903,7 @@ registerBlockType('podloom/episode-player', {
             );
         }
 
-        if (!transistorData.hasApiKey && transistorShows.length === 0 && rssFeeds.length === 0) {
+        if (!podloomData.hasApiKey && transistorShows.length === 0 && rssFeeds.length === 0) {
             return wp.element.createElement(
                 'div',
                 blockProps,
@@ -915,7 +915,7 @@ registerBlockType('podloom/episode-player', {
                         Button,
                         {
                             variant: 'primary',
-                            href: `${transistorData.ajaxUrl.replace('/wp-admin/admin-ajax.php', '')}/wp-admin/admin.php?page=transistor-api-settings`
+                            href: `${podloomData.ajaxUrl.replace('/wp-admin/admin-ajax.php', '')}/wp-admin/admin.php?page=podloom-settings`
                         },
                         __('Go to Settings', 'podloom-podcast-player')
                     )

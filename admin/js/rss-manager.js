@@ -14,7 +14,7 @@
 
         bindEvents: function() {
             // Toggle RSS container
-            const rssEnabledCheckbox = document.getElementById('transistor_rss_enabled');
+            const rssEnabledCheckbox = document.getElementById('podloom_rss_enabled');
             if (rssEnabledCheckbox) {
                 rssEnabledCheckbox.addEventListener('change', (e) => {
                     const container = document.getElementById('rss-feeds-container');
@@ -121,7 +121,7 @@
             saveButton.disabled = true;
 
             $.post(podloomData.ajaxUrl, {
-                action: 'transistor_add_rss_feed',
+                action: 'podloom_add_rss_feed',
                 nonce: podloomData.nonce,
                 name: name,
                 url: url
@@ -145,7 +145,7 @@
             saveButton.disabled = true;
 
             $.post(podloomData.ajaxUrl, {
-                action: 'transistor_update_rss_feed_name',
+                action: 'podloom_update_rss_feed_name',
                 nonce: podloomData.nonce,
                 feed_id: feedId,
                 name: name
@@ -170,7 +170,7 @@
             button.disabled = true;
 
             $.post(podloomData.ajaxUrl, {
-                action: 'transistor_refresh_rss_feed',
+                action: 'podloom_refresh_rss_feed',
                 nonce: podloomData.nonce,
                 feed_id: feedId
             }, () => {
@@ -184,7 +184,7 @@
             }
 
             $.post(podloomData.ajaxUrl, {
-                action: 'transistor_delete_rss_feed',
+                action: 'podloom_delete_rss_feed',
                 nonce: podloomData.nonce,
                 feed_id: feedId
             }, () => {
@@ -194,7 +194,7 @@
 
         viewFeedXML: function(feedId) {
             $.post(podloomData.ajaxUrl, {
-                action: 'transistor_get_raw_rss_feed',
+                action: 'podloom_get_raw_rss_feed',
                 nonce: podloomData.nonce,
                 feed_id: feedId
             }, (response) => {
@@ -249,14 +249,14 @@
             button.disabled = true;
 
             const data = {
-                transistor_rss_enabled: document.getElementById('transistor_rss_enabled').checked ? '1' : '0',
-                transistor_rss_display_artwork: document.getElementById('transistor_rss_display_artwork').checked ? '1' : '0',
-                transistor_rss_display_title: document.getElementById('transistor_rss_display_title').checked ? '1' : '0',
-                transistor_rss_display_date: document.getElementById('transistor_rss_display_date').checked ? '1' : '0',
-                transistor_rss_display_duration: document.getElementById('transistor_rss_display_duration').checked ? '1' : '0',
-                transistor_rss_display_description: document.getElementById('transistor_rss_display_description').checked ? '1' : '0',
-                transistor_rss_minimal_styling: document.getElementById('transistor_rss_minimal_styling').checked ? '1' : '0',
-                transistor_rss_description_limit: document.getElementById('transistor_rss_description_limit')?.value || '0'
+                podloom_rss_enabled: document.getElementById('podloom_rss_enabled').checked ? '1' : '0',
+                podloom_rss_display_artwork: document.getElementById('podloom_rss_display_artwork').checked ? '1' : '0',
+                podloom_rss_display_title: document.getElementById('podloom_rss_display_title').checked ? '1' : '0',
+                podloom_rss_display_date: document.getElementById('podloom_rss_display_date').checked ? '1' : '0',
+                podloom_rss_display_duration: document.getElementById('podloom_rss_display_duration').checked ? '1' : '0',
+                podloom_rss_display_description: document.getElementById('podloom_rss_display_description').checked ? '1' : '0',
+                podloom_rss_minimal_styling: document.getElementById('podloom_rss_minimal_styling').checked ? '1' : '0',
+                podloom_rss_description_limit: document.getElementById('podloom_rss_description_limit')?.value || '0'
             };
 
             // Add typography settings
@@ -266,44 +266,44 @@
                 // Font family
                 const fontFamily = document.getElementById(element + '_font_family');
                 if (fontFamily) {
-                    data['transistor_rss_' + element + '_font_family'] = fontFamily.value;
+                    data['podloom_rss_' + element + '_font_family'] = fontFamily.value;
                 }
 
                 // Font size (combine value and unit)
                 const fontSizeValue = document.getElementById(element + '_font_size_value');
                 const fontSizeUnit = document.getElementById(element + '_font_size_unit');
                 if (fontSizeValue && fontSizeUnit) {
-                    data['transistor_rss_' + element + '_font_size'] = fontSizeValue.value + fontSizeUnit.value;
+                    data['podloom_rss_' + element + '_font_size'] = fontSizeValue.value + fontSizeUnit.value;
                 }
 
                 // Line height
                 const lineHeight = document.getElementById(element + '_line_height_value');
                 if (lineHeight) {
-                    data['transistor_rss_' + element + '_line_height'] = lineHeight.value;
+                    data['podloom_rss_' + element + '_line_height'] = lineHeight.value;
                 }
 
                 // Color
                 const color = document.getElementById(element + '_color');
                 if (color) {
-                    data['transistor_rss_' + element + '_color'] = color.value;
+                    data['podloom_rss_' + element + '_color'] = color.value;
                 }
 
                 // Font weight
                 const fontWeight = document.getElementById(element + '_font_weight');
                 if (fontWeight) {
-                    data['transistor_rss_' + element + '_font_weight'] = fontWeight.value;
+                    data['podloom_rss_' + element + '_font_weight'] = fontWeight.value;
                 }
             });
 
             // Add background color
             const bgColor = document.getElementById('rss_background_color');
             if (bgColor) {
-                data['transistor_rss_background_color'] = bgColor.value;
+                data['podloom_rss_background_color'] = bgColor.value;
             }
 
             // Save all settings in a single request
             $.post(podloomData.ajaxUrl, {
-                action: 'transistor_save_all_rss_settings',
+                action: 'podloom_save_all_rss_settings',
                 nonce: podloomData.nonce,
                 settings: JSON.stringify(data)
             }).done((response) => {
