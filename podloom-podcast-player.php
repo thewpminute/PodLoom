@@ -1,16 +1,20 @@
 <?php
 /**
- * Plugin Name: PodLoom Podcast Player for Transistor.fm
+ * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
- * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks.
- * Version: 1.1.0
+ * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks. Supports RSS feeds from any podcast platform.
+ * Version: 2.0.0
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: podloom
+ * Text Domain: podloom-podcast-player
+ * Domain Path: /languages
  * Requires at least: 5.8
  * Requires PHP: 7.4
+ * WC requires at least: 3.2
+ * WC tested up to:      10.2
+ * Tested up to:         6.8
  */
 
 // Exit if accessed directly
@@ -19,7 +23,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('TRANSISTOR_PLUGIN_VERSION', '1.1.0');
+define('TRANSISTOR_PLUGIN_VERSION', '2.0.0');
 define('TRANSISTOR_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TRANSISTOR_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -37,7 +41,8 @@ function transistor_init() {
         'transistor-block-editor',
         TRANSISTOR_PLUGIN_URL . 'blocks/episode-block/index.js',
         ['wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n'],
-        filemtime(TRANSISTOR_PLUGIN_DIR . 'blocks/episode-block/index.js')
+        filemtime(TRANSISTOR_PLUGIN_DIR . 'blocks/episode-block/index.js'),
+        false // Block editor scripts must load in header
     );
 
     // Pass data to JavaScript
@@ -52,8 +57,8 @@ function transistor_init() {
     register_block_type('podloom/episode-player', [
         'api_version' => 2,
         'editor_script' => 'transistor-block-editor',
-        'title' => __('PodLoom Podcast Episode', 'podloom'),
-        'description' => __('Embed a Transistor.fm podcast episode player', 'podloom'),
+        'title' => __('PodLoom Podcast Episode', 'podloom-podcast-player'),
+        'description' => __('Embed a Transistor.fm podcast episode player', 'podloom-podcast-player'),
         'category' => 'media',
         'icon' => 'microphone',
         'keywords' => ['podcast', 'audio', 'transistor', 'episode'],
@@ -92,6 +97,10 @@ function transistor_init() {
             'rssEpisodeData' => [
                 'type' => 'object',
                 'default' => null
+            ],
+            'episodeDescription' => [
+                'type' => 'string',
+                'default' => ''
             ],
             'embedHtml' => [
                 'type' => 'string',
@@ -243,8 +252,8 @@ function transistor_render_block($attributes) {
         if (!$feed) {
             // Feed was deleted - show user-friendly message
             return '<div class="wp-block-transistor-episode-player" style="padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">' .
-                   '<p style="margin: 0; color: #856404;"><strong>' . esc_html__('RSS Feed Not Found', 'podloom') . '</strong></p>' .
-                   '<p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">' . esc_html__('The RSS feed used by this block has been removed. Please select a different feed or remove this block.', 'podloom') . '</p>' .
+                   '<p style="margin: 0; color: #856404;"><strong>' . esc_html__('RSS Feed Not Found', 'podloom-podcast-player') . '</strong></p>' .
+                   '<p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">' . esc_html__('The RSS feed used by this block has been removed. Please select a different feed or remove this block.', 'podloom-podcast-player') . '</p>' .
                    '</div>';
         }
 
@@ -506,7 +515,7 @@ function transistor_render_rss_episode($attributes) {
             esc_attr($audio_class),
             esc_url($episode['audio_url']),
             esc_attr(!empty($episode['audio_type']) ? $episode['audio_type'] : 'audio/mpeg'),
-            esc_html__('Your browser does not support the audio player.', 'podloom')
+            esc_html__('Your browser does not support the audio player.', 'podloom-podcast-player')
         );
     }
 
@@ -573,8 +582,8 @@ function transistor_format_duration($seconds) {
  */
 function transistor_add_admin_menu() {
     add_options_page(
-        __('PodLoom Settings', 'podloom'),
-        __('PodLoom Settings', 'podloom'),
+        __('PodLoom Settings', 'podloom-podcast-player'),
+        __('PodLoom Settings', 'podloom-podcast-player'),
         'manage_options',
         'transistor-api-settings',
         'transistor_render_settings_page'
@@ -586,7 +595,7 @@ add_action('admin_menu', 'transistor_add_admin_menu');
  * Add settings link on plugin page
  */
 function transistor_add_plugin_action_links($links) {
-    $settings_link = '<a href="' . admin_url('options-general.php?page=transistor-api-settings') . '">' . __('Settings', 'podloom') . '</a>';
+    $settings_link = '<a href="' . admin_url('options-general.php?page=transistor-api-settings') . '">' . __('Settings', 'podloom-podcast-player') . '</a>';
     array_unshift($links, $settings_link);
     return $links;
 }

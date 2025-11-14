@@ -7,12 +7,135 @@ const { InspectorControls, useBlockProps } = wp.blockEditor;
 const { PanelBody, SelectControl, TextControl, Placeholder, Spinner, Button, RadioControl, ComboboxControl, __experimentalNumberControl: NumberControl } = wp.components;
 const { useState, useEffect } = wp.element;
 const { __ } = wp.i18n;
+const { dispatch, select } = wp.data;
+
+/**
+ * Sanitize URL to prevent XSS attacks
+ * Only allows http, https, and mailto protocols
+ */
+const sanitizeUrl = (url) => {
+    if (!url) return '';
+
+    // Trim whitespace
+    url = url.trim();
+
+    // Convert to lowercase for protocol check
+    const urlLower = url.toLowerCase();
+
+    // Allow only safe protocols
+    if (urlLower.startsWith('http://') ||
+        urlLower.startsWith('https://') ||
+        urlLower.startsWith('mailto:')) {
+        // Escape quotes and other special chars in the URL
+        return url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // For relative URLs (starting with / or #), allow them
+    if (url.startsWith('/') || url.startsWith('#')) {
+        return url.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Block dangerous protocols (javascript:, data:, etc.)
+    return '';
+};
+
+/**
+ * Clean and prepare HTML for WordPress blocks
+ * Removes unwanted tags but keeps formatting (bold, italic, links, etc.)
+ */
+const cleanHtmlForBlocks = (html) => {
+    if (!html) return '';
+
+    // Create a temporary DOM element to parse HTML safely
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+
+    // Function to recursively clean nodes
+    const cleanNode = (node) => {
+        // If it's a text node, return as-is
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+
+        // If it's not an element node, skip it
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return '';
+        }
+
+        const tagName = node.tagName.toLowerCase();
+        let result = '';
+
+        // Process child nodes
+        const childContent = Array.from(node.childNodes)
+            .map(child => cleanNode(child))
+            .join('');
+
+        // Handle different tags
+        switch (tagName) {
+            case 'p':
+                result = childContent + '\n\n';
+                break;
+            case 'br':
+                result = '\n';
+                break;
+            case 'strong':
+            case 'b':
+                result = '<strong>' + childContent + '</strong>';
+                break;
+            case 'em':
+            case 'i':
+                result = '<em>' + childContent + '</em>';
+                break;
+            case 'a':
+                const href = node.getAttribute('href');
+                const sanitizedHref = sanitizeUrl(href);
+                if (sanitizedHref) {
+                    result = '<a href="' + sanitizedHref + '">' + childContent + '</a>';
+                } else {
+                    result = childContent; // Invalid/dangerous URL, just use text
+                }
+                break;
+            case 'h1':
+            case 'h2':
+            case 'h3':
+            case 'h4':
+            case 'h5':
+            case 'h6':
+                result = '\n\n' + childContent + '\n\n';
+                break;
+            case 'ul':
+            case 'ol':
+                result = childContent;
+                break;
+            case 'li':
+                result = '- ' + childContent + '\n';
+                break;
+            default:
+                // For any other tag, just keep the content
+                result = childContent;
+                break;
+        }
+
+        return result;
+    };
+
+    // Clean the HTML
+    let cleaned = cleanNode(tempDiv);
+
+    // Clean up excessive newlines
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+    // Trim whitespace
+    cleaned = cleaned.trim();
+
+    return cleaned;
+};
 
 /**
  * Register the block
  */
 registerBlockType('podloom/episode-player', {
-    title: __('PodLoom Podcast Episode', 'podloom'),
+    title: __('PodLoom Podcast Episode', 'podloom-podcast-player'),
     icon: 'microphone',
     category: 'media',
     attributes: {
@@ -48,6 +171,10 @@ registerBlockType('podloom/episode-player', {
             type: 'object',
             default: null
         },
+        episodeDescription: {
+            type: 'string',
+            default: ''
+        },
         embedHtml: {
             type: 'string',
             default: ''
@@ -65,8 +192,8 @@ registerBlockType('podloom/episode-player', {
             default: 390
         }
     },
-    edit: function EditComponent({ attributes, setAttributes }) {
-        const { sourceType, episodeId, episodeTitle, showId, showTitle, showSlug, rssFeedId, rssEpisodeData, embedHtml, theme, displayMode, playlistHeight } = attributes;
+    edit: function EditComponent({ attributes, setAttributes, clientId }) {
+        const { sourceType, episodeId, episodeTitle, showId, showTitle, showSlug, rssFeedId, rssEpisodeData, episodeDescription, embedHtml, theme, displayMode, playlistHeight } = attributes;
 
         const [transistorShows, setTransistorShows] = useState([]);
         const [rssFeeds, setRssFeeds] = useState([]);
@@ -127,10 +254,11 @@ registerBlockType('podloom/episode-player', {
                         showTitle: '',
                         episodeId: '',
                         episodeTitle: '',
+                        episodeDescription: '',
                         embedHtml: '',
                         rssEpisodeData: null
                     });
-                    setError(__('The selected RSS feed has been removed. Please select a different feed.', 'podloom'));
+                    setError(__('The selected RSS feed has been removed. Please select a different feed.', 'podloom-podcast-player'));
                 }
             }
         }, [rssFeeds, rssFeedId, sourceType]);
@@ -185,10 +313,10 @@ registerBlockType('podloom/episode-player', {
                         setRssTypography(result.data.rss_typography);
                     }
                 } else {
-                    setError(__('Error loading block data.', 'podloom'));
+                    setError(__('Error loading block data.', 'podloom-podcast-player'));
                 }
             } catch (err) {
-                setError(__('Error loading block data.', 'podloom'));
+                setError(__('Error loading block data.', 'podloom-podcast-player'));
             } finally {
                 setLoadingShows(false);
             }
@@ -228,10 +356,10 @@ registerBlockType('podloom/episode-player', {
                     setHasMorePages(meta.currentPage < meta.totalPages);
                     setCurrentPage(meta.currentPage);
                 } else {
-                    setError(result.data.message || __('Failed to load episodes', 'podloom'));
+                    setError(result.data.message || __('Failed to load episodes', 'podloom-podcast-player'));
                 }
             } catch (err) {
-                setError(__('Error loading episodes', 'podloom'));
+                setError(__('Error loading episodes', 'podloom-podcast-player'));
             } finally {
                 setLoading(false);
                 setIsLoadingMore(false);
@@ -289,10 +417,10 @@ registerBlockType('podloom/episode-player', {
                     setHasMorePages(result.data.page < result.data.pages);
                     setCurrentPage(result.data.page);
                 } else {
-                    setError(result.data.message || __('Failed to load RSS episodes', 'podloom'));
+                    setError(result.data.message || __('Failed to load RSS episodes', 'podloom-podcast-player'));
                 }
             } catch (err) {
-                setError(__('Error loading RSS episodes', 'podloom'));
+                setError(__('Error loading RSS episodes', 'podloom-podcast-player'));
             } finally {
                 setLoading(false);
                 setIsLoadingMore(false);
@@ -528,7 +656,7 @@ registerBlockType('podloom/episode-player', {
                         src: episode.audio_url,
                         type: episode.audio_type || 'audio/mpeg'
                     }),
-                    __('Your browser does not support the audio player.', 'podloom')
+                    __('Your browser does not support the audio player.', 'podloom-podcast-player')
                 ];
 
                 contentChildren.push(wp.element.createElement('audio', {
@@ -581,6 +709,7 @@ registerBlockType('podloom/episode-player', {
                 setAttributes({
                     episodeId: episode.id,
                     episodeTitle: episode.attributes.title,
+                    episodeDescription: episode.attributes.description || '',
                     embedHtml: html,
                     rssEpisodeData: null
                 });
@@ -619,6 +748,7 @@ registerBlockType('podloom/episode-player', {
                     rssFeedId: '',
                     episodeId: '',
                     episodeTitle: '',
+                    episodeDescription: '',
                     embedHtml: '',
                     rssEpisodeData: null
                 });
@@ -633,6 +763,7 @@ registerBlockType('podloom/episode-player', {
                     showTitle: selectedFeed ? selectedFeed.name : '',
                     episodeId: '',
                     episodeTitle: '',
+                    episodeDescription: '',
                     embedHtml: '',
                     rssEpisodeData: null
                 });
@@ -660,6 +791,52 @@ registerBlockType('podloom/episode-player', {
         };
 
         /**
+         * Handle paste description
+         * Cleans HTML and inserts it after the current block as paragraph blocks
+         */
+        const handlePasteDescription = () => {
+            let description = '';
+
+            // Get description based on source type
+            if (sourceType === 'rss' && rssEpisodeData && rssEpisodeData.description) {
+                description = rssEpisodeData.description;
+            } else if (sourceType === 'transistor' && episodeDescription) {
+                description = episodeDescription;
+            }
+
+            if (!description) {
+                return;
+            }
+
+            // Clean HTML and keep formatting tags
+            const cleanedHtml = cleanHtmlForBlocks(description);
+
+            // Get block editor store
+            const blockEditorStore = select('core/block-editor');
+
+            // Get the block's index and parent (using clientId from props)
+            const blockIndex = blockEditorStore.getBlockIndex(clientId);
+            const rootClientId = blockEditorStore.getBlockRootClientId(clientId);
+
+            // Split into paragraphs (separated by double line breaks)
+            const paragraphs = cleanedHtml.split('\n\n').filter(p => p.trim() !== '');
+
+            // Create multiple paragraph blocks with HTML content
+            const blocks = paragraphs.map(paragraphText => {
+                return wp.blocks.createBlock('core/paragraph', {
+                    content: paragraphText.trim()
+                });
+            });
+
+            // Insert all blocks after the current block
+            dispatch('core/block-editor').insertBlocks(
+                blocks,
+                blockIndex + 1,
+                rootClientId
+            );
+        };
+
+        /**
          * Get current source value for select
          */
         const getCurrentSourceValue = () => {
@@ -676,12 +853,12 @@ registerBlockType('podloom/episode-player', {
          */
         const buildSourceOptions = () => {
             const options = [
-                { label: __('-- Select a source --', 'podloom'), value: '' }
+                { label: __('-- Select a source --', 'podloom-podcast-player'), value: '' }
             ];
 
             if (transistorShows.length > 0) {
                 options.push({
-                    label: __('━━ Transistor.fm ━━', 'podloom'),
+                    label: __('━━ Transistor.fm ━━', 'podloom-podcast-player'),
                     value: '__transistor_header__',
                     disabled: true
                 });
@@ -695,7 +872,7 @@ registerBlockType('podloom/episode-player', {
 
             if (rssFeeds.length > 0) {
                 options.push({
-                    label: __('━━ RSS Feeds ━━', 'podloom'),
+                    label: __('━━ RSS Feeds ━━', 'podloom-podcast-player'),
                     value: '__rss_header__',
                     disabled: true
                 });
@@ -719,9 +896,9 @@ registerBlockType('podloom/episode-player', {
                 blockProps,
                 wp.element.createElement(
                     Placeholder,
-                    { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom') },
+                    { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom-podcast-player') },
                     wp.element.createElement(Spinner),
-                    wp.element.createElement('p', null, __('Loading sources...', 'podloom'))
+                    wp.element.createElement('p', null, __('Loading sources...', 'podloom-podcast-player'))
                 )
             );
         }
@@ -732,15 +909,15 @@ registerBlockType('podloom/episode-player', {
                 blockProps,
                 wp.element.createElement(
                     Placeholder,
-                    { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom') },
-                    wp.element.createElement('p', null, __('Please configure your Transistor API key or add RSS feeds in the settings.', 'podloom')),
+                    { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom-podcast-player') },
+                    wp.element.createElement('p', null, __('Please configure your Transistor API key or add RSS feeds in the settings.', 'podloom-podcast-player')),
                     wp.element.createElement(
                         Button,
                         {
                             variant: 'primary',
                             href: `${transistorData.ajaxUrl.replace('/wp-admin/admin-ajax.php', '')}/wp-admin/admin.php?page=transistor-api-settings`
                         },
-                        __('Go to Settings', 'podloom')
+                        __('Go to Settings', 'podloom-podcast-player')
                     )
                 )
             );
@@ -758,13 +935,13 @@ registerBlockType('podloom/episode-player', {
                 null,
                 wp.element.createElement(
                     PanelBody,
-                    { title: __('Episode Settings', 'podloom'), initialOpen: true },
+                    { title: __('Episode Settings', 'podloom-podcast-player'), initialOpen: true },
                     wp.element.createElement(SelectControl, {
-                        label: __('Select Source', 'podloom'),
+                        label: __('Select Source', 'podloom-podcast-player'),
                         value: getCurrentSourceValue(),
                         options: buildSourceOptions(),
                         onChange: handleSourceChange,
-                        help: __('Choose a Transistor show or RSS feed', 'podloom')
+                        help: __('Choose a Transistor show or RSS feed', 'podloom-podcast-player')
                     }),
                     (showId || rssFeedId) && displayMode === 'specific' && wp.element.createElement(
                         'div',
@@ -773,9 +950,9 @@ registerBlockType('podloom/episode-player', {
                             'div',
                             { style: { marginTop: '8px' } },
                             wp.element.createElement(Spinner),
-                            wp.element.createElement('p', null, __('Loading episodes...', 'podloom'))
+                            wp.element.createElement('p', null, __('Loading episodes...', 'podloom-podcast-player'))
                         ) : wp.element.createElement(ComboboxControl, {
-                            label: __('Search and Select Episode', 'podloom'),
+                            label: __('Search and Select Episode', 'podloom-podcast-player'),
                             value: episodeId,
                             onChange: (selectedId) => {
                                 if (selectedId === '__load_more__') {
@@ -789,6 +966,7 @@ registerBlockType('podloom/episode-player', {
                                     setAttributes({
                                         episodeId: '',
                                         episodeTitle: '',
+                                        episodeDescription: '',
                                         embedHtml: '',
                                         rssEpisodeData: null
                                     });
@@ -806,75 +984,80 @@ registerBlockType('podloom/episode-player', {
                                 }),
                                 ...(hasMorePages ? [{
                                     label: isLoadingMore
-                                        ? __('Loading more episodes...', 'podloom')
-                                        : __('Load More Episodes...', 'podloom'),
+                                        ? __('Loading more episodes...', 'podloom-podcast-player')
+                                        : __('Load More Episodes...', 'podloom-podcast-player'),
                                     value: '__load_more__'
                                 }] : [])
                             ],
                             help: episodes.length > 0
-                                ? __('Type to search episodes, or scroll to browse', 'podloom')
+                                ? __('Type to search episodes, or scroll to browse', 'podloom-podcast-player')
                                 : null
                         })
                     ),
                     (showId || rssFeedId) && wp.element.createElement(RadioControl, {
-                        label: __('Display Mode', 'podloom'),
+                        label: __('Display Mode', 'podloom-podcast-player'),
                         selected: displayMode,
                         options: [
-                            { label: __('Specific Episode', 'podloom'), value: 'specific' },
+                            { label: __('Specific Episode', 'podloom-podcast-player'), value: 'specific' },
                             ...(supportsLatest ? [
-                                { label: __('Latest Episode', 'podloom'), value: 'latest' }
+                                { label: __('Latest Episode', 'podloom-podcast-player'), value: 'latest' }
                             ] : []),
                             ...(supportsLatestAndPlaylist ? [
-                                { label: __('Playlist', 'podloom'), value: 'playlist' }
+                                { label: __('Playlist', 'podloom-podcast-player'), value: 'playlist' }
                             ] : [])
                         ],
                         onChange: (value) => {
                             setAttributes({ displayMode: value });
                         },
                         help: displayMode === 'latest'
-                            ? __('Will always show the most recent episode from this source', 'podloom')
+                            ? __('Will always show the most recent episode from this source', 'podloom-podcast-player')
                             : displayMode === 'playlist'
-                            ? __('Displays a playlist of episodes. Episode count is controlled in your Transistor settings.', 'podloom')
+                            ? __('Displays a playlist of episodes. Episode count is controlled in your Transistor settings.', 'podloom-podcast-player')
                             : null
                     }),
                     displayMode === 'playlist' && NumberControl && wp.element.createElement(NumberControl, {
-                        label: __('Playlist Height (px)', 'podloom'),
+                        label: __('Playlist Height (px)', 'podloom-podcast-player'),
                         value: playlistHeight,
                         onChange: (value) => setAttributes({ playlistHeight: parseInt(value) || 390 }),
                         min: 200,
                         max: 1000,
                         step: 10,
-                        help: __('Adjust the height of the playlist player (200-1000px)', 'podloom')
+                        help: __('Adjust the height of the playlist player (200-1000px)', 'podloom-podcast-player')
                     }),
                     sourceType === 'transistor' && wp.element.createElement(RadioControl, {
-                        label: __('Player Theme', 'podloom'),
+                        label: __('Player Theme', 'podloom-podcast-player'),
                         selected: theme,
                         options: [
-                            { label: __('Light', 'podloom'), value: 'light' },
-                            { label: __('Dark', 'podloom'), value: 'dark' }
+                            { label: __('Light', 'podloom-podcast-player'), value: 'light' },
+                            { label: __('Dark', 'podloom-podcast-player'), value: 'dark' }
                         ],
                         onChange: handleThemeChange
                     }),
                     displayMode === 'specific' && episodeId && wp.element.createElement(
                         'div',
                         { style: { marginTop: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' } },
-                        wp.element.createElement('strong', null, __('Selected Episode:', 'podloom')),
+                        wp.element.createElement('strong', null, __('Selected Episode:', 'podloom-podcast-player')),
                         wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, episodeTitle),
                         sourceType && wp.element.createElement('p', {
                             style: { margin: '4px 0 0 0', fontSize: '11px', color: '#666' }
-                        }, __('Source: ', 'podloom') + (sourceType === 'transistor' ? 'Transistor.fm' : 'RSS Feed'))
+                        }, __('Source: ', 'podloom-podcast-player') + (sourceType === 'transistor' ? 'Transistor.fm' : 'RSS Feed')),
+                        wp.element.createElement(Button, {
+                            variant: 'secondary',
+                            onClick: handlePasteDescription,
+                            style: { marginTop: '12px', width: '100%' }
+                        }, __('Paste Description', 'podloom-podcast-player'))
                     ),
                     displayMode === 'latest' && (showId || rssFeedId) && wp.element.createElement(
                         'div',
                         { style: { marginTop: '16px', padding: '12px', background: '#e7f5ff', borderRadius: '4px', border: '1px solid #1e88e5' } },
-                        wp.element.createElement('strong', null, __('Latest Episode Mode', 'podloom')),
-                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('This block will always display the most recent episode from ', 'podloom') + showTitle)
+                        wp.element.createElement('strong', null, __('Latest Episode Mode', 'podloom-podcast-player')),
+                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('This block will always display the most recent episode from ', 'podloom-podcast-player') + showTitle)
                     ),
                     displayMode === 'playlist' && showId && wp.element.createElement(
                         'div',
                         { style: { marginTop: '16px', padding: '12px', background: '#f3e5f5', borderRadius: '4px', border: '1px solid #9c27b0' } },
-                        wp.element.createElement('strong', null, __('Playlist Mode', 'podloom')),
-                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('This block will display a playlist from ', 'podloom') + showTitle + __('. Episode count is controlled in your Transistor settings.', 'podloom'))
+                        wp.element.createElement('strong', null, __('Playlist Mode', 'podloom-podcast-player')),
+                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('This block will display a playlist from ', 'podloom-podcast-player') + showTitle + __('. Episode count is controlled in your Transistor settings.', 'podloom-podcast-player'))
                     )
                 )
             ),
@@ -908,7 +1091,7 @@ registerBlockType('podloom/episode-player', {
                                 className: 'dashicons dashicons-rss',
                                 style: { fontSize: '48px', color: '#f8981d', marginBottom: '10px' }
                             }),
-                            wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666', textAlign: 'center', fontWeight: '600' } }, __('Loading Latest RSS Episode...', 'podloom'))
+                            wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666', textAlign: 'center', fontWeight: '600' } }, __('Loading Latest RSS Episode...', 'podloom-podcast-player'))
                         )
                 ) :
                 // Specific Episode Mode - RSS
@@ -918,16 +1101,16 @@ registerBlockType('podloom/episode-player', {
                         : wp.element.createElement(
                             'div',
                             { style: { padding: '20px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px' } },
-                            wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666' } }, __('Loading episode...', 'podloom'))
+                            wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666' } }, __('Loading episode...', 'podloom-podcast-player'))
                         )
                 ) :
                 // Placeholder
                 wp.element.createElement(
                     Placeholder,
-                    { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom') },
-                    !showId && !rssFeedId ? wp.element.createElement('p', null, __('Please select a source from the sidebar.', 'podloom')) :
-                    displayMode === 'specific' && !episodeId ? wp.element.createElement('p', null, __('Please select an episode from the sidebar.', 'podloom')) :
-                    wp.element.createElement('p', null, __('Please configure the block settings.', 'podloom'))
+                    { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom-podcast-player') },
+                    !showId && !rssFeedId ? wp.element.createElement('p', null, __('Please select a source from the sidebar.', 'podloom-podcast-player')) :
+                    displayMode === 'specific' && !episodeId ? wp.element.createElement('p', null, __('Please select an episode from the sidebar.', 'podloom-podcast-player')) :
+                    wp.element.createElement('p', null, __('Please configure the block settings.', 'podloom-podcast-player'))
                 )
             )
         );
