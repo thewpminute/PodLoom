@@ -1,9 +1,19 @@
-# PodLoom - Podcast Player for Transistor.fm
+=== PodLoom - Podcast Player for Transistor.fm & RSS Feeds ===
+Contributors: wpminute, mattmm
+Tags: podcast, marketing, content, youtube, audio
+Requires at least: 5.8
+Tested up to: 6.8
+Requires PHP: 7.4
+Stable tag: 2.1.0
+License: GNU General Public License v2.0 or later
 
-A WordPress plugin that allows you to connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks.
+# PodLoom - Podcast Player for Transistor.fm & RSS Feeds
+
+A comprehensive WordPress plugin that allows you to connect to your Transistor.fm account and embed podcast episodes from any RSS feed using Gutenberg blocks.
 
 ## Features
 
+### Transistor.fm Integration
 - **Easy API Integration**: Connect your Transistor.fm account with a simple API key
 - **Gutenberg Block**: Intuitive block editor interface for selecting and embedding episodes
 - **Multiple Shows Support**: Work with multiple podcasts from your Transistor account
@@ -14,10 +24,27 @@ A WordPress plugin that allows you to connect to your Transistor.fm account and 
   - **Latest Episode Mode**: Always display the most recent episode from a show (auto-updates)
   - **Specific Episode Mode**: Select and lock a specific episode to display
   - **Playlist Mode**: Display a browsable playlist of episodes from a show
+
+### RSS Feed Support
+- **Universal RSS Support**: Add podcasts from any RSS feed (Transistor, Libsyn, Buzzsprout, etc.)
+- **Multiple Feed Management**: Add and manage multiple RSS feeds
+- **Feed Validation**: Automatic validation with status indicators for each feed
+- **Episode Browser**: Browse and select episodes from RSS feeds with pagination
+- **Customizable Player**: Control which elements display (artwork, title, date, duration, description)
+- **Typography Controls**: Customize fonts, sizes, colors, and weights for all text elements
+- **Background Color**: Set custom background colors for RSS episode blocks
+- **Minimal Styling Mode**: Option to use only semantic HTML for complete custom CSS control
+- **Description Limits**: Set character limits for episode descriptions
+- **Live Preview**: Real-time preview of typography changes in the admin panel
+
+### General Features
+- **Welcome Tab**: Helpful onboarding with video tutorial and feature overview
 - **Default Show Setting**: Set a default show for quick episode embedding
 - **Smart Caching**: Automatic caching of API responses to improve performance and reduce API calls
-- **Cache Control**: Configurable cache duration and manual cache clearing from admin panel
+- **Cache Control**: Configurable cache duration (30 minutes to 24 hours) and manual cache clearing
+- **Security Hardened**: Nonce verification, input sanitization, and capability checks throughout
 - **Danger Zone**: Complete plugin reset option to delete all stored settings and cache data
+- **Rate Limiting**: Built-in rate limiting for RSS feed operations to prevent abuse
 
 ## Installation
 
@@ -148,17 +175,92 @@ To add multiple episodes to a single post:
 3. Each block embeds one episode
 4. Mix and match display modes as needed
 
+### Using RSS Feeds
+
+PodLoom also supports embedding episodes from any podcast RSS feed:
+
+#### Setting Up RSS Feeds
+
+1. **Enable RSS Feeds**
+   - Go to Settings → PodLoom Settings → RSS Feeds tab
+   - Check "Enable RSS Feeds"
+
+2. **Add a Feed**
+   - Click "Add New RSS Feed"
+   - Enter a friendly name (e.g., "Guest Podcast")
+   - Enter the RSS feed URL
+   - Click "Save"
+
+3. **Feed Validation**
+   - The plugin automatically validates the feed
+   - Status indicator shows "Valid" (green) or "Invalid" (red)
+   - Last checked timestamp shows when the feed was last verified
+
+4. **Manage Feeds**
+   - **Edit**: Change the feed name
+   - **Refresh**: Manually refresh feed data
+   - **Delete**: Remove a feed from your list
+   - **View Feed**: See the raw RSS XML
+
+#### Customizing RSS Players
+
+1. **Display Settings**
+   - Choose which elements to show: Artwork, Title, Date, Duration, Description
+   - Set character limits for descriptions (0 = unlimited)
+   - Enable "Minimal Styling Mode" for complete CSS control
+
+2. **Typography Settings**
+   - Customize fonts, sizes, colors, and weights for:
+     - Episode Title
+     - Publication Date
+     - Episode Duration
+     - Episode Description
+   - Set background color for episode blocks
+   - Live preview shows changes in real-time
+
+3. **Using RSS Episodes in Posts**
+   - Add a "Podcast Episode" block
+   - In block settings, select "RSS Feed" as the source
+   - Choose a feed from the dropdown
+   - Browse and select an episode
+   - The episode displays using your customized player settings
+
 ## Admin Settings Page
 
-The **PodLoom Settings** page (Settings → PodLoom Settings) shows:
+The **PodLoom Settings** page (Settings → PodLoom Settings) is organized into four tabs:
 
+### Welcome Tab
+- **Plugin Overview**: Introduction to PodLoom's capabilities
+- **Feature Highlights**: List of key features with explanations
+- **Getting Started Guide**: Quick links to configure Transistor API, RSS Feeds, and General Settings
+- **Video Tutorial**: Embedded walkthrough video showing how to use the plugin
+- **Help Resources**: Links to documentation and support
+
+### Transistor API Tab
 - **API Key Field**: Enter and save your Transistor API key
+- **Connection Status**: Visual confirmation that your API key is working
+- **Shows List**: Table displaying all your available podcasts with their details
+- **API Key Visibility Toggle**: Show/hide your API key for security
+
+### RSS Feeds Tab
+- **Enable RSS Feeds**: Toggle RSS feed functionality on/off
+- **Feed Management**: Add, edit, refresh, and delete RSS feeds
+- **Feed Status Indicators**: Visual confirmation of feed validity (Valid/Invalid)
+- **Feed Browser**: View feed XML and browse episodes
+- **Player Display Settings**: Control which elements appear in RSS players
+  - Show/hide: Artwork, Title, Date, Duration, Description
+  - Set description character limits
+- **Typography Settings**: Customize appearance of RSS episode players
+  - Font family, size, line height, color, and weight for Title, Date, Duration, and Description
+  - Background color for episode blocks
+  - Live preview of all typography changes
+- **Minimal Styling Mode**: Disable plugin styles for complete custom CSS control
+
+### General Settings Tab
 - **Default Show Selector**: Choose which podcast should be pre-selected in blocks
 - **Enable Caching**: Toggle caching on/off to control API call frequency
 - **Cache Duration**: Set how long cached data remains valid (30 minutes to 24 hours)
 - **Clear Cache Button**: Manually clear all cached API responses
-- **Connection Status**: Visual confirmation that your API key is working
-- **Shows List**: Table displaying all your available podcasts with their details
 - **Danger Zone**: Complete plugin reset option (requires typing "RESET" to confirm)
 
 ### Caching
@@ -183,14 +285,17 @@ Located at the bottom of the General Settings tab, the Danger Zone allows you to
 
 **What gets deleted:**
 - Your Transistor API key
+- All RSS feeds and settings
 - Default show setting
 - Cache settings and all cached data
+- Typography and display settings
 - All other PodLoom plugin settings
 
 **What is NOT affected:**
 - Your posts and pages
-- Existing episode blocks (they will need to be reconfigured after you re-enter your API key)
+- Existing episode blocks (they will need to be reconfigured after you re-enter your API key or RSS feeds)
 - Your Transistor.fm account and episodes
+- The actual RSS feeds (only removed from the plugin)
 
 **How to use:**
 1. Click "Danger Zone!" to expand the section
@@ -255,16 +360,23 @@ This is useful when:
 ### Files Structure
 
 ```
-PodLoom/
+podloom-podcast-player/
 ├── podloom-podcast-player.php       # Main plugin file
+├── uninstall.php                    # Uninstall cleanup script
 ├── admin/
-│   └── admin-functions.php          # Admin page rendering
+│   ├── admin-functions.php          # Admin page rendering and settings
+│   └── js/
+│       ├── settings-page.js         # General settings page interactions
+│       ├── rss-manager.js           # RSS feed management
+│       └── typography-manager.js    # Typography settings and live preview
 ├── includes/
-│   └── api.php                      # Transistor API wrapper
-└── blocks/
-    └── episode-block/
-        ├── block.json               # Block configuration
-        └── index.js                 # Block editor & frontend code
+│   ├── api.php                      # Transistor API wrapper and caching
+│   └── rss.php                      # RSS feed parsing and management
+├── blocks/
+│   └── episode-block/
+│       ├── block.json               # Block configuration
+│       └── index.js                 # Block editor & frontend code
+└── languages/                       # Translation files directory
 ```
 
 ## Support
@@ -277,6 +389,51 @@ For issues or feature requests:
 ## License
 
 GPL v2 or later
+
+## Changelog
+
+### Version 2.0.0
+*Major Update - RSS Feed Support & Enhanced Features*
+
+**New Features:**
+- **RSS Feed Support**: Add and manage podcasts from any RSS feed (Transistor, Libsyn, Buzzsprout, etc.)
+- **Feed Management**: Add, edit, refresh, and delete multiple RSS feeds
+- **Feed Validation**: Automatic validation with status indicators
+- **Typography Controls**: Customize fonts, sizes, colors, and weights for RSS episode players
+- **Background Colors**: Set custom background colors for RSS episode blocks
+- **Minimal Styling Mode**: Option for complete custom CSS control
+- **Description Limits**: Set character limits for episode descriptions
+- **Live Preview**: Real-time preview of typography changes in admin panel
+- **Welcome Tab**: New onboarding experience with video tutorial and feature overview
+- **Tab Reorganization**: Settings organized into Welcome, Transistor API, RSS Feeds, and General Settings tabs
+- **API Key Visibility Toggle**: Show/hide API key for security
+
+**Improvements:**
+- Enhanced security with comprehensive nonce verification and input sanitization
+- Rate limiting for RSS feed operations to prevent abuse
+- Improved cache management for both Transistor and RSS feeds
+- Better error handling and validation throughout
+- Optimized database queries and caching strategies
+- Added uninstall script for clean plugin removal
+
+**Bug Fixes:**
+- Fixed redirect issue in Danger Zone reset functionality
+- Improved form submission handling to prevent blank page errors
+- Fixed text domain inconsistencies for better internationalization
+
+### Version 1.1.0
+- Added caching functionality
+- Added Danger Zone reset option
+- Improved settings page organization
+- Added cache duration controls
+
+### Version 1.0.0
+- Initial release
+- Transistor.fm API integration
+- Gutenberg block for episode embedding
+- Three display modes (Latest, Specific, Playlist)
+- Multiple show support
+- Episode search and pagination
 
 ## Credits
 

@@ -3,7 +3,7 @@
  * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
  * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks. Supports RSS feeds from any podcast platform.
- * Version: 2.0.0
+ * Version: 2.1.0
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('TRANSISTOR_PLUGIN_VERSION', '2.0.0');
+define('TRANSISTOR_PLUGIN_VERSION', '2.1.0');
 define('TRANSISTOR_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('TRANSISTOR_PLUGIN_URL', plugin_dir_url(__FILE__));
 
