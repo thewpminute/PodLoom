@@ -20,27 +20,27 @@ function podloom_enqueue_admin_scripts($hook) {
     // Enqueue settings page general script
     wp_enqueue_script(
         'podloom-settings-page',
-        TRANSISTOR_PLUGIN_URL . 'admin/js/settings-page.js',
+        PODLOOM_PLUGIN_URL . 'admin/js/settings-page.js',
         ['jquery'],
-        TRANSISTOR_PLUGIN_VERSION,
+        PODLOOM_PLUGIN_VERSION,
         true
     );
 
     // Enqueue typography manager (for RSS tab)
     wp_enqueue_script(
         'podloom-typography-manager',
-        TRANSISTOR_PLUGIN_URL . 'admin/js/typography-manager.js',
+        PODLOOM_PLUGIN_URL . 'admin/js/typography-manager.js',
         [],
-        TRANSISTOR_PLUGIN_VERSION,
+        PODLOOM_PLUGIN_VERSION,
         true
     );
 
     // Enqueue RSS manager (for RSS tab)
     wp_enqueue_script(
         'podloom-rss-manager',
-        TRANSISTOR_PLUGIN_URL . 'admin/js/rss-manager.js',
+        PODLOOM_PLUGIN_URL . 'admin/js/rss-manager.js',
         ['jquery', 'podloom-typography-manager'],
-        TRANSISTOR_PLUGIN_VERSION,
+        PODLOOM_PLUGIN_VERSION,
         true
     );
 
