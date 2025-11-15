@@ -1,0 +1,363 @@
+/**
+ * Admin Styles for PodLoom Podcast Player
+ */
+
+.wrap {
+    max-width: 1200px;
+}
+
+.form-table th {
+    width: 200px;
+}
+
+.nav-tab-wrapper {
+    margin-bottom: 20px;
+}
+
+/* Danger Zone Styles */
+.danger-zone-container {
+    border: 2px solid #dc3232;
+    border-radius: 4px;
+    margin-top: 20px;
+    background: #fff;
+}
+
+.danger-zone-header {
+    padding: 15px 20px;
+    cursor: pointer;
+    background: #fff;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.danger-zone-header:hover {
+    background: #fef7f7;
+}
+
+.danger-zone-arrow {
+    transition: transform 0.3s;
+    color: #dc3232;
+}
+
+.danger-zone-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+.danger-zone-content {
+    padding: 0 20px 20px 20px;
+    border-top: 1px solid #dc3232;
+    margin-top: 0;
+}
+
+.danger-zone-warning {
+    background: #fef7f7;
+    border-left: 4px solid #dc3232;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.danger-zone-warning p:first-child {
+    margin-top: 0;
+}
+
+.danger-zone-warning p:last-child {
+    margin-bottom: 0;
+}
+
+/* RSS Feeds Styles */
+#rss-feeds-list {
+    margin-top: 20px;
+}
+
+.rss-feed-item {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.rss-feed-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.rss-feed-header .dashicons-rss {
+    font-size: 24px;
+    color: #f8981d;
+}
+
+.rss-feed-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    flex-grow: 1;
+}
+
+.rss-feed-title-editable {
+    font-size: 16px;
+    padding: 4px 8px;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+    min-width: 200px;
+}
+
+.rss-feed-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.rss-feed-status.valid {
+    background: #00a32a;
+    color: #fff;
+}
+
+.rss-feed-status.invalid {
+    background: #dc3232;
+    color: #fff;
+}
+
+.rss-feed-url {
+    color: #2271b1;
+    margin: 5px 0;
+    word-break: break-all;
+}
+
+.rss-feed-meta {
+    color: #646970;
+    font-size: 13px;
+    margin: 5px 0;
+}
+
+.rss-feed-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.rss-feed-actions .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.rss-feed-actions .dashicons {
+    font-size: 16px;
+    line-height: 1.4;
+}
+
+/* Modal Styles */
+#rss-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 100000;
+    display: none;
+}
+
+#rss-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    z-index: 100001;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    display: none;
+    flex-direction: column;
+}
+
+#rss-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#rss-modal-header h2 {
+    margin: 0;
+}
+
+#rss-modal-close {
+    cursor: pointer;
+    font-size: 24px;
+    color: #666;
+    background: none;
+    border: none;
+    padding: 0;
+    line-height: 1;
+}
+
+#rss-modal-close:hover {
+    color: #000;
+}
+
+#rss-modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+#rss-modal-body label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+#rss-modal-body input[type="text"],
+#rss-modal-body input[type="url"] {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 15px;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+}
+
+#rss-modal-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #ddd;
+    text-align: right;
+}
+
+#rss-modal-footer .button {
+    margin-left: 10px;
+}
+
+/* XML Viewer Styles */
+#xml-viewer-modal {
+    max-width: 900px;
+    width: 90%;
+}
+
+#xml-viewer-content {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 20px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    max-height: 60vh;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Notice Styles */
+.rss-notice {
+    padding: 12px;
+    margin: 15px 0;
+    border-left: 4px solid;
+    border-radius: 3px;
+}
+
+.rss-notice.success {
+    background: #f0f6fc;
+    border-color: #00a32a;
+    color: #003d0d;
+}
+
+.rss-notice.error {
+    background: #fef7f7;
+    border-color: #dc3232;
+    color: #3c0008;
+}
+
+.rss-notice.info {
+    background: #f0f6fc;
+    border-color: #2271b1;
+    color: #003d5c;
+}
+
+/* Typography Settings Styles */
+.typography-settings-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.typography-controls {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.typography-preview {
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    position: sticky;
+    top: 32px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+}
+
+.typography-element-section {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.typography-element-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.typography-element-section h4 {
+    margin: 0 0 15px 0;
+    color: #2271b1;
+}
+
+.typography-element-section .form-table {
+    margin-top: 0;
+}
+
+.typography-element-section .form-table th {
+    width: 150px;
+}
+
+.color-picker {
+    width: 80px;
+    height: 40px;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+/* Responsive Styles */
+@media screen and (max-width: 1280px) {
+    .typography-settings-container {
+        grid-template-columns: 1fr;
+    }
+    .typography-preview {
+        position: relative;
+        top: auto;
+        max-height: none;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .rss-episode-wrapper {
+        gap: 15px !important;
+    }
+    .rss-episode-artwork {
+        width: 100px !important;
+    }
+}
