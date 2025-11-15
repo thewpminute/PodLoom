@@ -248,7 +248,7 @@ function podloom_render_block($attributes) {
         }
 
         // Verify feed still exists
-        $feed = Transistor_RSS::get_feed($feed_id);
+        $feed = Podloom_RSS::get_feed($feed_id);
         if (!$feed) {
             // Feed was deleted - show user-friendly message
             return '<div class="wp-block-podloom-episode-player" style="padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">' .
@@ -258,7 +258,7 @@ function podloom_render_block($attributes) {
         }
 
         if ($display_mode === 'latest') {
-            $latest_episode = Transistor_RSS::get_latest_episode($feed_id);
+            $latest_episode = Podloom_RSS::get_latest_episode($feed_id);
             if (!$latest_episode) {
                 return '';
             }

@@ -207,7 +207,7 @@ function podloom_ajax_get_block_init_data() {
     $data['podloom_shows'] = is_wp_error($shows) ? array() : $shows;
 
     // Get RSS feeds
-    $data['rss_feeds'] = Transistor_RSS::get_feeds();
+    $data['rss_feeds'] = Podloom_RSS::get_feeds();
 
     // Get RSS typography (only if RSS is enabled)
     $rss_enabled = get_option('podloom_rss_enabled', false);
@@ -375,7 +375,7 @@ function podloom_delete_all_plugin_data() {
     podloom_clear_all_cache();
 
     // Clear RSS cached data
-    if (class_exists('Transistor_RSS')) {
-        Transistor_RSS::clear_all_caches();
+    if (class_exists('Podloom_RSS')) {
+        Podloom_RSS::clear_all_caches();
     }
 }

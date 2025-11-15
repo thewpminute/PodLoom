@@ -229,7 +229,7 @@ function podloom_render_settings_page() {
         // Test if API connection is working
         $success_message = esc_html__('Settings saved successfully!', 'podloom-podcast-player');
         if (!empty($api_key)) {
-            $test_api = new Transistor_API($api_key);
+            $test_api = new Podloom_API($api_key);
             $test_result = $test_api->get_shows();
             if (!is_wp_error($test_result)) {
                 $success_message .= ' ' . __('Successfully connected to Transistor API!', 'podloom-podcast-player');
@@ -248,7 +248,7 @@ function podloom_render_settings_page() {
     $shows = [];
     $connection_status = '';
     if (!empty($api_key)) {
-        $api = new Transistor_API($api_key);
+        $api = new Podloom_API($api_key);
         $shows_result = $api->get_shows();
 
         if (is_wp_error($shows_result)) {
@@ -669,7 +669,7 @@ function podloom_render_settings_page() {
                     <div id="rss-feeds-list">
                         <?php
                         // Render feeds server-side for instant display
-                        $feeds = Transistor_RSS::get_feeds();
+                        $feeds = Podloom_RSS::get_feeds();
                         if (empty($feeds)) {
                             echo '<p class="description">' . esc_html__('No RSS feeds added yet. Click "Add New RSS Feed" to get started.', 'podloom-podcast-player') . '</p>';
                         } else {
