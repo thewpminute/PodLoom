@@ -1,6 +1,6 @@
 <?php
 /**
- * RSS Feed Management
+ * RSS Feed Management Class
  *
  * @package PodLoom
  */
@@ -17,37 +17,31 @@ if (!defined('ABSPATH')) {
 class Podloom_RSS {
 
     /**
-     * Maximum number of episodes to cache per feed
-     */
-    const MAX_EPISODES = 50;
-
-    /**
-     * Rate limit check for AJAX endpoints
+     * Check rate limit for AJAX operations
      *
-     * @param string $action Action name for rate limiting
-     * @param int $limit Maximum requests allowed
-     * @param int $window Time window in seconds
-     * @return bool True if within limit, false if exceeded
+     * @param string $action Action identifier (e.g., 'get_feeds', 'get_episodes')
+     * @param int $max_requests Maximum requests allowed
+     * @param int $time_window Time window in seconds
+     * @return bool True if under limit, false if exceeded
      */
-    public static function check_rate_limit($action, $limit = 60, $window = 60) {
-        $user_id = get_current_user_id();
-        $rate_key = "podloom_rate_{$action}_{$user_id}";
+    public static function check_rate_limit($action, $max_requests = 30, $time_window = 60) {
+        $rate_key = 'podloom_rss_rate_' . $action . '_' .
+                    (is_user_logged_in() ? get_current_user_id() : md5($_SERVER['REMOTE_ADDR'] ?? ''));
         $rate_count = get_transient($rate_key);
 
-        if ($rate_count === false) {
-            // First request in this window
-            set_transient($rate_key, 1, $window);
-            return true;
-        }
-
-        if ($rate_count >= $limit) {
+        if ($rate_count && $rate_count >= $max_requests) {
             return false;
         }
 
         // Increment counter
-        set_transient($rate_key, $rate_count + 1, $window);
+        set_transient($rate_key, ($rate_count ?: 0) + 1, $time_window);
         return true;
     }
+
+    /**
+     * Maximum number of episodes to cache per feed
+     */
+    const MAX_EPISODES = 50;
 
     /**
      * Get all RSS feeds
@@ -87,7 +81,7 @@ class Podloom_RSS {
             );
         }
 
-        // Basic SSRF protection: Block localhost and common private IPs
+        // Enhanced SSRF protection: Block localhost, private IPs, and reserved ranges
         $parsed_url = wp_parse_url($url);
         if (!isset($parsed_url['host'])) {
             return array(
@@ -96,12 +90,51 @@ class Podloom_RSS {
             );
         }
 
+        $host = $parsed_url['host'];
+        $host_lower = strtolower($host);
+
         // Block obvious localhost references
-        $host_lower = strtolower($parsed_url['host']);
         if (in_array($host_lower, array('localhost', '127.0.0.1', '::1', '0.0.0.0'), true)) {
             return array(
                 'success' => false,
                 'message' => 'Localhost URLs are not allowed'
+            );
+        }
+
+        // Resolve hostname to IP address and validate against private/reserved ranges
+        // This prevents DNS rebinding attacks
+        $ip = gethostbyname($host);
+
+        // Check if resolution was successful (gethostbyname returns original hostname if it fails)
+        if ($ip !== $host) {
+            // Validate IP address against private and reserved ranges
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                // Block private and reserved IP ranges
+                $filtered_ip = filter_var(
+                    $ip,
+                    FILTER_VALIDATE_IP,
+                    FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+                );
+
+                if ($filtered_ip === false) {
+                    return array(
+                        'success' => false,
+                        'message' => 'Cannot access internal network addresses or reserved IP ranges'
+                    );
+                }
+            }
+        }
+
+        // Additional check: block cloud metadata endpoints
+        $blocked_hosts = array(
+            '169.254.169.254', // AWS/GCP/Azure metadata
+            'metadata.google.internal',
+            '169.254.170.2', // AWS ECS metadata
+        );
+        if (in_array($host_lower, $blocked_hosts, true) || in_array($ip, $blocked_hosts, true)) {
+            return array(
+                'success' => false,
+                'message' => 'Access to cloud metadata endpoints is not allowed'
             );
         }
 
@@ -212,8 +245,8 @@ class Podloom_RSS {
             );
         }
 
-        // Delete cached episodes
-        delete_transient('podloom_rss_episodes_' . $feed_id);
+        // Delete cached episodes (handles both object cache and transients)
+        podloom_cache_delete('rss_episodes_' . $feed_id);
 
         // Remove feed
         unset($feeds[$feed_id]);
@@ -294,9 +327,23 @@ class Podloom_RSS {
             );
         }
 
-        // Fetch feed
+        // Clear existing cache before refresh (handles both object cache and transients)
+        podloom_cache_delete('rss_episodes_' . $feed_id);
+
+        // Clear SimplePie cache for this feed
+        $cache_location = WP_CONTENT_DIR . '/cache/simplepie';
+        if (file_exists($cache_location)) {
+            $cache_file = $cache_location . '/' . md5($feed_data['url']) . '.spc';
+            if (file_exists($cache_file)) {
+                @unlink($cache_file);
+            }
+        }
+
+        // Fetch feed with SSRF protection
         $response = wp_remote_get($feed_data['url'], array(
             'timeout' => 15,
+            'redirection' => 3, // Limit redirects to prevent redirect chains
+            'reject_unsafe_urls' => true, // WordPress built-in SSRF protection
             'headers' => array(
                 'User-Agent' => 'PodLoom WordPress Plugin'
             )
@@ -322,13 +369,8 @@ class Podloom_RSS {
 
         $feed = new SimplePie();
 
-        // Configure SimplePie caching for better performance
-        $cache_location = WP_CONTENT_DIR . '/cache/simplepie';
-        if (!file_exists($cache_location)) {
-            wp_mkdir_p($cache_location);
-        }
-        $feed->set_cache_location($cache_location);
-        $feed->set_cache_duration(3600); // 1 hour cache
+        // Disable SimplePie caching during manual refresh to ensure fresh data
+        $feed->enable_cache(false);
 
         $feed->set_raw_data($body);
         $feed->init();
@@ -350,8 +392,30 @@ class Podloom_RSS {
         $items = $feed->get_items(0, self::MAX_EPISODES);
         $episodes = array();
 
+        // Initialize P2.0 parser
+        $p20_parser = new Podloom_Podcast20_Parser();
+
+        // Parse channel-level P2.0 data (applies to all episodes)
+        $channel_p20_data = $p20_parser->parse_from_simplepie_channel($feed);
+
         foreach ($items as $item) {
             $enclosure = $item->get_enclosure();
+
+            // Parse item-level Podcasting 2.0 data
+            $item_p20_data = $p20_parser->parse_from_simplepie($item);
+
+            // Merge channel and item data (item takes precedence)
+            $p20_data = $p20_parser->merge_data($item_p20_data, $channel_p20_data);
+
+            // Debug: Log P2.0 data for first episode only
+            static $debug_logged = false;
+            if (!$debug_logged && WP_DEBUG) {
+                error_log('PodLoom P2.0 Debug for episode: ' . $item->get_title());
+                error_log('Channel P2.0 Data: ' . print_r($channel_p20_data, true));
+                error_log('Item P2.0 Data: ' . print_r($item_p20_data, true));
+                error_log('Merged P2.0 Data: ' . print_r($p20_data, true));
+                $debug_logged = true;
+            }
 
             $episode = array(
                 'id' => md5($item->get_permalink()),
@@ -364,15 +428,16 @@ class Podloom_RSS {
                 'audio_url' => $enclosure ? $enclosure->get_link() : '',
                 'audio_type' => $enclosure ? $enclosure->get_type() : '',
                 'duration' => $enclosure ? $enclosure->get_duration() : '',
-                'image' => $item->get_thumbnail() ? $item->get_thumbnail()['url'] : ($feed->get_image_url() ?: '')
+                'image' => $item->get_thumbnail() ? $item->get_thumbnail()['url'] : ($feed->get_image_url() ?: ''),
+                'podcast20' => $p20_data, // Add P2.0 data
             );
 
             $episodes[] = $episode;
         }
 
-        // Cache episodes
-        $cache_duration = get_option('podloom_cache_duration', 21600);
-        set_transient('podloom_rss_episodes_' . $feed_id, $episodes, $cache_duration);
+        // Cache episodes with configurable duration (uses object cache if available)
+        $cache_duration = get_option('podloom_rss_cache_duration', 21600); // Default: 6 hours
+        podloom_cache_set('rss_episodes_' . $feed_id, $episodes, 'podloom', $cache_duration);
 
         // Update feed metadata
         $feeds = self::get_feeds();
@@ -401,7 +466,7 @@ class Podloom_RSS {
         $enable_cache = get_option('podloom_enable_cache', true);
 
         if ($enable_cache) {
-            $episodes = get_transient('podloom_rss_episodes_' . $feed_id);
+            $episodes = podloom_cache_get('rss_episodes_' . $feed_id);
         } else {
             $episodes = false;
         }
@@ -417,29 +482,12 @@ class Podloom_RSS {
                     'pages' => 0
                 );
             }
-            $episodes = get_transient('podloom_rss_episodes_' . $feed_id);
+            $episodes = podloom_cache_get('rss_episodes_' . $feed_id);
         }
 
-        // Apply character limit to descriptions if set
-        $char_limit = get_option('podloom_rss_description_limit', 0);
-        if ($char_limit > 0) {
-            foreach ($episodes as &$episode) {
-                if (!empty($episode['description'])) {
-                    // Strip HTML tags to count actual text characters
-                    $text_only = wp_strip_all_tags($episode['description']);
-                    if (mb_strlen($text_only) > $char_limit) {
-                        // Truncate to limit and add ellipsis
-                        $truncated = mb_substr($text_only, 0, $char_limit);
-                        // Try to break at last space to avoid cutting words
-                        $last_space = mb_strrpos($truncated, ' ');
-                        if ($last_space !== false && $last_space > $char_limit * 0.8) {
-                            $truncated = mb_substr($truncated, 0, $last_space);
-                        }
-                        $episode['description'] = esc_html($truncated) . '…';
-                    }
-                }
-            }
-        }
+        // Note: Character limit for descriptions is applied at render time (not here)
+        // to preserve HTML formatting and avoid redundant processing on every retrieval.
+        // See podloom_truncate_html() in podloom-podcast-player.php for HTML-aware truncation.
 
         // Paginate episodes
         $total = count($episodes);
@@ -473,6 +521,9 @@ class Podloom_RSS {
 
         $response = wp_remote_get($feed_data['url'], array(
             'timeout' => 15,
+            'redirection' => 3, // Limit redirects to prevent redirect chains
+            'reject_unsafe_urls' => true, // WordPress built-in SSRF protection
+            'limit_response_size' => 5 * MB_IN_BYTES, // Limit to 5MB to prevent memory exhaustion
             'headers' => array(
                 'User-Agent' => 'PodLoom WordPress Plugin'
             )
@@ -485,7 +536,14 @@ class Podloom_RSS {
             );
         }
 
+        // Additional check: ensure response size is within limits
         $body = wp_remote_retrieve_body($response);
+        if (strlen($body) > 5 * MB_IN_BYTES) {
+            return array(
+                'success' => false,
+                'message' => 'Feed too large (maximum 5MB)'
+            );
+        }
 
         return array(
             'success' => true,
@@ -549,313 +607,3 @@ class Podloom_RSS {
         return $deleted_count;
     }
 }
-
-/**
- * WordPress cron hook to refresh RSS feed in background
- */
-function podloom_cron_refresh_rss_feed($feed_id) {
-    Podloom_RSS::refresh_feed($feed_id);
-}
-add_action('podloom_refresh_rss_feed', 'podloom_cron_refresh_rss_feed');
-
-/**
- * AJAX Handler: Get RSS Feeds
- */
-function podloom_ajax_get_rss_feeds() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    $feeds = Podloom_RSS::get_feeds();
-    wp_send_json_success($feeds);
-}
-add_action('wp_ajax_podloom_get_rss_feeds', 'podloom_ajax_get_rss_feeds');
-
-/**
- * AJAX Handler: Add RSS Feed
- */
-function podloom_ajax_add_rss_feed() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    // Rate limiting: 10 feed additions per minute per user
-    if (!Podloom_RSS::check_rate_limit('add_feed', 10, 60)) {
-        wp_send_json_error(array('message' => 'Rate limit exceeded. Please wait before adding more feeds.'), 429);
-        return;
-    }
-
-    $name = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
-    $url = isset($_POST['url']) ? esc_url_raw(wp_unslash($_POST['url'])) : '';
-
-    if (empty($name) || empty($url)) {
-        wp_send_json_error(array('message' => 'Name and URL are required'));
-        return;
-    }
-
-    $result = Podloom_RSS::add_feed($name, $url);
-
-    if ($result['success']) {
-        wp_send_json_success($result);
-    } else {
-        wp_send_json_error($result);
-    }
-}
-add_action('wp_ajax_podloom_add_rss_feed', 'podloom_ajax_add_rss_feed');
-
-/**
- * AJAX Handler: Update RSS Feed Name
- */
-function podloom_ajax_update_rss_feed_name() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
-    $name = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
-
-    if (empty($feed_id) || empty($name)) {
-        wp_send_json_error(array('message' => 'Feed ID and name are required'));
-        return;
-    }
-
-    $result = Podloom_RSS::update_feed_name($feed_id, $name);
-
-    if ($result['success']) {
-        wp_send_json_success($result);
-    } else {
-        wp_send_json_error($result);
-    }
-}
-add_action('wp_ajax_podloom_update_rss_feed_name', 'podloom_ajax_update_rss_feed_name');
-
-/**
- * AJAX Handler: Delete RSS Feed
- */
-function podloom_ajax_delete_rss_feed() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
-
-    if (empty($feed_id)) {
-        wp_send_json_error(array('message' => 'Feed ID is required'));
-        return;
-    }
-
-    $result = Podloom_RSS::delete_feed($feed_id);
-
-    if ($result['success']) {
-        wp_send_json_success($result);
-    } else {
-        wp_send_json_error($result);
-    }
-}
-add_action('wp_ajax_podloom_delete_rss_feed', 'podloom_ajax_delete_rss_feed');
-
-/**
- * AJAX Handler: Refresh RSS Feed
- */
-function podloom_ajax_refresh_rss_feed() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    // Rate limiting: 30 refreshes per minute per user
-    if (!Podloom_RSS::check_rate_limit('refresh_feed', 30, 60)) {
-        wp_send_json_error(array('message' => 'Rate limit exceeded. Please wait before refreshing feeds.'), 429);
-        return;
-    }
-
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
-
-    if (empty($feed_id)) {
-        wp_send_json_error(array('message' => 'Feed ID is required'));
-        return;
-    }
-
-    $result = Podloom_RSS::refresh_feed($feed_id);
-
-    // Get updated feed data
-    $feed = Podloom_RSS::get_feed($feed_id);
-
-    if ($result['success']) {
-        wp_send_json_success(array(
-            'message' => $result['message'],
-            'feed' => $feed
-        ));
-    } else {
-        wp_send_json_error(array(
-            'message' => $result['message'],
-            'feed' => $feed
-        ));
-    }
-}
-add_action('wp_ajax_podloom_refresh_rss_feed', 'podloom_ajax_refresh_rss_feed');
-
-/**
- * AJAX Handler: Get RSS Episodes
- */
-function podloom_ajax_get_rss_episodes() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
-    $page = isset($_POST['page']) ? absint(wp_unslash($_POST['page'])) : 1;
-    $per_page = isset($_POST['per_page']) ? absint(wp_unslash($_POST['per_page'])) : 20;
-
-    if (empty($feed_id)) {
-        wp_send_json_error(array('message' => 'Feed ID is required'));
-        return;
-    }
-
-    $result = Podloom_RSS::get_episodes($feed_id, $page, $per_page);
-
-    wp_send_json_success($result);
-}
-add_action('wp_ajax_podloom_get_rss_episodes', 'podloom_ajax_get_rss_episodes');
-
-/**
- * AJAX Handler: Get Raw RSS Feed
- */
-function podloom_ajax_get_raw_rss_feed() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
-
-    if (empty($feed_id)) {
-        wp_send_json_error(array('message' => 'Feed ID is required'));
-        return;
-    }
-
-    $result = Podloom_RSS::get_raw_feed($feed_id);
-
-    if ($result['success']) {
-        wp_send_json_success($result);
-    } else {
-        wp_send_json_error($result);
-    }
-}
-add_action('wp_ajax_podloom_get_raw_rss_feed', 'podloom_ajax_get_raw_rss_feed');
-
-/**
- * AJAX Handler: Save All RSS Settings (Bulk)
- */
-function podloom_ajax_save_all_rss_settings() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    $settings_json = isset($_POST['settings']) ? sanitize_text_field(wp_unslash($_POST['settings'])) : '';
-    $settings = json_decode($settings_json, true);
-
-    if (!is_array($settings)) {
-        wp_send_json_error(array('message' => 'Invalid settings data'));
-        return;
-    }
-
-    // List of boolean options
-    $boolean_options = array(
-        'podloom_rss_enabled',
-        'podloom_rss_display_artwork',
-        'podloom_rss_display_title',
-        'podloom_rss_display_date',
-        'podloom_rss_display_duration',
-        'podloom_rss_display_description',
-        'podloom_rss_minimal_styling'
-    );
-
-    $saved_count = 0;
-    foreach ($settings as $option_name => $option_value) {
-        // Validate option name - must start with podloom_rss_
-        if (strpos($option_name, 'podloom_rss_') !== 0) {
-            continue;
-        }
-
-        // Convert to boolean if it's a boolean option
-        if (in_array($option_name, $boolean_options)) {
-            $option_value = ($option_value === '1');
-        } else {
-            // Sanitize text field
-            $option_value = sanitize_text_field($option_value);
-
-            // For color values, sanitize as hex color
-            if (strpos($option_name, '_color') !== false) {
-                $option_value = sanitize_hex_color($option_value);
-            }
-        }
-
-        update_option($option_name, $option_value);
-        $saved_count++;
-    }
-
-    // Clear typography cache when settings are saved
-    podloom_clear_typography_cache();
-
-    wp_send_json_success(array(
-        'message' => 'All settings saved successfully',
-        'count' => $saved_count
-    ));
-}
-add_action('wp_ajax_podloom_save_all_rss_settings', 'podloom_ajax_save_all_rss_settings');
-
-/**
- * AJAX Handler: Get RSS Typography Settings
- */
-function podloom_ajax_get_rss_typography() {
-    check_ajax_referer('podloom_nonce', 'nonce');
-
-    if (!current_user_can('edit_posts')) {
-        wp_send_json_error(array('message' => 'Insufficient permissions'));
-        return;
-    }
-
-    // Get typography styles
-    $typo = podloom_get_rss_typography_styles();
-
-    // Add background color
-    $typo['background_color'] = get_option('podloom_rss_background_color', '#f9f9f9');
-
-    // Add minimal styling mode
-    $typo['minimal_styling'] = get_option('podloom_rss_minimal_styling', false);
-
-    // Add display settings
-    $typo['display'] = array(
-        'artwork' => get_option('podloom_rss_display_artwork', true),
-        'title' => get_option('podloom_rss_display_title', true),
-        'date' => get_option('podloom_rss_display_date', true),
-        'duration' => get_option('podloom_rss_display_duration', true),
-        'description' => get_option('podloom_rss_display_description', true)
-    );
-
-    wp_send_json_success($typo);
-}
-add_action('wp_ajax_podloom_get_rss_typography', 'podloom_ajax_get_rss_typography');
