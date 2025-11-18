@@ -247,42 +247,23 @@ function podloom_fetch_transcript() {
         wp_send_json_error(['message' => 'Invalid URL'], 400);
     }
 
-    // Domain whitelist: Only allow known podcast hosting providers
-    $allowed_domains = apply_filters('podloom_transcript_allowed_domains', [
-        'transistor.fm',
-        'buzzsprout.com',
-        'libsyn.com',
-        'podbean.com',
-        'simplecast.com',
-        'megaphone.fm',
-        'anchor.fm',
-        'spreaker.com',
-        'captivate.fm',
-        'blubrry.com',
-        'castos.com',
-        'fireside.fm',
-        'soundcloud.com',
-        'spotify.com',
-        'acast.com',
-        'podigee.com'
-    ]);
-
+    // Domain validation: Block obviously malicious domains
+    // Use blacklist approach instead of whitelist to support all transcript hosting services
     $host = parse_url($url, PHP_URL_HOST);
     if (!$host) {
         wp_send_json_error(['message' => 'Invalid URL format'], 400);
     }
 
-    // Check if domain is whitelisted
-    $domain_allowed = false;
-    foreach ($allowed_domains as $allowed_domain) {
-        if ($host === $allowed_domain || substr($host, -(strlen($allowed_domain) + 1)) === '.' . $allowed_domain) {
-            $domain_allowed = true;
-            break;
-        }
+    // Block localhost and local network references
+    $blocked_hosts = ['localhost', '127.0.0.1', '::1', '0.0.0.0', '169.254.169.254', 'metadata.google.internal'];
+    if (in_array(strtolower($host), $blocked_hosts, true)) {
+        wp_send_json_error(['message' => 'Domain not allowed: ' . esc_html($host)], 403);
     }
 
-    if (!$domain_allowed) {
-        wp_send_json_error(['message' => 'Domain not allowed: ' . esc_html($host)], 403);
+    // Require HTTPS for transcripts (security best practice)
+    $scheme = parse_url($url, PHP_URL_SCHEME);
+    if ($scheme !== 'https') {
+        wp_send_json_error(['message' => 'Only HTTPS URLs are allowed for transcripts'], 403);
     }
 
     // SSRF Protection: Prevent internal network access
