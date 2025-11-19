@@ -228,7 +228,8 @@ add_action('init', 'podloom_init');
  */
 function podloom_fetch_transcript() {
     // Rate limiting: 10 requests per minute per IP/user
-    $rate_key = 'podloom_transcript_rate_' . (is_user_logged_in() ? get_current_user_id() : md5($_SERVER['REMOTE_ADDR']));
+    $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $rate_key = 'podloom_transcript_rate_' . (is_user_logged_in() ? get_current_user_id() : md5($remote_addr));
     $rate_count = get_transient($rate_key);
 
     if ($rate_count && $rate_count >= 10) {
@@ -240,30 +241,30 @@ function podloom_fetch_transcript() {
         wp_send_json_error(['message' => 'No URL provided'], 400);
     }
 
-    $url = esc_url_raw($_GET['url']);
+    $url = sanitize_text_field(wp_unslash($_GET['url']));
 
     // Validate that it's a reasonable URL
     if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
-        wp_send_json_error(['message' => 'Invalid URL'], 400);
+        wp_send_json_error(['message' => 'Invalid URL: ' . esc_html($url)], 400);
     }
 
     // Domain validation: Block obviously malicious domains
     // Use blacklist approach instead of whitelist to support all transcript hosting services
     $host = parse_url($url, PHP_URL_HOST);
     if (!$host) {
-        wp_send_json_error(['message' => 'Invalid URL format'], 400);
+        wp_send_json_error(['message' => 'Invalid URL format - no host found'], 400);
     }
 
     // Block localhost and local network references
     $blocked_hosts = ['localhost', '127.0.0.1', '::1', '0.0.0.0', '169.254.169.254', 'metadata.google.internal'];
     if (in_array(strtolower($host), $blocked_hosts, true)) {
-        wp_send_json_error(['message' => 'Domain not allowed: ' . esc_html($host)], 403);
+        wp_send_json_error(['message' => 'Blocked domain: ' . esc_html($host)], 403);
     }
 
     // Require HTTPS for transcripts (security best practice)
     $scheme = parse_url($url, PHP_URL_SCHEME);
     if ($scheme !== 'https') {
-        wp_send_json_error(['message' => 'Only HTTPS URLs are allowed for transcripts'], 403);
+        wp_send_json_error(['message' => 'HTTPS required (got: ' . esc_html($scheme) . ')'], 403);
     }
 
     // SSRF Protection: Prevent internal network access
@@ -275,7 +276,7 @@ function podloom_fetch_transcript() {
         // Block localhost (127.x.x.x)
         // Block link-local (169.254.x.x)
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            wp_send_json_error(['message' => 'Cannot access internal network addresses'], 403);
+            wp_send_json_error(['message' => 'Internal network IP blocked: ' . esc_html($ip)], 403);
         }
     }
 
