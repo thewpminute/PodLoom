@@ -267,24 +267,18 @@ function podloom_fetch_transcript() {
         wp_send_json_error(['message' => 'HTTPS required (got: ' . esc_html($scheme) . ')'], 403);
     }
 
-    // SSRF Protection: Prevent internal network access
-    $ip = gethostbyname($host);
-
-    // Block private and reserved IP ranges
-    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-        // Block private ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
-        // Block localhost (127.x.x.x)
-        // Block link-local (169.254.x.x)
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            wp_send_json_error(['message' => 'Internal network IP blocked: ' . esc_html($ip)], 403);
-        }
-    }
+    // Note: We rely on WordPress's built-in SSRF protection via 'reject_unsafe_urls'
+    // in wp_remote_get() below. We don't do additional IP validation here because:
+    // 1. It causes false positives in Docker/VPN environments
+    // 2. WordPress handles this properly with reject_unsafe_urls
+    // 3. We already block localhost/metadata endpoints by hostname above
 
     // Fetch the transcript using WordPress HTTP API
     $response = wp_remote_get($url, [
         'timeout' => 15,
         'sslverify' => true,
         'redirection' => 2, // Limit redirects
+        'reject_unsafe_urls' => true, // WordPress built-in SSRF protection
         'user-agent' => 'PodLoom/' . PODLOOM_PLUGIN_VERSION . '; ' . get_bloginfo('url')
     ]);
 
