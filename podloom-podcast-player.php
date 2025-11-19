@@ -224,15 +224,18 @@ add_action('init', 'podloom_init');
 
 /**
  * AJAX handler to proxy transcript requests (bypasses CORS)
- * Security: Rate limited, domain whitelisted, SSRF protected
+ *
+ * Security: Uses WordPress core's built-in SSRF protection (reject_unsafe_urls).
+ * Extensible via filters for custom validation and rate limiting.
  */
 function podloom_fetch_transcript() {
-    // Rate limiting: 10 requests per minute per IP/user
+    // Basic rate limiting (filterable for advanced users)
+    $rate_limit = apply_filters('podloom_transcript_rate_limit', 10); // requests per minute
     $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
     $rate_key = 'podloom_transcript_rate_' . (is_user_logged_in() ? get_current_user_id() : md5($remote_addr));
     $rate_count = get_transient($rate_key);
 
-    if ($rate_count && $rate_count >= 10) {
+    if ($rate_limit > 0 && $rate_count && $rate_count >= $rate_limit) {
         wp_send_json_error(['message' => 'Rate limit exceeded. Please wait a minute.'], 429);
     }
 
@@ -243,44 +246,26 @@ function podloom_fetch_transcript() {
 
     $url = sanitize_text_field(wp_unslash($_GET['url']));
 
-    // Validate that it's a reasonable URL
+    // Basic URL validation
     if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
-        wp_send_json_error(['message' => 'Invalid URL: ' . esc_html($url)], 400);
+        wp_send_json_error(['message' => 'Invalid URL'], 400);
     }
 
-    // Domain validation: Block obviously malicious domains
-    // Use blacklist approach instead of whitelist to support all transcript hosting services
-    $host = parse_url($url, PHP_URL_HOST);
-    if (!$host) {
-        wp_send_json_error(['message' => 'Invalid URL format - no host found'], 400);
+    // Allow users to add custom validation via filter
+    $validation_error = apply_filters('podloom_transcript_validate_url', null, $url);
+    if ($validation_error) {
+        wp_send_json_error(['message' => $validation_error], 403);
     }
-
-    // Block localhost and local network references
-    $blocked_hosts = ['localhost', '127.0.0.1', '::1', '0.0.0.0', '169.254.169.254', 'metadata.google.internal'];
-    if (in_array(strtolower($host), $blocked_hosts, true)) {
-        wp_send_json_error(['message' => 'Blocked domain: ' . esc_html($host)], 403);
-    }
-
-    // Require HTTPS for transcripts (security best practice)
-    $scheme = parse_url($url, PHP_URL_SCHEME);
-    if ($scheme !== 'https') {
-        wp_send_json_error(['message' => 'HTTPS required (got: ' . esc_html($scheme) . ')'], 403);
-    }
-
-    // Note: We rely on WordPress's built-in SSRF protection via 'reject_unsafe_urls'
-    // in wp_remote_get() below. We don't do additional IP validation here because:
-    // 1. It causes false positives in Docker/VPN environments
-    // 2. WordPress handles this properly with reject_unsafe_urls
-    // 3. We already block localhost/metadata endpoints by hostname above
 
     // Fetch the transcript using WordPress HTTP API
-    $response = wp_remote_get($url, [
+    // WordPress's 'reject_unsafe_urls' handles SSRF protection (blocks private IPs, localhost, etc.)
+    $response = wp_remote_get($url, apply_filters('podloom_transcript_request_args', [
         'timeout' => 15,
         'sslverify' => true,
-        'redirection' => 2, // Limit redirects
-        'reject_unsafe_urls' => true, // WordPress built-in SSRF protection
+        'redirection' => 2,
+        'reject_unsafe_urls' => true,
         'user-agent' => 'PodLoom/' . PODLOOM_PLUGIN_VERSION . '; ' . get_bloginfo('url')
-    ]);
+    ], $url));
 
     // Check for errors
     if (is_wp_error($response)) {
