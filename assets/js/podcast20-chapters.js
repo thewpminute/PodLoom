@@ -178,10 +178,16 @@
 
         fetch(proxyUrl)
             .then(function(response) {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
+                // Always parse JSON to get error details
+                return response.json().then(function(data) {
+                    if (!response.ok) {
+                        // Log detailed error from server
+                        const errorMsg = data.data && data.data.message ? data.data.message : 'HTTP ' + response.status;
+                        console.error('Transcript proxy error (' + response.status + '):', errorMsg, 'URL:', url);
+                        throw new Error(errorMsg);
+                    }
+                    return data;
+                });
             })
             .then(function(data) {
                 // Handle WordPress AJAX response format
