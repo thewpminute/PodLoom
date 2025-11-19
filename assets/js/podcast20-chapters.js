@@ -274,6 +274,16 @@
      * Parse transcript based on type
      */
     function parseTranscript(text, type) {
+        // Auto-detect HTML content even if type says text/plain
+        // Some services (like Transistor) return HTML for .txt URLs
+        var trimmedText = text.trim();
+        if (trimmedText.startsWith('<!DOCTYPE') ||
+            trimmedText.startsWith('<html') ||
+            (trimmedText.includes('<body') && trimmedText.includes('</body>'))) {
+            return parseHTMLTranscript(text);
+        }
+
+        // Parse based on declared type
         if (type.includes('html')) {
             return parseHTMLTranscript(text);
         } else if (type.includes('srt')) {
@@ -315,10 +325,47 @@
         var doc = parser.parseFromString(html, 'text/html');
         var temp = document.createElement('div');
 
-        // Copy body content safely
-        if (doc.body) {
-            Array.from(doc.body.childNodes).forEach(function(node) {
-                temp.appendChild(node.cloneNode(true));
+        // Try to find the main transcript content (avoid navigation, headers, etc.)
+        var transcriptSelectors = [
+            '.transcript',
+            '.transcript-content',
+            '.episode-transcript',
+            '[data-transcript]',
+            'article',
+            'main',
+            '.content',
+            '.episode-content'
+        ];
+
+        var transcriptContent = null;
+        for (var i = 0; i < transcriptSelectors.length; i++) {
+            transcriptContent = doc.querySelector(transcriptSelectors[i]);
+            if (transcriptContent) {
+                break;
+            }
+        }
+
+        // If we found a transcript container, use only that
+        if (transcriptContent) {
+            temp.appendChild(transcriptContent.cloneNode(true));
+        } else {
+            // Fallback: copy body content but remove common non-transcript elements
+            if (doc.body) {
+                Array.from(doc.body.childNodes).forEach(function(node) {
+                    temp.appendChild(node.cloneNode(true));
+                });
+            }
+
+            // Remove common page elements that aren't transcript content
+            var unwantedSelectors = [
+                'header', 'nav', 'footer',
+                '.header', '.navigation', '.nav', '.footer',
+                '.sidebar', '.menu', '.social',
+                '[role="navigation"]', '[role="banner"]', '[role="complementary"]'
+            ];
+            unwantedSelectors.forEach(function(selector) {
+                var elements = temp.querySelectorAll(selector);
+                elements.forEach(function(el) { el.remove(); });
             });
         }
 

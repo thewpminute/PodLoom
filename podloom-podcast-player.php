@@ -285,24 +285,33 @@ function podloom_fetch_transcript() {
         ], $status_code);
     }
 
-    // Content-Type validation: Only allow transcript formats
-    $content_type = wp_remote_retrieve_header($response, 'content-type');
-    $allowed_types = ['text/plain', 'text/html', 'application/json', 'text/vtt', 'application/x-subrip', 'text/srt'];
+    // Optional content-type validation (disabled by default to support all servers)
+    // Users can enable strict validation via filter if needed for their environment
+    $strict_content_type = apply_filters('podloom_transcript_strict_content_type', false);
+    if ($strict_content_type) {
+        $content_type = wp_remote_retrieve_header($response, 'content-type');
+        $allowed_types = apply_filters('podloom_transcript_allowed_content_types', [
+            'text/plain', 'text/html', 'application/json', 'text/vtt',
+            'application/x-subrip', 'text/srt', 'application/srt'
+        ]);
 
-    $type_allowed = false;
-    foreach ($allowed_types as $allowed_type) {
-        if (stripos($content_type, $allowed_type) !== false) {
-            $type_allowed = true;
-            break;
+        $type_allowed = false;
+        foreach ($allowed_types as $allowed_type) {
+            if (stripos($content_type, $allowed_type) !== false) {
+                $type_allowed = true;
+                break;
+            }
+        }
+
+        if (!$type_allowed && !empty($content_type)) {
+            wp_send_json_error(['message' => 'Invalid content type: ' . esc_html($content_type)], 415);
         }
     }
 
-    if (!$type_allowed && !empty($content_type)) {
-        wp_send_json_error(['message' => 'Invalid content type: ' . esc_html($content_type)], 415);
-    }
-
     // Update rate limit counter
-    set_transient($rate_key, ($rate_count ?: 0) + 1, MINUTE_IN_SECONDS);
+    if ($rate_limit > 0) {
+        set_transient($rate_key, ($rate_count ?: 0) + 1, MINUTE_IN_SECONDS);
+    }
 
     // Return the transcript content
     wp_send_json_success([
