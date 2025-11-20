@@ -726,7 +726,8 @@ registerBlockType('podloom/episode-player', {
                         description: episode.attributes.description,
                         content: episode.attributes.content,
                         date: episode.attributes.date,
-                        duration: episode.attributes.duration
+                        duration: episode.attributes.duration,
+                        podcast20: episode.attributes.podcast20 || null
                     }
                 });
             }

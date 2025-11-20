@@ -168,26 +168,45 @@
         toggleTypographySettings: function() {
             const minimalStylingCheckbox = document.getElementById('podloom_rss_minimal_styling');
             const typographyContainer = document.querySelector('.typography-settings-container');
+            const colorPaletteSection = document.getElementById('color-palette-section');
+            const typographyWrapper = document.getElementById('typography-section-wrapper');
 
             if (minimalStylingCheckbox && typographyContainer) {
                 if (minimalStylingCheckbox.checked) {
                     // Hide typography settings
                     typographyContainer.style.display = 'none';
+                    // Hide color palette section
+                    if (colorPaletteSection) {
+                        colorPaletteSection.style.display = 'none';
+                    }
                     // Show notice
                     let notice = document.getElementById('minimal-styling-notice');
                     if (!notice) {
                         notice = document.createElement('div');
                         notice.id = 'minimal-styling-notice';
                         notice.className = 'notice notice-info inline';
-                        notice.style.marginTop = '20px';
-                        notice.innerHTML = '<p><strong>Minimal Styling Mode is enabled.</strong> Typography settings are disabled. Add your own CSS using the classes: <code>.rss-episode-player</code>, <code>.rss-episode-title</code>, <code>.rss-episode-date</code>, <code>.rss-episode-duration</code>, <code>.rss-episode-description</code>, <code>.rss-episode-artwork</code>, <code>.rss-episode-audio</code></p>';
-                        typographyContainer.parentNode.insertBefore(notice, typographyContainer);
+                        notice.style.marginTop = '0';
+                        notice.style.marginBottom = '20px';
+                        notice.innerHTML = '<p><strong>Minimal Styling Mode is enabled.</strong> Typography settings are disabled. Add your own CSS using the following classes:</p>' +
+                            '<p><strong>Episode Elements:</strong> <code>.rss-episode-player</code>, <code>.rss-episode-title</code>, <code>.rss-episode-date</code>, <code>.rss-episode-duration</code>, <code>.rss-episode-description</code>, <code>.rss-episode-artwork</code>, <code>.rss-episode-audio</code></p>' +
+                            '<p><strong>Podcasting 2.0 Elements:</strong> <code>.podcast20-tabs</code>, <code>.podcast20-tab-button</code>, <code>.podcast20-tab-panel</code>, <code>.podcast20-funding-button</code>, <code>.podcast20-transcripts</code>, <code>.transcript-format-button</code>, <code>.transcript-viewer</code>, <code>.podcast20-people</code>, <code>.podcast20-person</code>, <code>.podcast20-person-name</code>, <code>.podcast20-chapters-list</code>, <code>.chapter-item</code>, <code>.chapter-title</code>, <code>.chapter-timestamp</code></p>';
+                        // Insert at the beginning of the typography wrapper (above the accordion)
+                        if (typographyWrapper) {
+                            typographyWrapper.insertBefore(notice, typographyWrapper.firstChild);
+                        } else {
+                            // Fallback if wrapper doesn't exist
+                            typographyContainer.parentNode.insertBefore(notice, typographyContainer);
+                        }
                     } else {
                         notice.style.display = 'block';
                     }
                 } else {
                     // Show typography settings
                     typographyContainer.style.display = '';
+                    // Show color palette section
+                    if (colorPaletteSection) {
+                        colorPaletteSection.style.display = '';
+                    }
                     // Hide notice
                     const notice = document.getElementById('minimal-styling-notice');
                     if (notice) {

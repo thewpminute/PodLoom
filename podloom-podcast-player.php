@@ -27,9 +27,19 @@ define('PODLOOM_PLUGIN_VERSION', '2.1.1');
 define('PODLOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PODLOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 
+// Global flag to track if P2.0 content is used on this page
+global $podloom_has_podcast20_content;
+$podloom_has_podcast20_content = false;
+
 // Include necessary files
 require_once PODLOOM_PLUGIN_DIR . 'includes/api.php';
-require_once PODLOOM_PLUGIN_DIR . 'includes/rss.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-rss.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/rss-cron.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/rss-ajax-handlers.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-podcast20-parser.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/cache.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/color-utils.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/utilities.php';
 require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
 
 /**
@@ -92,10 +102,14 @@ function podloom_run_migration() {
     // Migrate transients
     global $wpdb;
     $transients = $wpdb->get_results(
-        "SELECT option_name, option_value
-         FROM $wpdb->options
-         WHERE option_name LIKE '_transient_transistor_%'
-         OR option_name LIKE '_transient_timeout_transistor_%'"
+        $wpdb->prepare(
+            "SELECT option_name, option_value
+             FROM {$wpdb->options}
+             WHERE option_name LIKE %s
+             OR option_name LIKE %s",
+            $wpdb->esc_like('_transient_transistor_') . '%',
+            $wpdb->esc_like('_transient_timeout_transistor_') . '%'
+        )
     );
 
     foreach ($transients as $transient) {
@@ -105,9 +119,6 @@ function podloom_run_migration() {
 
     // Mark migration as complete
     update_option('podloom_migration_complete', true);
-
-    // Log migration for debugging
-    error_log("PodLoom: Migrated {$migrated} options from transistor_ to podloom_ prefix");
 }
 add_action('admin_init', 'podloom_run_migration');
 
@@ -204,6 +215,106 @@ function podloom_init() {
 add_action('init', 'podloom_init');
 
 /**
+ * AJAX handler to proxy transcript requests (bypasses CORS)
+ *
+ * Security: Uses WordPress core's built-in SSRF protection (reject_unsafe_urls).
+ * Extensible via filters for custom validation and rate limiting.
+ */
+function podloom_fetch_transcript() {
+    // Basic rate limiting (filterable for advanced users)
+    $rate_limit = apply_filters('podloom_transcript_rate_limit', 10); // requests per minute
+    $remote_addr = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $rate_key = 'podloom_transcript_rate_' . (is_user_logged_in() ? get_current_user_id() : md5($remote_addr));
+    $rate_count = get_transient($rate_key);
+
+    if ($rate_limit > 0 && $rate_count && $rate_count >= $rate_limit) {
+        wp_send_json_error(['message' => 'Rate limit exceeded. Please wait a minute.'], 429);
+    }
+
+    // Verify the URL parameter exists
+    if (!isset($_GET['url'])) {
+        wp_send_json_error(['message' => 'No URL provided'], 400);
+    }
+
+    $url = sanitize_text_field(wp_unslash($_GET['url']));
+
+    // Basic URL validation
+    if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+        wp_send_json_error(['message' => 'Invalid URL'], 400);
+    }
+
+    // Allow users to add custom validation via filter
+    $validation_error = apply_filters('podloom_transcript_validate_url', null, $url);
+    if ($validation_error) {
+        wp_send_json_error(['message' => $validation_error], 403);
+    }
+
+    // Fetch the transcript using WordPress HTTP API
+    // WordPress's 'reject_unsafe_urls' handles SSRF protection (blocks private IPs, localhost, etc.)
+    $response = wp_remote_get($url, apply_filters('podloom_transcript_request_args', [
+        'timeout' => 15,
+        'sslverify' => true,
+        'redirection' => 2,
+        'reject_unsafe_urls' => true,
+        'user-agent' => 'PodLoom/' . PODLOOM_PLUGIN_VERSION . '; ' . get_bloginfo('url')
+    ], $url));
+
+    // Check for errors
+    if (is_wp_error($response)) {
+        wp_send_json_error([
+            'message' => 'Failed to fetch transcript',
+            'error' => $response->get_error_message()
+        ], 500);
+    }
+
+    $status_code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+
+    if ($status_code !== 200) {
+        wp_send_json_error([
+            'message' => 'Server returned error',
+            'status' => $status_code
+        ], $status_code);
+    }
+
+    // Optional content-type validation (disabled by default to support all servers)
+    // Users can enable strict validation via filter if needed for their environment
+    $strict_content_type = apply_filters('podloom_transcript_strict_content_type', false);
+    if ($strict_content_type) {
+        $content_type = wp_remote_retrieve_header($response, 'content-type');
+        $allowed_types = apply_filters('podloom_transcript_allowed_content_types', [
+            'text/plain', 'text/html', 'application/json', 'text/vtt',
+            'application/x-subrip', 'text/srt', 'application/srt'
+        ]);
+
+        $type_allowed = false;
+        foreach ($allowed_types as $allowed_type) {
+            if (stripos($content_type, $allowed_type) !== false) {
+                $type_allowed = true;
+                break;
+            }
+        }
+
+        if (!$type_allowed && !empty($content_type)) {
+            wp_send_json_error(['message' => 'Invalid content type: ' . esc_html($content_type)], 415);
+        }
+    }
+
+    // Update rate limit counter
+    if ($rate_limit > 0) {
+        set_transient($rate_key, ($rate_count ?: 0) + 1, MINUTE_IN_SECONDS);
+    }
+
+    // Return the transcript content
+    wp_send_json_success([
+        'content' => $body,
+        'content_type' => $content_type
+    ]);
+}
+add_action('wp_ajax_podloom_fetch_transcript', 'podloom_fetch_transcript');
+add_action('wp_ajax_nopriv_podloom_fetch_transcript', 'podloom_fetch_transcript');
+
+/**
  * Generate dynamic typography CSS for RSS player
  */
 function podloom_get_rss_dynamic_css() {
@@ -214,9 +325,86 @@ function podloom_get_rss_dynamic_css() {
 
     $typo = podloom_get_rss_typography_styles();
     $bg_color = get_option('podloom_rss_background_color', '#f9f9f9');
+    $player_height = get_option('podloom_rss_player_height', 600);
+
+    // Calculate theme-aware colors for tabs and P2.0 elements
+    $theme_colors = podloom_calculate_theme_colors($bg_color);
 
     return sprintf('
         .wp-block-podloom-episode-player.rss-episode-player {
+            background: %s;
+            max-height: %dpx;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .rss-episode-wrapper {
+            flex-shrink: 0;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-tabs {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-panel {
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+        @media (max-width: 640px) {
+            .wp-block-podloom-episode-player.rss-episode-player {
+                max-height: %dpx;
+            }
+            .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-nav {
+                border-right-color: %s;
+            }
+            .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button.active {
+                border-left-color: %s;
+            }
+        }
+        /* Tab colors based on theme */
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button {
+            color: %s;
+            border-bottom-color: transparent;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button:hover {
+            color: %s;
+            background: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button.active {
+            color: %s;
+            border-bottom-color: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-nav {
+            border-bottom-color: %s;
+        }
+        /* P2.0 content area colors based on theme */
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-people,
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-chapters-list {
+            background: %s;
+            border-color: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-person-role,
+        .wp-block-podloom-episode-player.rss-episode-player .chapters-heading {
+            color: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .chapter-timestamp {
+            background: %s;
+            color: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .chapter-timestamp:hover {
+            background: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .chapter-item.active {
+            background: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .transcript-timestamp {
+            background: %s;
+            color: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .transcript-timestamp:hover {
             background: %s;
         }
         .rss-episode-title {
@@ -248,6 +436,30 @@ function podloom_get_rss_dynamic_css() {
             font-weight: %s;
         }',
         esc_attr($bg_color),
+        absint($player_height),
+        absint($player_height + 100), // Mobile height - add 100px for stacked layout
+        // Mobile tab border colors
+        esc_attr($theme_colors['tab_border']),
+        esc_attr($theme_colors['tab_active']),
+        // Tab colors
+        esc_attr($theme_colors['tab_text']),
+        esc_attr($theme_colors['tab_text_hover']),
+        esc_attr($theme_colors['tab_bg_hover']),
+        esc_attr($theme_colors['tab_active']),
+        esc_attr($theme_colors['tab_active']),
+        esc_attr($theme_colors['tab_border']),
+        // P2.0 content colors
+        esc_attr($theme_colors['content_bg']),
+        esc_attr($theme_colors['content_border']),
+        esc_attr($theme_colors['accent']),
+        esc_attr($theme_colors['accent']),
+        esc_attr($theme_colors['accent_text']),
+        esc_attr($theme_colors['accent_hover']),
+        esc_attr($theme_colors['content_bg_active']),
+        esc_attr($theme_colors['accent']),
+        esc_attr($theme_colors['accent_text']),
+        esc_attr($theme_colors['accent_hover']),
+        // Typography
         esc_attr($typo['title']['font-family']),
         esc_attr($typo['title']['font-size']),
         esc_attr($typo['title']['line-height']),
@@ -272,9 +484,10 @@ function podloom_get_rss_dynamic_css() {
 }
 
 /**
- * Enqueue frontend styles for RSS player
+ * Enqueue frontend styles for RSS player (base styles always loaded)
  */
 function podloom_enqueue_rss_styles() {
+    // Always enqueue base player styles
     wp_enqueue_style(
         'podloom-rss-player',
         PODLOOM_PLUGIN_URL . 'assets/css/rss-player.css',
@@ -288,6 +501,45 @@ function podloom_enqueue_rss_styles() {
     }
 }
 add_action('wp_enqueue_scripts', 'podloom_enqueue_rss_styles');
+
+/**
+ * Conditionally enqueue Podcasting 2.0 assets in footer
+ * Only loads if P2.0 content was rendered on the page
+ */
+function podloom_enqueue_podcast20_assets() {
+    global $podloom_has_podcast20_content;
+
+    // Only load P2.0 assets if content exists
+    if (!$podloom_has_podcast20_content) {
+        echo '<!-- PodLoom: No P2.0 content detected, assets not loaded -->';
+        return;
+    }
+
+    // Enqueue Podcasting 2.0 styles
+    wp_enqueue_style(
+        'podloom-podcast20',
+        PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles.css',
+        [],
+        PODLOOM_PLUGIN_VERSION
+    );
+
+    // Enqueue Podcasting 2.0 chapter navigation script
+    wp_enqueue_script(
+        'podloom-podcast20-chapters',
+        PODLOOM_PLUGIN_URL . 'assets/js/podcast20-chapters.js',
+        [],
+        PODLOOM_PLUGIN_VERSION,
+        true // Load in footer
+    );
+
+    // Pass AJAX URL to the script for transcript proxy
+    wp_localize_script('podloom-podcast20-chapters', 'podloomTranscript', [
+        'ajaxUrl' => admin_url('admin-ajax.php')
+    ]);
+
+    echo '<!-- PodLoom: P2.0 assets loaded (~11KB CSS + ~22KB JS) -->';
+}
+add_action('wp_footer', 'podloom_enqueue_podcast20_assets', 5);
 
 /**
  * Enqueue editor styles for RSS player (uses same CSS as frontend)
@@ -431,8 +683,8 @@ function podloom_render_block($attributes) {
  * Get typography styles for RSS elements (with caching)
  */
 function podloom_get_rss_typography_styles() {
-    // Try to get from cache first
-    $cached_styles = get_transient('podloom_rss_typography_cache');
+    // Try to get from cache first (uses object cache if available)
+    $cached_styles = podloom_cache_get('rss_typography_cache');
     if ($cached_styles !== false) {
         return $cached_styles;
     }
@@ -468,18 +720,21 @@ function podloom_get_rss_typography_styles() {
         ]
     ];
 
+    // Load all options at once to avoid N+1 query problem (20+ queries reduced to 1)
+    $all_options = wp_load_alloptions();
+
     foreach ($elements as $element) {
         $styles[$element] = [
-            'font-family' => get_option("podloom_rss_{$element}_font_family", 'inherit'),
-            'font-size' => get_option("podloom_rss_{$element}_font_size", $defaults[$element]['font_size']),
-            'line-height' => get_option("podloom_rss_{$element}_line_height", $defaults[$element]['line_height']),
-            'color' => get_option("podloom_rss_{$element}_color", $defaults[$element]['color']),
-            'font-weight' => get_option("podloom_rss_{$element}_font_weight", $defaults[$element]['font_weight'])
+            'font-family' => $all_options["podloom_rss_{$element}_font_family"] ?? 'inherit',
+            'font-size' => $all_options["podloom_rss_{$element}_font_size"] ?? $defaults[$element]['font_size'],
+            'line-height' => $all_options["podloom_rss_{$element}_line_height"] ?? $defaults[$element]['line_height'],
+            'color' => $all_options["podloom_rss_{$element}_color"] ?? $defaults[$element]['color'],
+            'font-weight' => $all_options["podloom_rss_{$element}_font_weight"] ?? $defaults[$element]['font_weight']
         ];
     }
 
-    // Cache the styles for 1 hour
-    set_transient('podloom_rss_typography_cache', $styles, HOUR_IN_SECONDS);
+    // Cache the styles for 1 hour (uses object cache if available)
+    podloom_cache_set('rss_typography_cache', $styles, 'podloom', HOUR_IN_SECONDS);
 
     return $styles;
 }
@@ -488,7 +743,7 @@ function podloom_get_rss_typography_styles() {
  * Clear typography cache (called when settings are saved)
  */
 function podloom_clear_typography_cache() {
-    delete_transient('podloom_rss_typography_cache');
+    podloom_cache_delete('rss_typography_cache');
 }
 
 /**
@@ -521,6 +776,44 @@ function podloom_render_rss_episode($attributes) {
 
     $episode = $attributes['rssEpisodeData'];
 
+    // Server-side fallback: If podcast20 data is missing (old block), fetch it from cache
+    if (empty($episode['podcast20']) && !empty($attributes['rssFeedId'])) {
+        $feed_id = $attributes['rssFeedId'];
+
+        // Get all episodes from the feed cache
+        $episodes_data = Podloom_RSS::get_episodes($feed_id, 1, 100); // Get first 100 episodes
+
+        if (!empty($episodes_data['episodes'])) {
+            // Try to match the episode by audio_url (most reliable) or title
+            foreach ($episodes_data['episodes'] as $cached_episode) {
+                $match = false;
+
+                // Match by audio URL (most reliable)
+                if (!empty($episode['audio_url']) && !empty($cached_episode['audio_url'])) {
+                    if ($episode['audio_url'] === $cached_episode['audio_url']) {
+                        $match = true;
+                    }
+                }
+
+                // Fallback: match by title and date
+                if (!$match && !empty($episode['title']) && !empty($cached_episode['title'])) {
+                    if ($episode['title'] === $cached_episode['title']) {
+                        $match = true;
+                    }
+                }
+
+                if ($match && !empty($cached_episode['podcast20'])) {
+                    // Merge fresh podcast20 data from cache
+                    $episode['podcast20'] = $cached_episode['podcast20'];
+                    break;
+                }
+            }
+        }
+    }
+
+    // Character limit is now applied later when preparing description for tabs
+    // This preserves HTML formatting while limiting character count
+
     // Get display settings
     $show_artwork = get_option('podloom_rss_display_artwork', true);
     $show_title = get_option('podloom_rss_display_title', true);
@@ -551,6 +844,12 @@ function podloom_render_rss_episode($attributes) {
 
     // Episode content container
     $output .= '<div class="rss-episode-content">';
+
+    // Episode header with title and funding button
+    $output .= '<div class="rss-episode-header">';
+
+    // Title and meta in left section
+    $output .= '<div class="rss-episode-header-content">';
 
     // Episode title
     if ($show_title && !empty($episode['title'])) {
@@ -585,10 +884,26 @@ function podloom_render_rss_episode($attributes) {
         $output .= '</div>';
     }
 
+    $output .= '</div>'; // .rss-episode-header-content
+
+    // Funding button in top-right
+    if (!empty($episode['podcast20'])) {
+        $funding_button = podloom_get_funding_button($episode['podcast20']);
+        if (!empty($funding_button)) {
+            $output .= '<div class="rss-episode-header-actions">';
+            $output .= $funding_button;
+            $output .= '</div>';
+        }
+    }
+
+    $output .= '</div>'; // .rss-episode-header
+
     // Audio player (always shown)
     if (!empty($episode['audio_url'])) {
         // Add class if description is hidden to remove bottom margin
-        $audio_class = ($show_description && !empty($episode['description'])) ? 'rss-episode-audio' : 'rss-episode-audio rss-audio-last';
+        // Check for either content or description
+        $has_description = !empty($episode['content']) || !empty($episode['description']);
+        $audio_class = ($show_description && $has_description) ? 'rss-episode-audio' : 'rss-episode-audio rss-audio-last';
         $output .= sprintf(
             '<audio class="%s" controls preload="metadata"><source src="%s" type="%s">%s</audio>',
             esc_attr($audio_class),
@@ -598,8 +913,14 @@ function podloom_render_rss_episode($attributes) {
         );
     }
 
-    // Episode description (character limit already applied in backend)
-    if ($show_description && !empty($episode['description'])) {
+    $output .= '</div>'; // .rss-episode-content
+    $output .= '</div>'; // .rss-episode-wrapper
+
+    // Prepare description for tabs (if enabled)
+    $description_html = '';
+    // Prefer 'content' over 'description' as SimplePie's get_description() truncates by default
+    $description_source = !empty($episode['content']) ? $episode['content'] : $episode['description'];
+    if ($show_description && !empty($description_source)) {
         // Use restrictive HTML sanitization to prevent XSS from untrusted RSS feeds
         $allowed_html = array(
             'p' => array(),
@@ -622,38 +943,64 @@ function podloom_render_rss_episode($attributes) {
             'code' => array(),
             'pre' => array()
         );
-        $output .= sprintf(
-            '<div class="rss-episode-description">%s</div>',
-            wp_kses($episode['description'], $allowed_html)
+        $description_html = wp_kses($description_source, $allowed_html);
+
+        // Additional security: validate href attributes to prevent javascript: and data: URLs
+        if (!empty($description_html) && strpos($description_html, '<a ') !== false) {
+            $dom = new DOMDocument();
+            libxml_use_internal_errors(true);
+            @$dom->loadHTML('<?xml encoding="UTF-8">' . $description_html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+            libxml_clear_errors();
+
+            $links = $dom->getElementsByTagName('a');
+            foreach ($links as $link) {
+                $href = $link->getAttribute('href');
+                if ($href) {
+                    $href_lower = strtolower(trim($href));
+                    // Remove dangerous URL schemes
+                    if (strpos($href_lower, 'javascript:') === 0 ||
+                        strpos($href_lower, 'data:') === 0 ||
+                        strpos($href_lower, 'vbscript:') === 0) {
+                        $link->removeAttribute('href');
+                    }
+                }
+                // Ensure external links have proper rel attribute for security
+                if ($link->hasAttribute('href') && $link->getAttribute('target') === '_blank') {
+                    $link->setAttribute('rel', 'noopener noreferrer');
+                }
+            }
+
+            $description_html = '';
+            foreach ($dom->childNodes as $child) {
+                $description_html .= $dom->saveHTML($child);
+            }
+        }
+
+        // Apply character limit if set (while preserving HTML)
+        $char_limit = get_option('podloom_rss_description_limit', 0);
+        if ($char_limit > 0) {
+            $description_html = podloom_truncate_html($description_html, $char_limit);
+        }
+    }
+
+    // Render Podcasting 2.0 tabs (after player, outside content wrapper)
+    // Pass description to be included as first tab if enabled
+    if (!empty($episode['podcast20']) || !empty($description_html)) {
+        // Set global flag to indicate P2.0 content is used
+        global $podloom_has_podcast20_content;
+        $podloom_has_podcast20_content = true;
+
+        $output .= podloom_render_podcast20_tabs(
+            $episode['podcast20'] ?? [],
+            $description_html,
+            $show_description
         );
     }
 
-    $output .= '</div>'; // .rss-episode-content
-    $output .= '</div>'; // .rss-episode-wrapper
     $output .= '</div>'; // .wp-block-podloom-episode-player
 
     // Styles are now enqueued via wp_add_inline_style() in podloom_enqueue_rss_styles()
     return $output;
-}
-
-/**
- * Format duration from seconds to readable format
- */
-function podloom_format_duration($seconds) {
-    if (empty($seconds) || !is_numeric($seconds)) {
-        return '';
-    }
-
-    $seconds = intval($seconds);
-    $hours = floor($seconds / 3600);
-    $minutes = floor(($seconds % 3600) / 60);
-    $secs = $seconds % 60;
-
-    if ($hours > 0) {
-        return sprintf('%d:%02d:%02d', $hours, $minutes, $secs);
-    } else {
-        return sprintf('%d:%02d', $minutes, $secs);
-    }
 }
 
 /**
@@ -745,6 +1092,37 @@ function podloom_register_settings() {
     ]);
 
     register_setting('podloom_settings', 'podloom_rss_display_description', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    // Podcasting 2.0 element display settings
+    register_setting('podloom_settings', 'podloom_rss_display_funding', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('podloom_settings', 'podloom_rss_display_transcripts', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('podloom_settings', 'podloom_rss_display_people_hosts', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('podloom_settings', 'podloom_rss_display_people_guests', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => true
+    ]);
+
+    register_setting('podloom_settings', 'podloom_rss_display_chapters', [
         'type' => 'boolean',
         'sanitize_callback' => 'rest_sanitize_boolean',
         'default' => true
@@ -878,6 +1256,19 @@ function podloom_register_settings() {
         'sanitize_callback' => 'absint',
         'default' => 0
     ]);
+
+    // Player height
+    register_setting('podloom_settings', 'podloom_rss_player_height', [
+        'type' => 'integer',
+        'sanitize_callback' => 'absint',
+        'default' => 600
+    ]);
+
+    register_setting('podloom_settings', 'podloom_rss_cache_duration', [
+        'type' => 'integer',
+        'sanitize_callback' => 'absint',
+        'default' => 21600 // 6 hours in seconds
+    ]);
 }
 add_action('admin_init', 'podloom_register_settings');
 
@@ -889,4 +1280,441 @@ function podloom_sanitize_rss_feeds($feeds) {
         return [];
     }
     return $feeds;
+}
+
+/**
+ * Get funding button HTML (for top-right positioning)
+ *
+ * @param array $p20_data Podcasting 2.0 data from parser
+ * @return string HTML output
+ */
+function podloom_get_funding_button($p20_data) {
+    $display_funding = get_option('podloom_rss_display_funding', true);
+
+    if ($display_funding && !empty($p20_data['funding'])) {
+        return podloom_render_funding($p20_data['funding']);
+    }
+
+    return '';
+}
+
+/**
+ * Render Podcasting 2.0 elements as tabbed interface
+ *
+ * @param array $p20_data Podcasting 2.0 data from parser
+ * @param string $description_html Sanitized episode description HTML
+ * @param bool $show_description Whether to show description tab
+ * @return string HTML output
+ */
+function podloom_render_podcast20_tabs($p20_data, $description_html = '', $show_description = true) {
+    // Get display settings
+    $display_transcripts = get_option('podloom_rss_display_transcripts', true);
+    $display_people_hosts = get_option('podloom_rss_display_people_hosts', true);
+    $display_people_guests = get_option('podloom_rss_display_people_guests', true);
+    $display_chapters = get_option('podloom_rss_display_chapters', true);
+
+    // Build tabs array: [id, label, content]
+    $tabs = [];
+
+    // Tab 0: Description (if enabled and has content)
+    if ($show_description && !empty($description_html)) {
+        $tabs[] = [
+            'id' => 'description',
+            'label' => __('Description', 'podloom-podcast-player'),
+            'content' => '<div class="rss-episode-description">' . $description_html . '</div>'
+        ];
+    }
+
+    // Ensure p20_data is an array
+    if (!is_array($p20_data)) {
+        $p20_data = [];
+    }
+
+    // Tab: Credits (People)
+    $people_to_show = [];
+    if ($display_people_hosts && !empty($p20_data['people_channel'])) {
+        $people_to_show = array_merge($people_to_show, $p20_data['people_channel']);
+    }
+    if ($display_people_guests && !empty($p20_data['people_episode'])) {
+        $people_to_show = array_merge($people_to_show, $p20_data['people_episode']);
+    }
+    if (!empty($people_to_show)) {
+        usort($people_to_show, function($a, $b) {
+            $priority = ['host' => 1, 'co-host' => 2, 'guest' => 3];
+            $a_priority = $priority[strtolower($a['role'])] ?? 999;
+            $b_priority = $priority[strtolower($b['role'])] ?? 999;
+            return $a_priority - $b_priority;
+        });
+        $tabs[] = [
+            'id' => 'credits',
+            'label' => __('Credits', 'podloom-podcast-player'),
+            'content' => podloom_render_people($people_to_show)
+        ];
+    }
+
+    // Tab: Chapters
+    if ($display_chapters && !empty($p20_data['chapters'])) {
+        $tabs[] = [
+            'id' => 'chapters',
+            'label' => __('Chapters', 'podloom-podcast-player'),
+            'content' => podloom_render_chapters($p20_data['chapters'])
+        ];
+    }
+
+    // Tab: Transcripts
+    if ($display_transcripts && !empty($p20_data['transcripts'])) {
+        $tabs[] = [
+            'id' => 'transcripts',
+            'label' => __('Transcripts', 'podloom-podcast-player'),
+            'content' => podloom_render_transcripts($p20_data['transcripts'])
+        ];
+    }
+
+    // If no tabs, return empty
+    if (empty($tabs)) {
+        return '';
+    }
+
+    // Build tab navigation
+    $output = '<div class="podcast20-tabs">';
+    $output .= '<div class="podcast20-tab-nav" role="tablist">';
+
+    foreach ($tabs as $index => $tab) {
+        $is_active = ($index === 0) ? 'active' : '';
+        $output .= sprintf(
+            '<button class="podcast20-tab-button %s" data-tab="%s" role="tab" aria-selected="%s" aria-controls="tab-panel-%s">%s</button>',
+            $is_active,
+            esc_attr($tab['id']),
+            $is_active ? 'true' : 'false',
+            esc_attr($tab['id']),
+            esc_html($tab['label'])
+        );
+    }
+
+    $output .= '</div>'; // .podcast20-tab-nav
+
+    // Build tab panels
+    foreach ($tabs as $index => $tab) {
+        $is_active = ($index === 0) ? 'active' : '';
+        $output .= sprintf(
+            '<div class="podcast20-tab-panel %s" id="tab-panel-%s" role="tabpanel" aria-labelledby="%s">%s</div>',
+            $is_active,
+            esc_attr($tab['id']),
+            esc_attr($tab['id']),
+            $tab['content']
+        );
+    }
+
+    $output .= '</div>'; // .podcast20-tabs
+
+    return $output;
+}
+
+/**
+ * Render Podcasting 2.0 elements (legacy function for backwards compatibility)
+ *
+ * @param array $p20_data Podcasting 2.0 data from parser
+ * @return string HTML output
+ */
+function podloom_render_podcast20_elements($p20_data) {
+    return podloom_render_podcast20_tabs($p20_data);
+}
+
+/**
+ * Render podcast:funding tag
+ *
+ * @param array $funding Funding data
+ * @return string HTML output
+ */
+function podloom_render_funding($funding) {
+    if (empty($funding['url'])) {
+        return '';
+    }
+
+    return sprintf(
+        '<a href="%s" target="_blank" rel="noopener noreferrer" class="podcast20-funding-button">
+            <svg class="podcast20-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+            <span>%s</span>
+        </a>',
+        esc_url($funding['url']),
+        esc_html($funding['text'])
+    );
+}
+
+/**
+ * Render podcast:transcript tags
+ *
+ * @param array $transcripts Array of transcript objects
+ * @return string HTML output
+ */
+function podloom_render_transcripts($transcripts) {
+    if (empty($transcripts) || !is_array($transcripts)) {
+        return '';
+    }
+
+    // Check if any .txt transcripts exist and add potential HTML versions
+    $has_html = false;
+    foreach ($transcripts as $transcript) {
+        if (($transcript['type'] ?? '') === 'text/html') {
+            $has_html = true;
+            break;
+        }
+    }
+
+    // If no HTML transcript exists, check for .txt files and generate HTML alternatives
+    if (!$has_html) {
+        $additional_transcripts = [];
+        foreach ($transcripts as $transcript) {
+            $url = $transcript['url'] ?? '';
+            $type = $transcript['type'] ?? '';
+
+            // If this is a text/plain or .txt file, try HTML version
+            if (($type === 'text/plain' || strpos($url, '.txt') !== false) && !empty($url)) {
+                // Generate potential HTML URL by replacing .txt with .html
+                $html_url = preg_replace('/\.txt$/i', '.html', $url);
+
+                // Only add if it's actually different (i.e., URL ended with .txt)
+                if ($html_url !== $url) {
+                    $additional_transcripts[] = [
+                        'url' => $html_url,
+                        'type' => 'text/html',
+                        'label' => $transcript['label'] ?? '',
+                        'language' => $transcript['language'] ?? ''
+                    ];
+                }
+            }
+        }
+
+        // Add potential HTML transcripts to the array
+        if (!empty($additional_transcripts)) {
+            $transcripts = array_merge($additional_transcripts, $transcripts);
+        }
+    }
+
+    // Sort transcripts by format preference: HTML > SRT > VTT > JSON > text/plain > other
+    $format_priority = [
+        'text/html' => 1,
+        'application/x-subrip' => 2,
+        'text/srt' => 2,
+        'text/vtt' => 3,
+        'application/json' => 4,
+        'text/plain' => 5
+    ];
+
+    usort($transcripts, function($a, $b) use ($format_priority) {
+        $a_priority = $format_priority[$a['type'] ?? ''] ?? 999;
+        $b_priority = $format_priority[$b['type'] ?? ''] ?? 999;
+        return $a_priority - $b_priority;
+    });
+
+    // Use the first (highest priority) transcript for display
+    $primary_transcript = $transcripts[0];
+
+    if (empty($primary_transcript['url'])) {
+        return '';
+    }
+
+    $output = '<div class="podcast20-transcripts">';
+
+    // Transcript format button - include all transcripts as fallbacks
+    $output .= '<div class="transcript-formats">';
+    $output .= sprintf(
+        '<button class="transcript-format-button" data-url="%s" data-type="%s" data-transcripts="%s">
+            <svg class="podcast20-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M14 4.5V14a2 2 0 01-2 2H4a2 2 0 01-2-2V2a2 2 0 012-2h5.5L14 4.5zm-3 0A1.5 1.5 0 019.5 3V1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V4.5h-2z"/>
+                <path d="M3 9.5h10v1H3v-1zm0 2h10v1H3v-1z"/>
+            </svg>
+            <span>%s</span>
+        </button>',
+        esc_url($primary_transcript['url']),
+        esc_attr($primary_transcript['type'] ?? 'text/plain'),
+        esc_attr(wp_json_encode($transcripts)),
+        esc_html__('Click for Transcript', 'podloom-podcast-player')
+    );
+
+    // Fallback link for no-JS - use same external link icon as chapters
+    $output .= sprintf(
+        ' <a href="%s" target="_blank" rel="noopener noreferrer" class="transcript-external-link" title="%s">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6.354 5.5H4a3 3 0 000 6h3a3 3 0 002.83-4H9c-.086 0-.17.01-.25.031A2 2 0 017 10.5H4a2 2 0 110-4h1.535c.218-.376.495-.714.82-1z"/>
+                <path d="M9 5.5a3 3 0 00-2.83 4h1.098A2 2 0 019 6.5h3a2 2 0 110 4h-1.535a4.02 4.02 0 01-.82 1H12a3 3 0 100-6H9z"/>
+            </svg>
+        </a>',
+        esc_url($primary_transcript['url']),
+        esc_attr__('Open transcript in new tab', 'podloom-podcast-player')
+    );
+
+    $output .= '</div>'; // .transcript-formats
+
+    // Transcript viewer (hidden by default)
+    $output .= '<div class="transcript-viewer" style="display:none;">';
+    $output .= '<div class="transcript-content"></div>';
+    $output .= '<button class="transcript-close">' . esc_html__('Close', 'podloom-podcast-player') . '</button>';
+    $output .= '</div>'; // .transcript-viewer
+
+    $output .= '</div>'; // .podcast20-transcripts
+
+    return $output;
+}
+
+/**
+ * Render podcast:person tags
+ *
+ * @param array $people Array of person objects
+ * @return string HTML output
+ */
+function podloom_render_people($people) {
+    if (empty($people) || !is_array($people)) {
+        return '';
+    }
+
+    $output = '<div class="podcast20-people">';
+    $output .= '<h4 class="podcast20-heading">' . esc_html__('Credits', 'podloom-podcast-player') . '</h4>';
+    $output .= '<div class="podcast20-people-list">';
+
+    foreach ($people as $person) {
+        if (empty($person['name'])) {
+            continue;
+        }
+
+        $output .= '<div class="podcast20-person">';
+
+        // Person image
+        if (!empty($person['img'])) {
+            $output .= sprintf(
+                '<img src="%s" alt="%s" class="podcast20-person-img">',
+                esc_url($person['img']),
+                esc_attr($person['name'])
+            );
+        } else {
+            // Default avatar icon
+            $output .= '<div class="podcast20-person-avatar">
+                <svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M11 6a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path d="M2 0a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V2a2 2 0 00-2-2H2zm12 1a1 1 0 011 1v12a1 1 0 01-1 1v-1c0-1-1-4-6-4s-6 3-6 4v1a1 1 0 01-1-1V2a1 1 0 011-1h12z"/>
+                </svg>
+            </div>';
+        }
+
+        $output .= '<div class="podcast20-person-info">';
+
+        // Role
+        if (!empty($person['role'])) {
+            $output .= sprintf(
+                '<span class="podcast20-person-role">%s</span>',
+                esc_html(ucfirst($person['role']))
+            );
+        }
+
+        // Name (linked or plain text)
+        if (!empty($person['href'])) {
+            $output .= sprintf(
+                '<a href="%s" target="_blank" rel="noopener noreferrer" class="podcast20-person-name">%s</a>',
+                esc_url($person['href']),
+                esc_html($person['name'])
+            );
+        } else {
+            $output .= sprintf(
+                '<span class="podcast20-person-name">%s</span>',
+                esc_html($person['name'])
+            );
+        }
+
+        $output .= '</div>'; // .podcast20-person-info
+        $output .= '</div>'; // .podcast20-person
+    }
+
+    $output .= '</div></div>'; // .podcast20-people-list and .podcast20-people
+
+    return $output;
+}
+
+/**
+ * Render podcast:chapters tag
+ *
+ * @param array $chapters Chapters data
+ * @return string HTML output
+ */
+function podloom_render_chapters($chapters) {
+    if (empty($chapters)) {
+        return '';
+    }
+
+    // If no chapters array is available, show link to chapters JSON
+    if (empty($chapters['chapters']) || !is_array($chapters['chapters'])) {
+        if (!empty($chapters['url'])) {
+            return sprintf(
+                '<div class="podcast20-chapters">
+                    <a href="%s" target="_blank" rel="noopener noreferrer" class="podcast20-chapters-link">
+                        <svg class="podcast20-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M1 2.5A1.5 1.5 0 012.5 1h3A1.5 1.5 0 017 2.5v3A1.5 1.5 0 015.5 7h-3A1.5 1.5 0 011 5.5v-3zm8 0A1.5 1.5 0 0110.5 1h3A1.5 1.5 0 0115 2.5v3A1.5 1.5 0 0113.5 7h-3A1.5 1.5 0 019 5.5v-3zm-8 8A1.5 1.5 0 012.5 9h3A1.5 1.5 0 017 10.5v3A1.5 1.5 0 15.5 15h-3A1.5 1.5 0 011 13.5v-3zm8 0A1.5 1.5 0 0110.5 9h3a1.5 1.5 0 011.5 1.5v3a1.5 1.5 0 01-1.5 1.5h-3A1.5 1.5 0 019 13.5v-3z"/>
+                        </svg>
+                        <span>%s</span>
+                    </a>
+                </div>',
+                esc_url($chapters['url']),
+                esc_html__('View Chapters', 'podloom-podcast-player')
+            );
+        }
+        return '';
+    }
+
+    // Render full chapter list
+    $output = '<div class="podcast20-chapters-list">';
+    $output .= '<h4 class="chapters-heading">' . esc_html__('Chapters', 'podloom-podcast-player') . '</h4>';
+
+    foreach ($chapters['chapters'] as $chapter) {
+        $start_time = $chapter['startTime'];
+        $formatted_time = podloom_format_timestamp($start_time);
+        $title = $chapter['title'];
+
+        $output .= '<div class="chapter-item" data-start-time="' . esc_attr($start_time) . '">';
+
+        // Chapter image
+        if (!empty($chapter['img'])) {
+            $output .= sprintf(
+                '<img src="%s" alt="%s" class="chapter-img" loading="lazy" />',
+                esc_url($chapter['img']),
+                esc_attr($title)
+            );
+        } else {
+            // Placeholder if no image
+            $output .= '<div class="chapter-img-placeholder"></div>';
+        }
+
+        // Chapter info
+        $output .= '<div class="chapter-info">';
+        $output .= '<button class="chapter-timestamp" data-start-time="' . esc_attr($start_time) . '">';
+        $output .= esc_html($formatted_time);
+        $output .= '</button>';
+
+        // Chapter title (always a span, never a link)
+        $output .= '<span class="chapter-title">' . esc_html($title);
+
+        // If chapter has a URL, add external link icon
+        if (!empty($chapter['url'])) {
+            $output .= sprintf(
+                ' <a href="%s" target="_blank" rel="noopener noreferrer" class="chapter-external-link" title="%s">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-left: 4px;">
+                        <path d="M6.354 5.5H4a3 3 0 000 6h3a3 3 0 002.83-4H9c-.086 0-.17.01-.25.031A2 2 0 017 10.5H4a2 2 0 110-4h1.535c.218-.376.495-.714.82-1z"/>
+                        <path d="M9 5.5a3 3 0 00-2.83 4h1.098A2 2 0 019 6.5h3a2 2 0 110 4h-1.535a4.02 4.02 0 01-.82 1H12a3 3 0 100-6H9z"/>
+                    </svg>
+                </a>',
+                esc_url($chapter['url']),
+                esc_attr__('Open chapter link', 'podloom-podcast-player')
+            );
+        }
+
+        $output .= '</span>';
+
+        $output .= '</div>'; // .chapter-info
+        $output .= '</div>'; // .chapter-item
+    }
+
+    $output .= '</div>'; // .podcast20-chapters-list
+
+    return $output;
 }

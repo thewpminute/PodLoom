@@ -255,8 +255,15 @@
                 podloom_rss_display_date: document.getElementById('podloom_rss_display_date').checked ? '1' : '0',
                 podloom_rss_display_duration: document.getElementById('podloom_rss_display_duration').checked ? '1' : '0',
                 podloom_rss_display_description: document.getElementById('podloom_rss_display_description').checked ? '1' : '0',
+                podloom_rss_display_funding: document.getElementById('podloom_rss_display_funding').checked ? '1' : '0',
+                podloom_rss_display_transcripts: document.getElementById('podloom_rss_display_transcripts').checked ? '1' : '0',
+                podloom_rss_display_people_hosts: document.getElementById('podloom_rss_display_people_hosts').checked ? '1' : '0',
+                podloom_rss_display_people_guests: document.getElementById('podloom_rss_display_people_guests').checked ? '1' : '0',
+                podloom_rss_display_chapters: document.getElementById('podloom_rss_display_chapters').checked ? '1' : '0',
                 podloom_rss_minimal_styling: document.getElementById('podloom_rss_minimal_styling').checked ? '1' : '0',
-                podloom_rss_description_limit: document.getElementById('podloom_rss_description_limit')?.value || '0'
+                podloom_rss_description_limit: document.getElementById('podloom_rss_description_limit')?.value || '0',
+                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600',
+                podloom_rss_cache_duration: document.getElementById('podloom_rss_cache_duration')?.value || '21600'
             };
 
             // Add typography settings
