@@ -407,16 +407,6 @@ class Podloom_RSS {
             // Merge channel and item data (item takes precedence)
             $p20_data = $p20_parser->merge_data($item_p20_data, $channel_p20_data);
 
-            // Debug: Log P2.0 data for first episode only
-            static $debug_logged = false;
-            if (!$debug_logged && WP_DEBUG) {
-                error_log('PodLoom P2.0 Debug for episode: ' . $item->get_title());
-                error_log('Channel P2.0 Data: ' . print_r($channel_p20_data, true));
-                error_log('Item P2.0 Data: ' . print_r($item_p20_data, true));
-                error_log('Merged P2.0 Data: ' . print_r($p20_data, true));
-                $debug_logged = true;
-            }
-
             $episode = array(
                 'id' => md5($item->get_permalink()),
                 'title' => $item->get_title(),

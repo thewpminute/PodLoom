@@ -42,11 +42,6 @@ require_once PODLOOM_PLUGIN_DIR . 'includes/color-utils.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/utilities.php';
 require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
 
-// Debug page (only load when WP_DEBUG is enabled)
-if (defined('WP_DEBUG') && WP_DEBUG && file_exists(PODLOOM_PLUGIN_DIR . 'debug-p20.php')) {
-    require_once PODLOOM_PLUGIN_DIR . 'debug-p20.php';
-}
-
 /**
  * Run one-time migration from transistor_ to podloom_ options
  */
@@ -124,9 +119,6 @@ function podloom_run_migration() {
 
     // Mark migration as complete
     update_option('podloom_migration_complete', true);
-
-    // Log migration for debugging
-    error_log("PodLoom: Migrated {$migrated} options from transistor_ to podloom_ prefix");
 }
 add_action('admin_init', 'podloom_run_migration');
 
@@ -909,7 +901,9 @@ function podloom_render_rss_episode($attributes) {
     // Audio player (always shown)
     if (!empty($episode['audio_url'])) {
         // Add class if description is hidden to remove bottom margin
-        $audio_class = ($show_description && !empty($episode['description'])) ? 'rss-episode-audio' : 'rss-episode-audio rss-audio-last';
+        // Check for either content or description
+        $has_description = !empty($episode['content']) || !empty($episode['description']);
+        $audio_class = ($show_description && $has_description) ? 'rss-episode-audio' : 'rss-episode-audio rss-audio-last';
         $output .= sprintf(
             '<audio class="%s" controls preload="metadata"><source src="%s" type="%s">%s</audio>',
             esc_attr($audio_class),
@@ -922,12 +916,11 @@ function podloom_render_rss_episode($attributes) {
     $output .= '</div>'; // .rss-episode-content
     $output .= '</div>'; // .rss-episode-wrapper
 
-    // Debug: Show all episode keys
-    $output .= '<!-- PodLoom Episode Keys: ' . implode(', ', array_keys($episode)) . ' -->';
-
     // Prepare description for tabs (if enabled)
     $description_html = '';
-    if ($show_description && !empty($episode['description'])) {
+    // Prefer 'content' over 'description' as SimplePie's get_description() truncates by default
+    $description_source = !empty($episode['content']) ? $episode['content'] : $episode['description'];
+    if ($show_description && !empty($description_source)) {
         // Use restrictive HTML sanitization to prevent XSS from untrusted RSS feeds
         $allowed_html = array(
             'p' => array(),
@@ -950,7 +943,7 @@ function podloom_render_rss_episode($attributes) {
             'code' => array(),
             'pre' => array()
         );
-        $description_html = wp_kses($episode['description'], $allowed_html);
+        $description_html = wp_kses($description_source, $allowed_html);
 
         // Additional security: validate href attributes to prevent javascript: and data: URLs
         if (!empty($description_html) && strpos($description_html, '<a ') !== false) {
@@ -1002,14 +995,6 @@ function podloom_render_rss_episode($attributes) {
             $description_html,
             $show_description
         );
-        $output .= '<!-- PodLoom: Rendered P2.0 tabs -->';
-    } else {
-        $output .= '<!-- PodLoom Debug: No podcast20 data or description found for this episode -->';
-    }
-
-    // Debug output
-    if (!empty($episode['podcast20'])) {
-        $output .= '<!-- PodLoom P2.0 Debug: ' . print_r($episode['podcast20'], true) . ' -->';
     }
 
     $output .= '</div>'; // .wp-block-podloom-episode-player

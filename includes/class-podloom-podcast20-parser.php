@@ -167,17 +167,6 @@ class Podloom_Podcast20_Parser {
             return $this->get_empty_structure();
         }
 
-        // Debug: Check what namespaces are available
-        if (WP_DEBUG) {
-            static $namespace_logged = false;
-            if (!$namespace_logged) {
-                // Get all item data to see structure
-                $all_data = $item->get_item_tags('', '');
-                error_log('SimplePie item data structure: ' . print_r($item->data, true));
-                $namespace_logged = true;
-            }
-        }
-
         return [
             'funding' => $this->parse_funding_from_simplepie($item),
             'transcripts' => $this->parse_transcripts_from_simplepie($item),
@@ -451,11 +440,6 @@ class Podloom_Podcast20_Parser {
      */
     private function parse_funding_from_simplepie($item) {
         $funding_data = $this->get_podcast_tags($item, 'funding');
-
-        // Debug logging
-        if (WP_DEBUG) {
-            error_log('Funding tags found: ' . print_r($funding_data, true));
-        }
 
         if (empty($funding_data)) {
             return null;
