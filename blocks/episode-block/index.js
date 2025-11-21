@@ -192,6 +192,16 @@ registerBlockType('podloom/episode-player', {
             default: 390
         }
     },
+    /**
+     * Block Edit Component
+     *
+     * Handles the editor UI, data fetching, and state management for the block.
+     *
+     * @param {Object} props Block properties
+     * @param {Object} props.attributes Block attributes
+     * @param {Function} props.setAttributes Function to update attributes
+     * @param {string} props.clientId Unique block ID
+     */
     edit: function EditComponent({ attributes, setAttributes, clientId }) {
         const { sourceType, episodeId, episodeTitle, showId, showTitle, showSlug, rssFeedId, rssEpisodeData, episodeDescription, embedHtml, theme, displayMode, playlistHeight } = attributes;
 
@@ -210,12 +220,14 @@ registerBlockType('podloom/episode-player', {
 
         const blockProps = useBlockProps();
 
-        // Load all initial data in one request
+        // Load all initial data (shows, feeds, typography) in one request
+        // This reduces server load by combining multiple API calls into a single AJAX request
         useEffect(() => {
             loadInitialData();
         }, []);
 
         // Lazy load RSS typography if user selects RSS but it wasn't loaded initially
+        // This ensures we have the correct font settings when switching source types
         useEffect(() => {
             if (sourceType === 'rss' && !rssTypography) {
                 loadRssTypography();
@@ -223,6 +235,7 @@ registerBlockType('podloom/episode-player', {
         }, [sourceType]);
 
         // Load latest RSS episode when in latest mode
+        // This fetches the most recent item from the feed to display in the editor preview
         useEffect(() => {
             if (sourceType === 'rss' && displayMode === 'latest' && rssFeedId) {
                 loadLatestRssEpisode(rssFeedId);
@@ -988,8 +1001,8 @@ registerBlockType('podloom/episode-player', {
                         help: displayMode === 'latest'
                             ? __('Will always show the most recent episode from this source', 'podloom-podcast-player')
                             : displayMode === 'playlist'
-                            ? __('Displays a playlist of episodes. Episode count is controlled in your Transistor settings.', 'podloom-podcast-player')
-                            : null
+                                ? __('Displays a playlist of episodes. Episode count is controlled in your Transistor settings.', 'podloom-podcast-player')
+                                : null
                     }),
                     displayMode === 'playlist' && NumberControl && wp.element.createElement(NumberControl, {
                         label: __('Playlist Height (px)', 'podloom-podcast-player'),
@@ -1046,62 +1059,70 @@ registerBlockType('podloom/episode-player', {
                         __html: '<iframe width="100%" height="180" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/' + encodeURIComponent(showSlug) + '/' + (theme === 'dark' ? 'latest/dark' : 'latest') + '"></iframe>'
                     }
                 }) :
-                // Transistor Playlist Mode
-                displayMode === 'playlist' && sourceType === 'transistor' && showId && showSlug ? wp.element.createElement('div', {
-                    dangerouslySetInnerHTML: {
-                        __html: '<iframe width="100%" height="' + parseInt(playlistHeight || 390) + '" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/' + encodeURIComponent(showSlug) + '/' + (theme === 'dark' ? 'playlist/dark' : 'playlist') + '"></iframe>'
-                    }
-                }) :
-                // Specific Episode Mode - Transistor
-                displayMode === 'specific' && sourceType === 'transistor' && episodeId && embedHtml ? wp.element.createElement('div', {
-                    dangerouslySetInnerHTML: { __html: embedHtml }
-                }) :
-                // Latest Episode Mode - RSS
-                displayMode === 'latest' && sourceType === 'rss' && rssFeedId ? (
-                    latestRssEpisode && rssTypography ? (
-                        // Use server-rendered HTML if available (includes P2.0 tabs)
-                        renderedEpisodeHtml[latestRssEpisode.id || latestRssEpisode.title]
-                            ? wp.element.createElement('div', {
-                                dangerouslySetInnerHTML: { __html: renderedEpisodeHtml[latestRssEpisode.id || latestRssEpisode.title] }
-                            })
-                            : renderRssEpisode(latestRssEpisode, rssTypography)
-                    ) : wp.element.createElement(
-                        'div',
-                        { style: { background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', minHeight: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' } },
-                        wp.element.createElement('span', {
-                            className: 'dashicons dashicons-rss',
-                            style: { fontSize: '48px', color: '#f8981d', marginBottom: '10px' }
-                        }),
-                        wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666', textAlign: 'center', fontWeight: '600' } }, __('Loading Latest RSS Episode...', 'podloom-podcast-player'))
-                    )
-                ) :
-                // Specific Episode Mode - RSS
-                displayMode === 'specific' && sourceType === 'rss' && episodeId && rssEpisodeData ? (
-                    rssTypography ? (
-                        // Use server-rendered HTML if available (includes P2.0 tabs)
-                        renderedEpisodeHtml[rssEpisodeData.id || rssEpisodeData.title]
-                            ? wp.element.createElement('div', {
-                                dangerouslySetInnerHTML: { __html: renderedEpisodeHtml[rssEpisodeData.id || rssEpisodeData.title] }
-                            })
-                            : renderRssEpisode(rssEpisodeData, rssTypography)
-                    ) : wp.element.createElement(
-                        'div',
-                        { style: { padding: '20px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px' } },
-                        wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666' } }, __('Loading episode...', 'podloom-podcast-player'))
-                    )
-                ) :
-                // Placeholder
-                wp.element.createElement(
-                    Placeholder,
-                    { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom-podcast-player') },
-                    !showId && !rssFeedId ? wp.element.createElement('p', null, __('Please select a source from the sidebar.', 'podloom-podcast-player')) :
-                    displayMode === 'specific' && !episodeId ? wp.element.createElement('p', null, __('Please select an episode from the sidebar.', 'podloom-podcast-player')) :
-                    wp.element.createElement('p', null, __('Please configure the block settings.', 'podloom-podcast-player'))
-                )
+                    // Transistor Playlist Mode
+                    displayMode === 'playlist' && sourceType === 'transistor' && showId && showSlug ? wp.element.createElement('div', {
+                        dangerouslySetInnerHTML: {
+                            __html: '<iframe width="100%" height="' + parseInt(playlistHeight || 390) + '" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/' + encodeURIComponent(showSlug) + '/' + (theme === 'dark' ? 'playlist/dark' : 'playlist') + '"></iframe>'
+                        }
+                    }) :
+                        // Specific Episode Mode - Transistor
+                        displayMode === 'specific' && sourceType === 'transistor' && episodeId && embedHtml ? wp.element.createElement('div', {
+                            dangerouslySetInnerHTML: { __html: embedHtml }
+                        }) :
+                            // Latest Episode Mode - RSS
+                            displayMode === 'latest' && sourceType === 'rss' && rssFeedId ? (
+                                latestRssEpisode && rssTypography ? (
+                                    // Use server-rendered HTML if available (includes P2.0 tabs)
+                                    renderedEpisodeHtml[latestRssEpisode.id || latestRssEpisode.title]
+                                        ? wp.element.createElement('div', {
+                                            dangerouslySetInnerHTML: { __html: renderedEpisodeHtml[latestRssEpisode.id || latestRssEpisode.title] }
+                                        })
+                                        : renderRssEpisode(latestRssEpisode, rssTypography)
+                                ) : wp.element.createElement(
+                                    'div',
+                                    { style: { background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', minHeight: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' } },
+                                    wp.element.createElement('span', {
+                                        className: 'dashicons dashicons-rss',
+                                        style: { fontSize: '48px', color: '#f8981d', marginBottom: '10px' }
+                                    }),
+                                    wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666', textAlign: 'center', fontWeight: '600' } }, __('Loading Latest RSS Episode...', 'podloom-podcast-player'))
+                                )
+                            ) :
+                                // Specific Episode Mode - RSS
+                                displayMode === 'specific' && sourceType === 'rss' && episodeId && rssEpisodeData ? (
+                                    rssTypography ? (
+                                        // Use server-rendered HTML if available (includes P2.0 tabs)
+                                        renderedEpisodeHtml[rssEpisodeData.id || rssEpisodeData.title]
+                                            ? wp.element.createElement('div', {
+                                                dangerouslySetInnerHTML: { __html: renderedEpisodeHtml[rssEpisodeData.id || rssEpisodeData.title] }
+                                            })
+                                            : renderRssEpisode(rssEpisodeData, rssTypography)
+                                    ) : wp.element.createElement(
+                                        'div',
+                                        { style: { padding: '20px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px' } },
+                                        wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666' } }, __('Loading episode...', 'podloom-podcast-player'))
+                                    )
+                                ) :
+                                    // Placeholder
+                                    wp.element.createElement(
+                                        Placeholder,
+                                        { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom-podcast-player') },
+                                        !showId && !rssFeedId ? wp.element.createElement('p', null, __('Please select a source from the sidebar.', 'podloom-podcast-player')) :
+                                            displayMode === 'specific' && !episodeId ? wp.element.createElement('p', null, __('Please select an episode from the sidebar.', 'podloom-podcast-player')) :
+                                                wp.element.createElement('p', null, __('Please configure the block settings.', 'podloom-podcast-player'))
+                                    )
             )
         );
     },
-    save: function() {
+    /**
+     * Save Block Content
+     *
+     * Returns null because this is a dynamic block.
+     * The content is rendered server-side via PHP in `podloom_render_block`.
+     *
+     * @return {null} Always returns null
+     */
+    save: function () {
         return null;
     }
 });

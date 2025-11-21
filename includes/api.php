@@ -73,7 +73,10 @@ class Podloom_API {
      * Get cache key for request
      */
     private function get_cache_key($endpoint, $params = []) {
-        return 'podloom_cache_' . md5($endpoint . wp_json_encode($params));
+        // Add a salt to the cache key to allow for instant invalidation
+        // This is crucial for persistent object caches where direct DB deletion fails
+        $salt = get_option('podloom_cache_salt', '');
+        return 'podloom_cache_' . md5($endpoint . wp_json_encode($params) . $salt);
     }
 
     /**
@@ -338,6 +341,11 @@ function podloom_clear_all_cache() {
 
     // Also clear editor cache
     podloom_clear_editor_cache();
+
+    // Rotate the cache salt to instantly invalidate all existing cache keys
+    // This ensures that even if the DB deletion above fails (e.g. due to object caching),
+    // the old data will no longer be accessible because the keys have changed.
+    update_option('podloom_cache_salt', time());
 
     return $deleted_count;
 }

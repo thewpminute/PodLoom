@@ -177,6 +177,14 @@ function podloom_handle_plugin_reset() {
 }
 add_action('admin_init', 'podloom_handle_plugin_reset');
 
+/**
+ * Render the main settings page
+ *
+ * Handles tab navigation, form submissions, and displays the appropriate settings template.
+ *
+ * @since 1.0.0
+ * @return void
+ */
 function podloom_render_settings_page() {
     // Check user capabilities
     if (!current_user_can('manage_options')) {

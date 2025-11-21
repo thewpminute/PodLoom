@@ -569,7 +569,9 @@ class Podloom_Podcast20_Parser {
         if (strpos($type, 'json') !== false || $type === 'application/json+chapters') {
             $response = wp_remote_get($url, [
                 'timeout' => 10,
-                'sslverify' => true
+                'sslverify' => true,
+                'reject_unsafe_urls' => true,
+                'limit_response_size' => 2 * 1024 * 1024, // 2MB limit
             ]);
 
             if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {

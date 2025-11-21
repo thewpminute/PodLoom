@@ -849,8 +849,21 @@ function podloom_render_rss_episode($attributes) {
     if (empty($episode['podcast20']) && !empty($attributes['rssFeedId'])) {
         $feed_id = $attributes['rssFeedId'];
 
+        // Check if we are in the editor (REST API request)
+        // We want to avoid synchronous remote fetches in the editor to prevent slow loading
+        $is_editor = defined('REST_REQUEST') && REST_REQUEST;
+        $allow_remote = !$is_editor;
+
         // Get all episodes from the feed cache
-        $episodes_data = Podloom_RSS::get_episodes($feed_id, 1, 100); // Get first 100 episodes
+        $episodes_data = Podloom_RSS::get_episodes($feed_id, 1, 100, $allow_remote); // Get first 100 episodes
+
+        // If we are in editor and got a cache miss error, show a placeholder
+        if ($is_editor && isset($episodes_data['error']) && $episodes_data['error'] === 'cache_miss') {
+            return '<div class="wp-block-podloom-episode-player" style="padding: 20px; background: #f8f9fa; border: 1px dashed #ccc; text-align: center; color: #666;">' .
+                   '<p style="margin: 0;"><strong>' . esc_html__('Preview Unavailable', 'podloom-podcast-player') . '</strong></p>' .
+                   '<p style="margin: 5px 0 0 0; font-size: 13px;">' . esc_html__('Feed data is not currently cached. Please refresh the feed in the settings or view the page on the frontend.', 'podloom-podcast-player') . '</p>' .
+                   '</div>';
+        }
 
         if (!empty($episodes_data['episodes'])) {
             // Try to match the episode by audio_url (most reliable) or title

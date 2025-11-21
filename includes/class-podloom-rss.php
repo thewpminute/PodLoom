@@ -81,7 +81,7 @@ class Podloom_RSS {
             );
         }
 
-        // Enhanced SSRF protection: Block localhost, private IPs, and reserved ranges
+        // Enhanced SSRF protection: Block localhost
         $parsed_url = wp_parse_url($url);
         if (!isset($parsed_url['host'])) {
             return array(
@@ -101,42 +101,10 @@ class Podloom_RSS {
             );
         }
 
-        // Resolve hostname to IP address and validate against private/reserved ranges
-        // This prevents DNS rebinding attacks
-        $ip = gethostbyname($host);
-
-        // Check if resolution was successful (gethostbyname returns original hostname if it fails)
-        if ($ip !== $host) {
-            // Validate IP address against private and reserved ranges
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                // Block private and reserved IP ranges
-                $filtered_ip = filter_var(
-                    $ip,
-                    FILTER_VALIDATE_IP,
-                    FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
-                );
-
-                if ($filtered_ip === false) {
-                    return array(
-                        'success' => false,
-                        'message' => 'Cannot access internal network addresses or reserved IP ranges'
-                    );
-                }
-            }
-        }
-
-        // Additional check: block cloud metadata endpoints
-        $blocked_hosts = array(
-            '169.254.169.254', // AWS/GCP/Azure metadata
-            'metadata.google.internal',
-            '169.254.170.2', // AWS ECS metadata
-        );
-        if (in_array($host_lower, $blocked_hosts, true) || in_array($ip, $blocked_hosts, true)) {
-            return array(
-                'success' => false,
-                'message' => 'Access to cloud metadata endpoints is not allowed'
-            );
-        }
+        // Note: We previously performed a DNS resolution here to check for private IPs.
+        // However, this caused false positives with some hosting providers and CDNs.
+        // We now rely on WordPress's built-in 'reject_unsafe_urls' in wp_remote_get()
+        // which is used inside self::validate_feed() below.
 
         // Warn about HTTP but allow it (many podcast feeds still use HTTP)
         // HTTPS is preferred but not required for compatibility
@@ -457,9 +425,10 @@ class Podloom_RSS {
      * @param string $feed_id Feed ID
      * @param int $page Page number (default: 1)
      * @param int $per_page Items per page (default: 20)
+     * @param bool $allow_remote_fetch Whether to allow fetching from remote URL if cache is missing (default: true)
      * @return array Episodes array with pagination info
      */
-    public static function get_episodes($feed_id, $page = 1, $per_page = 20) {
+    public static function get_episodes($feed_id, $page = 1, $per_page = 20, $allow_remote_fetch = true) {
         // Check if caching is enabled
         $enable_cache = get_option('podloom_enable_cache', true);
 
@@ -471,6 +440,17 @@ class Podloom_RSS {
 
         // If no cache, refresh feed
         if ($episodes === false) {
+            // If remote fetch is disabled (e.g. in editor), return empty result immediately
+            if (!$allow_remote_fetch) {
+                return array(
+                    'episodes' => array(),
+                    'total' => 0,
+                    'page' => $page,
+                    'pages' => 0,
+                    'error' => 'cache_miss' // Signal that data is missing but fetch was skipped
+                );
+            }
+
             $result = self::refresh_feed($feed_id);
             if (!$result['success']) {
                 return array(
