@@ -371,7 +371,7 @@
 .postbox .hndle {
     cursor: pointer;
     user-select: none;
-    background: #f6f7f7;
+    background: #fff;
     transition: background-color 0.2s ease;
     padding: 12px 16px;
     font-size: 14px;
@@ -379,7 +379,7 @@
 }
 
 .postbox .hndle:hover {
-    background: #f0f0f1;
+    background: #fff;
 }
 
 .postbox .hndle span {
