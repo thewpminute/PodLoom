@@ -3,7 +3,7 @@
  * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
  * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks. Supports RSS feeds from any podcast platform.
- * Version: 2.1.1
+ * Version: 2.5.1
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('PODLOOM_PLUGIN_VERSION', '2.1.1');
+define('PODLOOM_PLUGIN_VERSION', '2.5.1');
 define('PODLOOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('PODLOOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -275,6 +275,19 @@ function podloom_fetch_transcript() {
             'message' => 'Server returned error',
             'status' => $status_code
         ], $status_code);
+    }
+
+    // Check transcript size limit to prevent memory exhaustion
+    // Default: 2MB (configurable via filter for sites with larger transcripts)
+    $max_size = apply_filters('podloom_transcript_max_size', 2 * 1024 * 1024); // 2MB default
+    $body_size = strlen($body);
+
+    if ($max_size > 0 && $body_size > $max_size) {
+        wp_send_json_error([
+            'message' => 'Transcript too large',
+            'size' => size_format($body_size),
+            'limit' => size_format($max_size)
+        ], 413); // 413 Payload Too Large
     }
 
     // Optional content-type validation (disabled by default to support all servers)
@@ -542,9 +555,10 @@ function podloom_enqueue_podcast20_assets() {
 add_action('wp_footer', 'podloom_enqueue_podcast20_assets', 5);
 
 /**
- * Enqueue editor styles for RSS player (uses same CSS as frontend)
+ * Enqueue editor styles and scripts for RSS player (uses same as frontend)
  */
 function podloom_enqueue_editor_styles() {
+    // Base RSS player styles
     wp_enqueue_style(
         'podloom-rss-player-editor',
         PODLOOM_PLUGIN_URL . 'assets/css/rss-player.css',
@@ -552,6 +566,29 @@ function podloom_enqueue_editor_styles() {
         PODLOOM_PLUGIN_VERSION
     );
 
+    // Podcasting 2.0 styles (for tabs, chapters, transcripts, etc.)
+    wp_enqueue_style(
+        'podloom-podcast20-editor',
+        PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles.css',
+        ['podloom-rss-player-editor'],
+        PODLOOM_PLUGIN_VERSION
+    );
+
+    // Podcasting 2.0 JavaScript (for tab switching, chapter navigation, transcript loading)
+    wp_enqueue_script(
+        'podloom-podcast20-chapters-editor',
+        PODLOOM_PLUGIN_URL . 'assets/js/podcast20-chapters.js',
+        [],
+        PODLOOM_PLUGIN_VERSION,
+        true
+    );
+
+    // Pass AJAX URL to the script for transcript proxy
+    wp_localize_script('podloom-podcast20-chapters-editor', 'podloomTranscript', [
+        'ajaxUrl' => admin_url('admin-ajax.php')
+    ]);
+
+    // Add dynamic CSS based on user settings (colors, fonts, etc.)
     $custom_css = podloom_get_rss_dynamic_css();
     if ($custom_css) {
         wp_add_inline_style('podloom-rss-player-editor', $custom_css);
@@ -743,7 +780,39 @@ function podloom_get_rss_typography_styles() {
  * Clear typography cache (called when settings are saved)
  */
 function podloom_clear_typography_cache() {
+    // Clear typography cache
     podloom_cache_delete('rss_typography_cache');
+
+    // Increment render cache version to invalidate all rendered episode HTML in editor
+    // This forces editor to re-render episodes with new typography/display settings
+    // WITHOUT clearing heavy episode metadata cache (podcasts, episodes, etc.)
+    podloom_increment_render_cache_version();
+}
+
+/**
+ * Atomically increment render cache version to avoid race conditions
+ * Uses direct database query to ensure atomic increment even with concurrent requests
+ */
+function podloom_increment_render_cache_version() {
+    global $wpdb;
+
+    // Try to increment existing option atomically
+    $updated = $wpdb->query(
+        $wpdb->prepare(
+            "UPDATE {$wpdb->options}
+             SET option_value = option_value + 1
+             WHERE option_name = %s",
+            'podloom_render_cache_version'
+        )
+    );
+
+    // If option doesn't exist yet, create it
+    if ($updated === 0) {
+        add_option('podloom_render_cache_version', 1, '', false); // no autoload
+    }
+
+    // Clear object cache to ensure fresh reads
+    wp_cache_delete('podloom_render_cache_version', 'options');
 }
 
 /**
@@ -1264,11 +1333,7 @@ function podloom_register_settings() {
         'default' => 600
     ]);
 
-    register_setting('podloom_settings', 'podloom_rss_cache_duration', [
-        'type' => 'integer',
-        'sanitize_callback' => 'absint',
-        'default' => 21600 // 6 hours in seconds
-    ]);
+    // RSS Cache Duration removed - now uses podloom_cache_duration from General settings
 }
 add_action('admin_init', 'podloom_register_settings');
 

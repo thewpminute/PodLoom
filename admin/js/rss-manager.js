@@ -262,8 +262,8 @@
                 podloom_rss_display_chapters: document.getElementById('podloom_rss_display_chapters').checked ? '1' : '0',
                 podloom_rss_minimal_styling: document.getElementById('podloom_rss_minimal_styling').checked ? '1' : '0',
                 podloom_rss_description_limit: document.getElementById('podloom_rss_description_limit')?.value || '0',
-                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600',
-                podloom_rss_cache_duration: document.getElementById('podloom_rss_cache_duration')?.value || '21600'
+                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600'
+                // RSS Cache Duration removed - now uses General Settings → Cache Duration
             };
 
             // Add typography settings

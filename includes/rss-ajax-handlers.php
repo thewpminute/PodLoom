@@ -328,3 +328,100 @@ function podloom_ajax_get_rss_typography() {
     wp_send_json_success($typo);
 }
 add_action('wp_ajax_podloom_get_rss_typography', 'podloom_ajax_get_rss_typography');
+
+/**
+ * AJAX Handler: Render RSS Episode HTML (for block editor preview)
+ * Returns fully rendered episode HTML including P2.0 tabs
+ */
+function podloom_ajax_render_rss_episode() {
+    check_ajax_referer('podloom_nonce', 'nonce');
+
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(array('message' => 'Insufficient permissions'));
+        return;
+    }
+
+    // Get episode data from request - use wp_unslash() for WordPress standards
+    $episode_data_raw = isset($_POST['episode_data']) ? wp_unslash($_POST['episode_data']) : '';
+    $feed_id = isset($_POST['feed_id']) ? sanitize_text_field(wp_unslash($_POST['feed_id'])) : '';
+
+    // Decode JSON
+    $episode_data = json_decode($episode_data_raw, true);
+
+    // Validate JSON structure
+    if (!is_array($episode_data) || empty($episode_data)) {
+        wp_send_json_error(array('message' => 'Invalid episode data'));
+        return;
+    }
+
+    // Sanitize critical fields that will be rendered to prevent XSS
+    // Title is rendered as text, so sanitize
+    if (isset($episode_data['title'])) {
+        $episode_data['title'] = sanitize_text_field($episode_data['title']);
+    }
+
+    // ID should be alphanumeric
+    if (isset($episode_data['id'])) {
+        $episode_data['id'] = sanitize_text_field($episode_data['id']);
+    }
+
+    // URLs should be validated
+    if (isset($episode_data['audio_url'])) {
+        $episode_data['audio_url'] = esc_url_raw($episode_data['audio_url']);
+    }
+    if (isset($episode_data['image'])) {
+        $episode_data['image'] = esc_url_raw($episode_data['image']);
+    }
+
+    // Date should be sanitized
+    if (isset($episode_data['date'])) {
+        $episode_data['date'] = sanitize_text_field($episode_data['date']);
+    }
+
+    // Duration should be numeric/text
+    if (isset($episode_data['duration'])) {
+        $episode_data['duration'] = sanitize_text_field($episode_data['duration']);
+    }
+
+    // Audio type should be sanitized
+    if (isset($episode_data['audio_type'])) {
+        $episode_data['audio_type'] = sanitize_text_field($episode_data['audio_type']);
+    }
+
+    // Description contains HTML - will be sanitized by render function using wp_kses_post()
+    // Podcast20 data will be validated by render function
+
+    // Generate cache key based on episode ID, audio URL, and render cache version
+    // Version changes when typography/display settings change, invalidating old cache
+    $episode_id = $episode_data['id'] ?? '';
+    $audio_url = $episode_data['audio_url'] ?? '';
+    $render_version = get_option('podloom_render_cache_version', 0);
+    $cache_key = 'rendered_episode_' . md5($episode_id . $audio_url . $render_version);
+
+    // Try to get from cache first (6 hours cache - matches other caches)
+    $cached_html = podloom_cache_get($cache_key, 'podloom_editor');
+    if ($cached_html !== false) {
+        wp_send_json_success(array('html' => $cached_html, 'cached' => true));
+        return;
+    }
+
+    // Build attributes array matching the block's renderRssEpisode format
+    $attributes = array(
+        'rssEpisodeData' => $episode_data,
+        'rssFeedId' => $feed_id
+    );
+
+    // Use the same rendering function as front-end
+    $html = podloom_render_rss_episode($attributes);
+
+    if (empty($html)) {
+        wp_send_json_error(array('message' => 'Failed to render episode HTML'));
+        return;
+    }
+
+    // Cache the rendered HTML for 6 hours (21600 seconds - matches episode data cache)
+    podloom_cache_set($cache_key, $html, 'podloom_editor', 21600);
+
+    wp_send_json_success(array('html' => $html, 'cached' => false));
+}
+add_action('wp_ajax_podloom_render_rss_episode', 'podloom_ajax_render_rss_episode');

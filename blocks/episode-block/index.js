@@ -206,6 +206,7 @@ registerBlockType('podloom/episode-player', {
         const [isLoadingMore, setIsLoadingMore] = useState(false);
         const [latestRssEpisode, setLatestRssEpisode] = useState(null);
         const [rssTypography, setRssTypography] = useState(null);
+        const [renderedEpisodeHtml, setRenderedEpisodeHtml] = useState({});
 
         const blockProps = useBlockProps();
 
@@ -227,6 +228,20 @@ registerBlockType('podloom/episode-player', {
                 loadLatestRssEpisode(rssFeedId);
             }
         }, [sourceType, displayMode, rssFeedId]);
+
+        // Fetch rendered HTML for selected RSS episode
+        useEffect(() => {
+            if (sourceType === 'rss' && displayMode === 'specific' && rssEpisodeData) {
+                fetchRenderedEpisodeHtml(rssEpisodeData);
+            }
+        }, [sourceType, displayMode, rssEpisodeData]);
+
+        // Fetch rendered HTML for latest RSS episode
+        useEffect(() => {
+            if (sourceType === 'rss' && displayMode === 'latest' && latestRssEpisode) {
+                fetchRenderedEpisodeHtml(latestRssEpisode);
+            }
+        }, [sourceType, displayMode, latestRssEpisode]);
 
         // Set default show if available and no show is selected
         useEffect(() => {
@@ -492,7 +507,47 @@ registerBlockType('podloom/episode-player', {
         };
 
         /**
-         * Render RSS episode with typography
+         * Fetch fully rendered episode HTML from server (includes P2.0 tabs)
+         */
+        const fetchRenderedEpisodeHtml = async (episode) => {
+            if (!episode) return;
+
+            const episodeKey = episode.id || episode.title;
+
+            // Check if already cached
+            if (renderedEpisodeHtml[episodeKey]) {
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'podloom_render_rss_episode');
+                formData.append('nonce', podloomData.nonce);
+                formData.append('episode_data', JSON.stringify(episode));
+                formData.append('feed_id', rssFeedId); // Pass feed ID for server-side fallback
+
+                const response = await fetch(podloomData.ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success && result.data.html) {
+                    setRenderedEpisodeHtml(prev => ({
+                        ...prev,
+                        [episodeKey]: result.data.html
+                    }));
+                } else {
+                    console.warn('PodLoom: Failed to fetch rendered episode HTML', result);
+                }
+            } catch (err) {
+                console.error('PodLoom: Error fetching rendered episode HTML', err);
+                // Silently fail - will fall back to JavaScript rendering
+            }
+        };
+
+        /**
+         * Render RSS episode with typography (fallback for initial load)
          */
         const renderRssEpisode = (episode, typo) => {
             if (!episode || !typo) return null;
@@ -504,75 +559,6 @@ registerBlockType('podloom/episode-player', {
                 date: true,
                 duration: true,
                 description: true
-            };
-
-            // Check if minimal styling mode is enabled
-            const minimalStyling = typo.minimal_styling || false;
-
-            const styles = {
-                container: minimalStyling ? {} : {
-                    background: typo.background_color || '#f9f9f9',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    padding: '20px'
-                },
-                wrapper: {
-                    display: 'flex',
-                    gap: '20px',
-                    alignItems: 'flex-start'
-                },
-                artwork: {
-                    flexShrink: 0,
-                    width: '200px'
-                },
-                artworkImage: {
-                    width: '100%',
-                    height: 'auto',
-                    borderRadius: '4px',
-                    display: 'block'
-                },
-                content: {
-                    flex: 1,
-                    minWidth: 0
-                },
-                title: minimalStyling ? { margin: '0 0 10px 0' } : {
-                    margin: '0 0 10px 0',
-                    fontFamily: typo.title.font_family || 'inherit',
-                    fontSize: typo.title.font_size || '24px',
-                    lineHeight: typo.title.line_height || '1.3',
-                    color: typo.title.color || '#000000',
-                    fontWeight: typo.title.font_weight || '600'
-                },
-                meta: {
-                    display: 'flex',
-                    gap: '15px',
-                    marginBottom: '15px'
-                },
-                date: minimalStyling ? {} : {
-                    fontFamily: typo.date.font_family || 'inherit',
-                    fontSize: typo.date.font_size || '14px',
-                    lineHeight: typo.date.line_height || '1.5',
-                    color: typo.date.color || '#666666',
-                    fontWeight: typo.date.font_weight || 'normal'
-                },
-                duration: minimalStyling ? {} : {
-                    fontFamily: typo.duration.font_family || 'inherit',
-                    fontSize: typo.duration.font_size || '14px',
-                    lineHeight: typo.duration.line_height || '1.5',
-                    color: typo.duration.color || '#666666',
-                    fontWeight: typo.duration.font_weight || 'normal'
-                },
-                description: minimalStyling ? {} : {
-                    fontFamily: typo.description.font_family || 'inherit',
-                    fontSize: typo.description.font_size || '16px',
-                    lineHeight: typo.description.line_height || '1.6',
-                    color: typo.description.color || '#333333',
-                    fontWeight: typo.description.font_weight || 'normal'
-                },
-                audio: {
-                    width: '100%',
-                    marginBottom: '15px'
-                }
             };
 
             const formatDate = (timestamp) => {
@@ -597,14 +583,12 @@ registerBlockType('podloom/episode-player', {
             if (display.artwork && episode.image) {
                 wrapperChildren.push(wp.element.createElement('div', {
                     key: 'artwork-wrapper',
-                    className: 'rss-episode-artwork',
-                    style: styles.artwork
+                    className: 'rss-episode-artwork'
                 }, [
                     wp.element.createElement('img', {
                         key: 'artwork-img',
                         src: episode.image,
-                        alt: episode.title,
-                        style: styles.artworkImage
+                        alt: episode.title
                     })
                 ]));
             }
@@ -615,8 +599,7 @@ registerBlockType('podloom/episode-player', {
             if (display.title && episode.title) {
                 contentChildren.push(wp.element.createElement('h3', {
                     key: 'title',
-                    className: 'rss-episode-title',
-                    style: styles.title
+                    className: 'rss-episode-title'
                 }, episode.title));
             }
 
@@ -625,22 +608,19 @@ registerBlockType('podloom/episode-player', {
             if (display.date && episode.date) {
                 metaChildren.push(wp.element.createElement('span', {
                     key: 'date',
-                    className: 'rss-episode-date',
-                    style: styles.date
+                    className: 'rss-episode-date'
                 }, formatDate(episode.date)));
             }
             if (display.duration && episode.duration) {
                 metaChildren.push(wp.element.createElement('span', {
                     key: 'duration',
-                    className: 'rss-episode-duration',
-                    style: styles.duration
+                    className: 'rss-episode-duration'
                 }, formatDuration(episode.duration)));
             }
             if (metaChildren.length > 0) {
                 contentChildren.push(wp.element.createElement('div', {
                     key: 'meta',
-                    className: 'rss-episode-meta',
-                    style: styles.meta
+                    className: 'rss-episode-meta'
                 }, metaChildren));
             }
 
@@ -663,8 +643,7 @@ registerBlockType('podloom/episode-player', {
                     key: 'audio',
                     className: audioClass,
                     controls: true,
-                    preload: 'metadata',
-                    style: styles.audio
+                    preload: 'metadata'
                 }, audioChildren));
             }
 
@@ -673,7 +652,6 @@ registerBlockType('podloom/episode-player', {
                 contentChildren.push(wp.element.createElement('div', {
                     key: 'description',
                     className: 'rss-episode-description',
-                    style: styles.description,
                     dangerouslySetInnerHTML: { __html: episode.description }
                 }));
             }
@@ -682,21 +660,18 @@ registerBlockType('podloom/episode-player', {
             if (contentChildren.length > 0) {
                 wrapperChildren.push(wp.element.createElement('div', {
                     key: 'content',
-                    className: 'rss-episode-content',
-                    style: styles.content
+                    className: 'rss-episode-content'
                 }, contentChildren));
             }
 
             // Wrapper with flexbox layout
             const wrapper = wp.element.createElement('div', {
                 key: 'wrapper',
-                className: 'rss-episode-wrapper',
-                style: styles.wrapper
+                className: 'rss-episode-wrapper'
             }, wrapperChildren);
 
             return wp.element.createElement('div', {
-                className: 'wp-block-podloom-episode-player rss-episode-player',
-                style: styles.container
+                className: 'wp-block-podloom-episode-player rss-episode-player'
             }, [wrapper]);
         };
 
@@ -1083,27 +1058,37 @@ registerBlockType('podloom/episode-player', {
                 }) :
                 // Latest Episode Mode - RSS
                 displayMode === 'latest' && sourceType === 'rss' && rssFeedId ? (
-                    latestRssEpisode && rssTypography
-                        ? renderRssEpisode(latestRssEpisode, rssTypography)
-                        : wp.element.createElement(
-                            'div',
-                            { style: { background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', minHeight: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' } },
-                            wp.element.createElement('span', {
-                                className: 'dashicons dashicons-rss',
-                                style: { fontSize: '48px', color: '#f8981d', marginBottom: '10px' }
-                            }),
-                            wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666', textAlign: 'center', fontWeight: '600' } }, __('Loading Latest RSS Episode...', 'podloom-podcast-player'))
-                        )
+                    latestRssEpisode && rssTypography ? (
+                        // Use server-rendered HTML if available (includes P2.0 tabs)
+                        renderedEpisodeHtml[latestRssEpisode.id || latestRssEpisode.title]
+                            ? wp.element.createElement('div', {
+                                dangerouslySetInnerHTML: { __html: renderedEpisodeHtml[latestRssEpisode.id || latestRssEpisode.title] }
+                            })
+                            : renderRssEpisode(latestRssEpisode, rssTypography)
+                    ) : wp.element.createElement(
+                        'div',
+                        { style: { background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', minHeight: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' } },
+                        wp.element.createElement('span', {
+                            className: 'dashicons dashicons-rss',
+                            style: { fontSize: '48px', color: '#f8981d', marginBottom: '10px' }
+                        }),
+                        wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666', textAlign: 'center', fontWeight: '600' } }, __('Loading Latest RSS Episode...', 'podloom-podcast-player'))
+                    )
                 ) :
                 // Specific Episode Mode - RSS
                 displayMode === 'specific' && sourceType === 'rss' && episodeId && rssEpisodeData ? (
-                    rssTypography
-                        ? renderRssEpisode(rssEpisodeData, rssTypography)
-                        : wp.element.createElement(
-                            'div',
-                            { style: { padding: '20px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px' } },
-                            wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666' } }, __('Loading episode...', 'podloom-podcast-player'))
-                        )
+                    rssTypography ? (
+                        // Use server-rendered HTML if available (includes P2.0 tabs)
+                        renderedEpisodeHtml[rssEpisodeData.id || rssEpisodeData.title]
+                            ? wp.element.createElement('div', {
+                                dangerouslySetInnerHTML: { __html: renderedEpisodeHtml[rssEpisodeData.id || rssEpisodeData.title] }
+                            })
+                            : renderRssEpisode(rssEpisodeData, rssTypography)
+                    ) : wp.element.createElement(
+                        'div',
+                        { style: { padding: '20px', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px' } },
+                        wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666' } }, __('Loading episode...', 'podloom-podcast-player'))
+                    )
                 ) :
                 // Placeholder
                 wp.element.createElement(

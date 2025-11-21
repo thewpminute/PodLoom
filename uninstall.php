@@ -23,6 +23,7 @@ function podloom_uninstall_delete_options() {
     delete_option('podloom_cache_duration');
 
     // RSS options
+    delete_option('podloom_rss_cache_duration'); // Legacy option (now uses podloom_cache_duration)
     delete_option('podloom_rss_enabled');
     delete_option('podloom_rss_feeds');
     delete_option('podloom_rss_display_artwork');
@@ -30,6 +31,13 @@ function podloom_uninstall_delete_options() {
     delete_option('podloom_rss_display_date');
     delete_option('podloom_rss_display_duration');
     delete_option('podloom_rss_display_description');
+
+    // Podcasting 2.0 display options
+    delete_option('podloom_rss_display_funding');
+    delete_option('podloom_rss_display_transcripts');
+    delete_option('podloom_rss_display_people_hosts');
+    delete_option('podloom_rss_display_people_guests');
+    delete_option('podloom_rss_display_chapters');
 
     // RSS typography options
     $elements = ['title', 'date', 'duration', 'description'];
@@ -42,6 +50,12 @@ function podloom_uninstall_delete_options() {
     }
 
     delete_option('podloom_rss_background_color');
+    delete_option('podloom_rss_description_limit');
+    delete_option('podloom_rss_minimal_styling');
+    delete_option('podloom_rss_player_height');
+
+    // Cache version option
+    delete_option('podloom_render_cache_version');
 }
 
 /**
@@ -67,6 +81,16 @@ function podloom_uninstall_delete_transients() {
             "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
             $wpdb->esc_like('_transient_podloom_rss_episodes_') . '%',
             $wpdb->esc_like('_transient_timeout_podloom_rss_episodes_') . '%'
+        )
+    );
+
+    // Delete all editor rendered episode cache transients
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deleting transients during uninstall, caching not applicable
+    $wpdb->query(
+        $wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+            $wpdb->esc_like('_transient_podloom_editor_') . '%',
+            $wpdb->esc_like('_transient_timeout_podloom_editor_') . '%'
         )
     );
 }

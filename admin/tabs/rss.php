@@ -281,39 +281,7 @@ function podloom_render_rss_tab($all_options) {
                         </p>
                     </td>
                 </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="podloom_rss_cache_duration">
-                            <?php esc_html_e('RSS Cache Duration', 'podloom-podcast-player'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <select id="podloom_rss_cache_duration" name="podloom_rss_cache_duration" class="regular-text">
-                            <?php
-                            $cache_options = [
-                                1800 => __('30 minutes', 'podloom-podcast-player'),
-                                3600 => __('1 hour', 'podloom-podcast-player'),
-                                10800 => __('3 hours', 'podloom-podcast-player'),
-                                21600 => __('6 hours (Recommended)', 'podloom-podcast-player'),
-                                43200 => __('12 hours', 'podloom-podcast-player'),
-                                86400 => __('24 hours', 'podloom-podcast-player')
-                            ];
-                            $current_cache = $all_options['podloom_rss_cache_duration'] ?? 21600;
-                            foreach ($cache_options as $seconds => $label) {
-                                printf(
-                                    '<option value="%s"%s>%s</option>',
-                                    esc_attr($seconds),
-                                    selected($current_cache, $seconds, false),
-                                    esc_html($label)
-                                );
-                            }
-                            ?>
-                        </select>
-                        <p class="description">
-                            <?php esc_html_e('How long to cache RSS feed data before refetching. Longer durations reduce server load but may delay new episode updates. Default: 6 hours.', 'podloom-podcast-player'); ?>
-                        </p>
-                    </td>
-                </tr>
+                <!-- RSS Cache Duration setting removed - now uses General Settings → Cache Duration -->
                 <tr>
                     <th scope="row"><?php esc_html_e('Styling Mode', 'podloom-podcast-player'); ?></th>
                     <td>

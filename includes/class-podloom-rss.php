@@ -426,8 +426,16 @@ class Podloom_RSS {
         }
 
         // Cache episodes with configurable duration (uses object cache if available)
-        $cache_duration = get_option('podloom_rss_cache_duration', 21600); // Default: 6 hours
+        // Uses the general cache duration setting from Settings → General
+        $cache_duration = get_option('podloom_cache_duration', 21600); // Default: 6 hours
         podloom_cache_set('rss_episodes_' . $feed_id, $episodes, 'podloom', $cache_duration);
+
+        // Increment render cache version to invalidate all rendered episode HTML
+        // This ensures editor shows updated content after feed refresh
+        // Note: This invalidates ALL episodes (not just this feed), but feed refreshes
+        // are rare enough that this is acceptable for simplicity
+        // Uses atomic increment function to avoid race conditions
+        podloom_increment_render_cache_version();
 
         // Update feed metadata
         $feeds = self::get_feeds();

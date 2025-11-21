@@ -336,7 +336,36 @@ function podloom_clear_all_cache() {
         wp_cache_flush();
     }
 
+    // Also clear editor cache
+    podloom_clear_editor_cache();
+
     return $deleted_count;
+}
+
+/**
+ * Clear editor rendered episode cache
+ * These are transients with the 'podloom_editor_' prefix
+ */
+function podloom_clear_editor_cache() {
+    global $wpdb;
+
+    // Delete all editor cache transients
+    $pattern1 = $wpdb->esc_like('_transient_podloom_editor_') . '%';
+    $pattern2 = $wpdb->esc_like('_transient_timeout_podloom_editor_') . '%';
+
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $wpdb->query(
+        $wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+            $pattern1,
+            $pattern2
+        )
+    );
+
+    // Clear object cache if enabled
+    if (function_exists('wp_cache_flush_group') && wp_using_ext_object_cache()) {
+        wp_cache_flush_group('podloom_editor');
+    }
 }
 
 /**
@@ -359,6 +388,13 @@ function podloom_delete_all_plugin_data() {
     delete_option('podloom_rss_display_duration');
     delete_option('podloom_rss_display_description');
 
+    // Delete Podcasting 2.0 display options
+    delete_option('podloom_rss_display_funding');
+    delete_option('podloom_rss_display_transcripts');
+    delete_option('podloom_rss_display_people_hosts');
+    delete_option('podloom_rss_display_people_guests');
+    delete_option('podloom_rss_display_chapters');
+
     // Delete RSS typography options
     $elements = ['title', 'date', 'duration', 'description'];
     $properties = ['font_family', 'font_size', 'line_height', 'color', 'font_weight'];
@@ -370,6 +406,10 @@ function podloom_delete_all_plugin_data() {
     delete_option('podloom_rss_background_color');
     delete_option('podloom_rss_description_limit');
     delete_option('podloom_rss_minimal_styling');
+    delete_option('podloom_rss_player_height');
+
+    // Delete cache version option
+    delete_option('podloom_render_cache_version');
 
     // Clear all cached data
     podloom_clear_all_cache();
@@ -378,4 +418,7 @@ function podloom_delete_all_plugin_data() {
     if (class_exists('Podloom_RSS')) {
         Podloom_RSS::clear_all_caches();
     }
+
+    // Clear editor rendered episode cache
+    podloom_clear_editor_cache();
 }
