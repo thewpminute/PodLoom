@@ -108,6 +108,39 @@ function podloom_render_rss_tab($all_options) {
             <table class="form-table" role="presentation">
                 <tr>
                     <th scope="row">
+                        <?php esc_html_e('Player Type', 'podloom-podcast-player'); ?>
+                    </th>
+                    <td>
+                        <fieldset>
+                            <label style="margin-right: 20px;">
+                                <input
+                                    type="radio"
+                                    name="podloom_rss_player_type"
+                                    value="native"
+                                    <?php checked($all_options['podloom_rss_player_type'] ?? 'native', 'native'); ?>
+                                />
+                                <?php esc_html_e('Native HTML5 Player', 'podloom-podcast-player'); ?>
+                            </label>
+                            <label>
+                                <input
+                                    type="radio"
+                                    name="podloom_rss_player_type"
+                                    value="plyr"
+                                    <?php checked($all_options['podloom_rss_player_type'] ?? 'native', 'plyr'); ?>
+                                />
+                                <?php esc_html_e('PodLoom Player', 'podloom-podcast-player'); ?>
+                            </label>
+                            <p class="description">
+                                <?php esc_html_e('Choose between the standard browser audio player or the enhanced PodLoom player (features speed control, volume slider, and theme matching).', 'podloom-podcast-player'); ?>
+                            </p>
+                        </fieldset>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
                         <?php esc_html_e('Player Elements', 'podloom-podcast-player'); ?>
                     </th>
                     <td>
@@ -120,7 +153,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($rss_display_artwork, true); ?>
                                 />
-                                <?php esc_html_e('Show Episode Artwork', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Display Artwork', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -131,7 +164,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($rss_display_title, true); ?>
                                 />
-                                <?php esc_html_e('Show Episode Title', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Display Episode Title', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -142,7 +175,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($rss_display_date, true); ?>
                                 />
-                                <?php esc_html_e('Show Publication Date', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Display Date', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -153,7 +186,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($rss_display_duration, true); ?>
                                 />
-                                <?php esc_html_e('Show Episode Duration', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Display Duration', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -164,17 +197,77 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($rss_display_description, true); ?>
                                 />
-                                <?php esc_html_e('Show Episode Description', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Display Description', 'podloom-podcast-player'); ?>
                             </label>
-                            <p class="description">
-                                <?php esc_html_e('Audio player is always shown.', 'podloom-podcast-player'); ?>
-                            </p>
                         </fieldset>
                     </td>
                 </tr>
                 <tr>
                     <th scope="row">
-                        <?php esc_html_e('Podcasting 2.0 Elements', 'podloom-podcast-player'); ?>
+                        <?php esc_html_e('Advanced Display', 'podloom-podcast-player'); ?>
+                    </th>
+                    <td>
+                        <fieldset>
+                            <label for="podloom_rss_description_limit">
+                                <?php esc_html_e('Description Character Limit', 'podloom-podcast-player'); ?>
+                                <br>
+                                <input
+                                    type="number"
+                                    id="podloom_rss_description_limit"
+                                    name="podloom_rss_description_limit"
+                                    value="<?php echo esc_attr($all_options['podloom_rss_description_limit'] ?? '0'); ?>"
+                                    min="0"
+                                    step="1"
+                                    class="small-text"
+                                />
+                                <p class="description">
+                                    <?php esc_html_e('Limit the number of characters in the description. Set to 0 for no limit.', 'podloom-podcast-player'); ?>
+                                </p>
+                            </label>
+                            <br><br>
+                            <label for="podloom_rss_player_height">
+                                <?php esc_html_e('Player Max Height (px)', 'podloom-podcast-player'); ?>
+                                <br>
+                                <input
+                                    type="number"
+                                    id="podloom_rss_player_height"
+                                    name="podloom_rss_player_height"
+                                    value="<?php echo esc_attr($all_options['podloom_rss_player_height'] ?? '600'); ?>"
+                                    min="200"
+                                    step="10"
+                                    class="small-text"
+                                />
+                            </label>
+                            <br><br>
+                            <label for="podloom_rss_minimal_styling">
+                                <input
+                                    type="checkbox"
+                                    id="podloom_rss_minimal_styling"
+                                    name="podloom_rss_minimal_styling"
+                                    value="1"
+                                    <?php checked($all_options['podloom_rss_minimal_styling'] ?? false, true); ?>
+                                />
+                                <?php esc_html_e('Minimal Styling Mode', 'podloom-podcast-player'); ?>
+                            </label>
+                            <p class="description">
+                                <?php esc_html_e('Disable advanced typography settings and use your theme\'s styles instead.', 'podloom-podcast-player'); ?>
+                            </p>
+                        </fieldset>
+                    </td>
+                </tr>
+            </table>
+
+            <hr>
+
+            <h3><?php esc_html_e('Podcasting 2.0 Features', 'podloom-podcast-player'); ?></h3>
+            <p class="description">
+                <?php esc_html_e('Enable or disable support for specific Podcasting 2.0 namespace tags.', 'podloom-podcast-player'); ?>
+            </p>
+
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
+                        <?php esc_html_e('Supported Features', 'podloom-podcast-player'); ?>
                     </th>
                     <td>
                         <fieldset>
@@ -186,7 +279,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($all_options['podloom_rss_display_funding'] ?? true, true); ?>
                                 />
-                                <?php esc_html_e('Show Funding Links', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Funding / Value for Value', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -197,7 +290,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($all_options['podloom_rss_display_transcripts'] ?? true, true); ?>
                                 />
-                                <?php esc_html_e('Show Transcripts', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Transcripts', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -208,7 +301,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($all_options['podloom_rss_display_people_hosts'] ?? true, true); ?>
                                 />
-                                <?php esc_html_e('Show Podcast Hosts (from channel)', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('People (Hosts)', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -219,7 +312,7 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($all_options['podloom_rss_display_people_guests'] ?? true, true); ?>
                                 />
-                                <?php esc_html_e('Show Episode Guests (from episode)', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('People (Guests)', 'podloom-podcast-player'); ?>
                             </label>
                             <br>
                             <label>
@@ -230,250 +323,150 @@ function podloom_render_rss_tab($all_options) {
                                     value="1"
                                     <?php checked($all_options['podloom_rss_display_chapters'] ?? true, true); ?>
                                 />
-                                <?php esc_html_e('Show Chapters', 'podloom-podcast-player'); ?>
+                                <?php esc_html_e('Chapters', 'podloom-podcast-player'); ?>
                             </label>
-                            <p class="description">
-                                <?php esc_html_e('Display Podcasting 2.0 namespace elements when available in the RSS feed. Note: Podcast hosts are typically defined at the channel level (apply to all episodes), while episode guests are defined per episode.', 'podloom-podcast-player'); ?>
-                            </p>
                         </fieldset>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="podloom_rss_description_limit">
-                            <?php esc_html_e('Description Character Limit', 'podloom-podcast-player'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <input
-                            type="number"
-                            id="podloom_rss_description_limit"
-                            name="podloom_rss_description_limit"
-                            value="<?php echo esc_attr($all_options['podloom_rss_description_limit'] ?? 0); ?>"
-                            min="0"
-                            step="1"
-                            class="small-text"
-                        />
-                        <p class="description">
-                            <?php esc_html_e('Maximum number of characters to display in episode descriptions. Set to 0 for unlimited (show full description).', 'podloom-podcast-player'); ?>
-                        </p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <label for="podloom_rss_player_height">
-                            <?php esc_html_e('Player Height', 'podloom-podcast-player'); ?>
-                        </label>
-                    </th>
-                    <td>
-                        <input
-                            type="number"
-                            id="podloom_rss_player_height"
-                            name="podloom_rss_player_height"
-                            value="<?php echo esc_attr($all_options['podloom_rss_player_height'] ?? 600); ?>"
-                            min="200"
-                            max="1000"
-                            step="10"
-                            class="small-text"
-                        /> px
-                        <p class="description">
-                            <?php esc_html_e('Maximum height of the player in pixels. Tab content that exceeds this height will be scrollable. Default: 600px.', 'podloom-podcast-player'); ?>
-                        </p>
-                    </td>
-                </tr>
-                <!-- RSS Cache Duration setting removed - now uses General Settings → Cache Duration -->
-                <tr>
-                    <th scope="row"><?php esc_html_e('Styling Mode', 'podloom-podcast-player'); ?></th>
-                    <td>
-                        <label>
-                            <input
-                                type="checkbox"
-                                id="podloom_rss_minimal_styling"
-                                name="podloom_rss_minimal_styling"
-                                value="1"
-                                <?php checked($all_options['podloom_rss_minimal_styling'] ?? false, true); ?>
-                            />
-                            <?php esc_html_e('Enable Minimal Styling Mode', 'podloom-podcast-player'); ?>
-                        </label>
-                        <p class="description">
-                            <?php esc_html_e('When enabled, the plugin will output only semantic HTML with classes, allowing you to apply your own custom CSS. All plugin typography and styling settings will be disabled.', 'podloom-podcast-player'); ?>
-                        </p>
                     </td>
                 </tr>
             </table>
 
             <hr>
 
-            <div id="typography-section-wrapper">
-                <div id="color-palette-section" style="<?php echo ($all_options['podloom_rss_minimal_styling'] ?? false) ? 'display: none;' : ''; ?>">
-            <?php
-            $palettes = [
-                [
-                    'id' => 'custom',
-                    'name' => __('Custom (Use Individual Colors)', 'podloom-podcast-player'),
-                    'colors' => [
-                        'background' => '#f9f9f9',
-                        'title' => '#1a1a1a',
-                        'date' => '#666666',
-                        'duration' => '#666666',
-                        'description' => '#333333'
-                    ]
-                ],
-                [
-                    'id' => 'classic-dark',
-                    'name' => __('Classic Dark', 'podloom-podcast-player'),
-                    'colors' => [
-                        'background' => '#1a1a1a',
-                        'title' => '#ffffff',
-                        'date' => '#a0a0a0',
-                        'duration' => '#a0a0a0',
-                        'description' => '#d4d4d4'
-                    ]
-                ],
-                [
-                    'id' => 'light-clean',
-                    'name' => __('Light & Clean', 'podloom-podcast-player'),
-                    'colors' => [
-                        'background' => '#ffffff',
-                        'title' => '#1a1a1a',
-                        'date' => '#757575',
-                        'duration' => '#757575',
-                        'description' => '#424242'
-                    ]
-                ],
-                [
-                    'id' => 'warm-sunset',
-                    'name' => __('Warm Sunset', 'podloom-podcast-player'),
-                    'colors' => [
-                        'background' => '#fff5eb',
-                        'title' => '#d84315',
-                        'date' => '#8d6e63',
-                        'duration' => '#8d6e63',
-                        'description' => '#4e342e'
-                    ]
-                ],
-                [
-                    'id' => 'cool-ocean',
-                    'name' => __('Cool Ocean', 'podloom-podcast-player'),
-                    'colors' => [
-                        'background' => '#e3f2fd',
-                        'title' => '#0d47a1',
-                        'date' => '#546e7a',
-                        'duration' => '#546e7a',
-                        'description' => '#263238'
-                    ]
-                ],
-                [
-                    'id' => 'modern-purple',
-                    'name' => __('Modern Purple', 'podloom-podcast-player'),
-                    'colors' => [
-                        'background' => '#f3e5f5',
-                        'title' => '#6a1b9a',
-                        'date' => '#7e57c2',
-                        'duration' => '#7e57c2',
-                        'description' => '#4a148c'
-                    ]
-                ],
-                [
-                    'id' => 'earthy-green',
-                    'name' => __('Earthy Green', 'podloom-podcast-player'),
-                    'colors' => [
-                        'background' => '#f1f8e9',
-                        'title' => '#33691e',
-                        'date' => '#689f38',
-                        'duration' => '#689f38',
-                        'description' => '#1b5e20'
-                    ]
-                ]
-            ];
-            ?>
-
-            <h3><?php esc_html_e('Quick Color Palettes', 'podloom-podcast-player'); ?></h3>
-            <p class="description" style="margin-bottom: 15px;">
-                <?php esc_html_e('Choose a pre-designed color palette. For advanced typography customization, expand the "Advanced Typography Settings" section below.', 'podloom-podcast-player'); ?>
+            <h3><?php esc_html_e('Player Colors', 'podloom-podcast-player'); ?></h3>
+            <p class="description">
+                <?php esc_html_e('Customize the colors of the RSS player. The player will automatically generate a color palette based on your background color.', 'podloom-podcast-player'); ?>
             </p>
 
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
-                <div>
-                    <select id="color-palette-select" class="regular-text">
-                        <?php foreach ($palettes as $palette): ?>
-                            <option value="<?php echo esc_attr($palette['id']); ?>" <?php selected($palette['id'], 'light-clean'); ?>>
+            <!-- Quick Color Palettes -->
+            <div class="podloom-palettes-wrapper" style="margin-bottom: 30px;">
+                <h4><?php esc_html_e('Quick Color Palettes', 'podloom-podcast-player'); ?></h4>
+                <div class="podloom-palettes-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px;">
+                    <?php
+                    $palettes = [
+                        'classic-dark' => [
+                            'name' => __('Classic Dark', 'podloom-podcast-player'),
+                            'bg' => '#1a1a1a',
+                            'title' => '#ffffff',
+                            'text' => '#cccccc',
+                            'accent' => '#f8981d'
+                        ],
+                        'light-minimal' => [
+                            'name' => __('Light Minimal', 'podloom-podcast-player'),
+                            'bg' => '#ffffff',
+                            'title' => '#333333',
+                            'text' => '#666666',
+                            'accent' => '#2271b1'
+                        ],
+                        'midnight-blue' => [
+                            'name' => __('Midnight Blue', 'podloom-podcast-player'),
+                            'bg' => '#0f172a',
+                            'title' => '#e2e8f0',
+                            'text' => '#94a3b8',
+                            'accent' => '#38bdf8'
+                        ],
+                        'forest-green' => [
+                            'name' => __('Forest Green', 'podloom-podcast-player'),
+                            'bg' => '#064e3b',
+                            'title' => '#ecfdf5',
+                            'text' => '#a7f3d0',
+                            'accent' => '#34d399'
+                        ],
+                        'warm-amber' => [
+                            'name' => __('Warm Amber', 'podloom-podcast-player'),
+                            'bg' => '#78350f',
+                            'title' => '#fffbeb',
+                            'text' => '#fde68a',
+                            'accent' => '#fbbf24'
+                        ],
+                        'sunset-vibes' => [
+                            'name' => __('Sunset Vibes', 'podloom-podcast-player'),
+                            'bg' => '#4c1d1d',
+                            'title' => '#ffedd5',
+                            'text' => '#fdba74',
+                            'accent' => '#f97316'
+                        ],
+                        'deep-ocean' => [
+                            'name' => __('Deep Ocean', 'podloom-podcast-player'),
+                            'bg' => '#0c4a6e',
+                            'title' => '#e0f2fe',
+                            'text' => '#bae6fd',
+                            'accent' => '#0ea5e9'
+                        ],
+                        'berry-smoothie' => [
+                            'name' => __('Berry Smoothie', 'podloom-podcast-player'),
+                            'bg' => '#4a044e',
+                            'title' => '#fdf4ff',
+                            'text' => '#f0abfc',
+                            'accent' => '#d946ef'
+                        ],
+                        'slate-gray' => [
+                            'name' => __('Slate Gray', 'podloom-podcast-player'),
+                            'bg' => '#334155',
+                            'title' => '#f8fafc',
+                            'text' => '#cbd5e1',
+                            'accent' => '#94a3b8'
+                        ]
+                    ];
+
+                    foreach ($palettes as $id => $palette) :
+                    ?>
+                        <button type="button" class="podloom-palette-btn"
+                            data-palette="<?php echo esc_attr($id); ?>"
+                            data-bg="<?php echo esc_attr($palette['bg']); ?>"
+                            data-title="<?php echo esc_attr($palette['title']); ?>"
+                            data-text="<?php echo esc_attr($palette['text']); ?>"
+                            data-accent="<?php echo esc_attr($palette['accent']); ?>"
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                border: 1px solid #ddd;
+                                border-radius: 6px;
+                                overflow: hidden;
+                                cursor: pointer;
+                                padding: 0;
+                                background: transparent;
+                                transition: transform 0.2s, box-shadow 0.2s;
+                            "
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 6px rgba(0,0,0,0.1)';"
+                            onmouseout="this.style.transform='none'; this.style.boxShadow='none';"
+                        >
+                            <div class="palette-preview" style="height: 60px; width: 100%; background-color: <?php echo esc_attr($palette['bg']); ?>; position: relative; display: flex; align-items: center; justify-content: center;">
+                                <div style="width: 60%; height: 8px; background-color: <?php echo esc_attr($palette['title']); ?>; border-radius: 4px; margin-bottom: 4px;"></div>
+                                <div style="width: 40%; height: 6px; background-color: <?php echo esc_attr($palette['text']); ?>; border-radius: 3px; position: absolute; bottom: 15px; left: 20%;"></div>
+                                <div style="width: 20px; height: 20px; background-color: <?php echo esc_attr($palette['accent']); ?>; border-radius: 50%; position: absolute; bottom: -10px; right: 10px; border: 2px solid #fff;"></div>
+                            </div>
+                            <div class="palette-name" style="padding: 8px; font-size: 12px; font-weight: 500; color: #444; width: 100%; text-align: center; background: #fff;">
                                 <?php echo esc_html($palette['name']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div id="palette-swatches" style="display: flex; gap: 6px; align-items: center;">
-                    <!-- Swatches will be populated by JavaScript -->
+                            </div>
+                        </button>
+                    <?php endforeach; ?>
                 </div>
             </div>
 
-            <div id="palette-live-preview" style="border: 1px solid #ddd; border-radius: 4px; padding: 15px; background: #fff; max-width: 400px; margin-bottom: 20px;">
-                <div id="preview-title" style="font-weight: 600; font-size: 16px; margin-bottom: 8px;">Episode Title</div>
-                <div style="display: flex; gap: 12px; margin-bottom: 10px;">
-                    <span id="preview-date" style="font-size: 12px;">Jan 1, 2024</span>
-                    <span id="preview-duration" style="font-size: 12px;">45:30</span>
-                </div>
-                <div style="background: rgba(0,0,0,0.1); height: 30px; border-radius: 3px; margin-bottom: 10px;"></div>
-                <div id="preview-description" style="font-size: 13px; line-height: 1.5;">
-                    This is a sample episode description that shows how your text will look with the selected color palette.
-                </div>
+            <!-- Hidden inputs for colors (managed via palettes) -->
+            <input
+                type="hidden"
+                id="podloom_rss_background_color"
+                name="podloom_rss_background_color"
+                value="<?php echo esc_attr($all_options['podloom_rss_background_color'] ?? '#f9f9f9'); ?>"
+            />
+            <input
+                type="hidden"
+                id="podloom_rss_accent_color"
+                name="podloom_rss_accent_color"
+                value="<?php echo esc_attr($all_options['podloom_rss_accent_color'] ?? ''); ?>"
+            />
+
+            <hr>
+
+            <div id="typography-section-wrapper">
+                <?php podloom_render_typography_settings($all_options); ?>
             </div>
 
-            <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                const palettes = <?php echo json_encode($palettes); ?>;
-                const paletteSelect = document.getElementById('color-palette-select');
-                const swatchesContainer = document.getElementById('palette-swatches');
-                const livePreview = document.getElementById('palette-live-preview');
-
-                function updatePalette(paletteId) {
-                    const palette = palettes.find(p => p.id === paletteId);
-                    if (!palette) return;
-
-                    // Update swatches
-                    swatchesContainer.innerHTML = Object.values(palette.colors).map(color =>
-                        `<div style="width: 24px; height: 24px; border-radius: 3px; background: ${color}; border: 1px solid #ddd;" title="${color}"></div>`
-                    ).join('');
-
-                    // Update live preview
-                    livePreview.style.background = palette.colors.background;
-                    document.getElementById('preview-title').style.color = palette.colors.title;
-                    document.getElementById('preview-date').style.color = palette.colors.date;
-                    document.getElementById('preview-duration').style.color = palette.colors.duration;
-                    document.getElementById('preview-description').style.color = palette.colors.description;
-
-                    // Apply colors to form inputs (if not custom)
-                    if (paletteId !== 'custom') {
-                        document.getElementById('rss_background_color').value = palette.colors.background;
-                        document.getElementById('title_color').value = palette.colors.title;
-                        document.getElementById('date_color').value = palette.colors.date;
-                        document.getElementById('duration_color').value = palette.colors.duration;
-                        document.getElementById('description_color').value = palette.colors.description;
-
-                        // Trigger preview update
-                        if (window.podloomTypographyManager) {
-                            window.podloomTypographyManager.updatePreview();
-                        }
-                    }
-                }
-
-                paletteSelect.addEventListener('change', function() {
-                    updatePalette(this.value);
-                });
-
-                // Initialize with first palette
-                updatePalette(paletteSelect.value);
-            });
-            </script>
-            </div>
-
-            <?php podloom_render_typography_settings($all_options); ?>
+            <button type="button" id="save-rss-settings" class="button button-primary" style="margin-top: 20px;">
+                <?php esc_html_e('Save RSS Settings', 'podloom-podcast-player'); ?>
+            </button>
         </div>
-
-        <button type="button" id="save-rss-settings" class="button button-primary" style="margin-top: 20px;">
-            <?php esc_html_e('Save RSS Settings', 'podloom-podcast-player'); ?>
-        </button>
     </div>
     <?php
 }

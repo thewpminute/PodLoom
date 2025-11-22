@@ -81,6 +81,7 @@ function podloom_enqueue_admin_scripts($hook) {
             'save' => __('Save', 'podloom-podcast-player'),
             'cancel' => __('Cancel', 'podloom-podcast-player'),
             'adding' => __('Adding...', 'podloom-podcast-player'),
+            'addingFeedProgress' => __('Adding feed... This may take up to 10 seconds.', 'podloom-podcast-player'),
             'saving' => __('Saving...', 'podloom-podcast-player'),
             'refreshing' => __('Refreshing...', 'podloom-podcast-player'),
             'saveRssSettings' => __('Save RSS Settings', 'podloom-podcast-player'),
@@ -253,6 +254,37 @@ function podloom_render_settings_page() {
         update_option('podloom_default_show', $default_show);
         update_option('podloom_enable_cache', $enable_cache);
         update_option('podloom_cache_duration', $cache_duration);
+
+        // Save RSS Settings
+        $rss_enabled = isset($_POST['podloom_rss_enabled']) && sanitize_text_field(wp_unslash($_POST['podloom_rss_enabled'])) == '1';
+        update_option('podloom_rss_enabled', $rss_enabled);
+
+        $rss_player_type = isset($_POST['podloom_rss_player_type']) ? sanitize_text_field(wp_unslash($_POST['podloom_rss_player_type'])) : 'native';
+        update_option('podloom_rss_player_type', $rss_player_type);
+
+        // RSS Display Settings
+        $rss_display_settings = [
+            'podloom_rss_display_artwork',
+            'podloom_rss_display_title',
+            'podloom_rss_display_date',
+            'podloom_rss_display_duration',
+            'podloom_rss_display_description',
+            'podloom_rss_display_funding',
+            'podloom_rss_display_transcripts',
+            'podloom_rss_display_people_hosts',
+            'podloom_rss_display_people_guests',
+            'podloom_rss_display_chapters'
+        ];
+
+        foreach ($rss_display_settings as $setting) {
+            $value = isset($_POST[$setting]) && sanitize_text_field(wp_unslash($_POST[$setting])) == '1';
+            update_option($setting, $value);
+        }
+
+        // RSS Color Settings
+        if (isset($_POST['podloom_rss_background_color'])) {
+            update_option('podloom_rss_background_color', sanitize_hex_color($_POST['podloom_rss_background_color']));
+        }
 
         // Clear cache when settings change
         podloom_clear_all_cache();

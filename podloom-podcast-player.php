@@ -343,6 +343,14 @@ function podloom_get_rss_dynamic_css() {
     // Calculate theme-aware colors for tabs and P2.0 elements
     $theme_colors = podloom_calculate_theme_colors($bg_color);
 
+    // Override accent if saved
+    $saved_accent = get_option('podloom_rss_accent_color');
+    if (!empty($saved_accent)) {
+        $theme_colors['accent'] = $saved_accent;
+        // Recalculate dependent colors if needed, or just use accent
+        // For now, we'll trust the palette's accent is good
+    }
+
     return sprintf('
         .wp-block-podloom-episode-player.rss-episode-player {
             background: %s;
@@ -447,7 +455,128 @@ function podloom_get_rss_dynamic_css() {
             line-height: %s;
             color: %s;
             font-weight: %s;
-        }',
+        }
+
+        /* Modern Player Styling */
+        .podloom-plyr-theme {
+            --plyr-color-main: %s; /* Accent color */
+            --plyr-control-icon-size: 18px;
+            --plyr-control-spacing: 10px;
+            font-family: inherit;
+        }
+
+        .podloom-plyr-theme .plyr__controls {
+            background: transparent;
+            padding: 15px;
+            gap: 10px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Large Play Button */
+        .podloom-plyr-theme .plyr__control--overlaid {
+            background: var(--plyr-color-main);
+            padding: 20px;
+        }
+
+        .podloom-plyr-theme .plyr__control--overlaid svg {
+            width: 30px;
+            height: 30px;
+        }
+
+        /* Control Bar Buttons */
+        .podloom-plyr-theme .plyr__controls .plyr__control {
+            background: transparent;
+            border-radius: 4px;
+            padding: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .podloom-plyr-theme .plyr__controls .plyr__control:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--plyr-color-main);
+        }
+
+        /* Large Play Button - Keep Circular */
+        .podloom-plyr-theme .plyr__controls .plyr__control[data-plyr="play"] {
+            background: var(--plyr-color-main);
+            color: #fff;
+            border-radius: 50%%;
+            padding: 12px;
+            margin: 0; /* Remove margin to rely on gap */
+        }
+        
+        .podloom-plyr-theme .plyr__controls .plyr__control[data-plyr="play"]:hover {
+            background: var(--plyr-color-main);
+            color: #fff;
+            opacity: 0.9;
+        }
+        
+        .podloom-plyr-theme .plyr__controls .plyr__control[data-plyr="play"] svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        /* Speed Control */
+        .podloom-plyr-theme .plyr__controls .plyr__control[data-plyr="speed"] {
+            font-weight: 600;
+            font-size: 13px;
+            width: auto;
+            padding: 8px 12px;
+        }
+
+        /* Timeline */
+        .podloom-plyr-theme .plyr__progress__container {
+            flex: 1; /* Allow it to grow */
+            min-width: 200px;
+            order: 2; /* Place after play button */
+            margin: 0 15px;
+        }
+
+        .podloom-plyr-theme .plyr__progress input[type="range"] {
+            height: 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        /* Time Display */
+        .podloom-plyr-theme .plyr__time {
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.8;
+        }
+
+        /* Volume & Settings */
+        .podloom-plyr-theme .plyr__volume {
+            max-width: 100px;
+            min-width: 80px;
+            margin-left: auto; /* Push to right */
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 480px) {
+            .podloom-plyr-theme .plyr__controls {
+                padding: 10px;
+                justify-content: center;
+            }
+            
+            .podloom-plyr-theme .plyr__progress__container {
+                flex: 1 1 100%%;
+                order: 0; /* Move timeline to top */
+                margin-bottom: 10px;
+            }
+            
+            .podloom-plyr-theme .plyr__controls .plyr__control {
+                padding: 10px; /* Larger touch targets */
+            }
+            
+            .podloom-plyr-theme .plyr__volume {
+                display: none; /* Hide volume on mobile to save space */
+            }
+        }
+
+',
         esc_attr($bg_color),
         absint($player_height),
         absint($player_height + 100), // Mobile height - add 100px for stacked layout
@@ -492,7 +621,9 @@ function podloom_get_rss_dynamic_css() {
         esc_attr($typo['description']['font-size']),
         esc_attr($typo['description']['line-height']),
         esc_attr($typo['description']['color']),
-        esc_attr($typo['description']['font-weight'])
+        esc_attr($typo['description']['font-weight']),
+        // Plyr colors
+        esc_attr($theme_colors['accent'])
     );
 }
 
@@ -528,6 +659,36 @@ function podloom_enqueue_podcast20_assets() {
         return;
     }
 
+    // Check player type setting
+    $player_type = get_option('podloom_rss_player_type', 'native');
+
+    // Enqueue Plyr assets if selected
+    if ($player_type === 'plyr') {
+        wp_enqueue_style(
+            'podloom-plyr',
+            PODLOOM_PLUGIN_URL . 'assets/lib/plyr/plyr.css',
+            [],
+            '3.7.8'
+        );
+
+        wp_enqueue_script(
+            'podloom-plyr',
+            PODLOOM_PLUGIN_URL . 'assets/lib/plyr/plyr.js',
+            [],
+            '3.7.8',
+            true
+        );
+
+        // Enqueue player initialization script
+        wp_enqueue_script(
+            'podloom-rss-player-init',
+            PODLOOM_PLUGIN_URL . 'assets/js/rss-player-init.js',
+            ['podloom-plyr', 'podloom-podcast20-player'],
+            PODLOOM_PLUGIN_VERSION,
+            true
+        );
+    }
+
     // Enqueue Podcasting 2.0 styles
     wp_enqueue_style(
         'podloom-podcast20',
@@ -538,19 +699,20 @@ function podloom_enqueue_podcast20_assets() {
 
     // Enqueue Podcasting 2.0 chapter navigation script
     wp_enqueue_script(
-        'podloom-podcast20-chapters',
-        PODLOOM_PLUGIN_URL . 'assets/js/podcast20-chapters.js',
+        'podloom-podcast20-player',
+        PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player.js',
         [],
         PODLOOM_PLUGIN_VERSION,
         true // Load in footer
     );
 
-    // Pass AJAX URL to the script for transcript proxy
-    wp_localize_script('podloom-podcast20-chapters', 'podloomTranscript', [
-        'ajaxUrl' => admin_url('admin-ajax.php')
+    // Pass data to the script
+    wp_localize_script('podloom-podcast20-player', 'podloomData', [
+        'ajaxUrl' => admin_url('admin-ajax.php'),
+        'playerType' => $player_type
     ]);
 
-    echo '<!-- PodLoom: P2.0 assets loaded (~11KB CSS + ~22KB JS) -->';
+    echo '<!-- PodLoom: P2.0 assets loaded -->';
 }
 add_action('wp_footer', 'podloom_enqueue_podcast20_assets', 5);
 
@@ -576,15 +738,15 @@ function podloom_enqueue_editor_styles() {
 
     // Podcasting 2.0 JavaScript (for tab switching, chapter navigation, transcript loading)
     wp_enqueue_script(
-        'podloom-podcast20-chapters-editor',
-        PODLOOM_PLUGIN_URL . 'assets/js/podcast20-chapters.js',
+        'podloom-podcast20-player-editor',
+        PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player.js',
         [],
         PODLOOM_PLUGIN_VERSION,
         true
     );
 
     // Pass AJAX URL to the script for transcript proxy
-    wp_localize_script('podloom-podcast20-chapters-editor', 'podloomTranscript', [
+    wp_localize_script('podloom-podcast20-player-editor', 'podloomTranscript', [
         'ajaxUrl' => admin_url('admin-ajax.php')
     ]);
 
@@ -1147,6 +1309,12 @@ function podloom_register_settings() {
         'type' => 'array',
         'sanitize_callback' => 'podloom_sanitize_rss_feeds',
         'default' => []
+    ]);
+
+    register_setting('podloom_settings', 'podloom_rss_player_type', [
+        'type' => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => 'native'
     ]);
 
     register_setting('podloom_settings', 'podloom_rss_display_artwork', [

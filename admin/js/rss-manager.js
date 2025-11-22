@@ -3,16 +3,16 @@
  * Handles RSS feed management and settings
  */
 
-(function($) {
+(function ($) {
     'use strict';
 
     const rssManager = {
-        init: function() {
+        init: function () {
             this.bindEvents();
             // Feeds are now rendered server-side, no need to load on init
         },
 
-        bindEvents: function() {
+        bindEvents: function () {
             // Toggle RSS container
             const rssEnabledCheckbox = document.getElementById('podloom_rss_enabled');
             if (rssEnabledCheckbox) {
@@ -66,9 +66,67 @@
                     }
                 });
             }
+            // Palette Switcher Logic
+            const paletteContainer = document.querySelector('.podloom-palettes-grid');
+            if (paletteContainer) {
+                paletteContainer.addEventListener('click', (e) => {
+                    const button = e.target.closest('.podloom-palette-btn');
+                    if (!button) return;
+
+                    const bg = button.dataset.bg;
+                    const title = button.dataset.title;
+                    const text = button.dataset.text;
+                    const accent = button.dataset.accent; // Accent used for player theme if applicable
+
+                    // Update Background Color (Main Input)
+                    const bgInput = document.getElementById('podloom_rss_background_color');
+                    if (bgInput) {
+                        bgInput.value = bg;
+                        bgInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        bgInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+
+                    // Update Background Color (Typography Preview Input)
+                    const previewBgInput = document.getElementById('rss_background_color');
+                    if (previewBgInput) {
+                        previewBgInput.value = bg;
+                        previewBgInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        previewBgInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+
+                    // Update Typography Colors
+                    const updateColor = (elementId, colorValue) => {
+                        const input = document.getElementById(elementId);
+                        if (input) {
+                            input.value = colorValue;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    };
+
+                    updateColor('title_color', title);
+                    updateColor('date_color', text);
+                    updateColor('duration_color', text);
+                    updateColor('description_color', text);
+
+                    // Update Accent Color (Hidden Input)
+                    const accentInput = document.getElementById('podloom_rss_accent_color');
+                    if (accentInput) {
+                        accentInput.value = accent;
+                    }
+
+                    // Visual feedback for selection
+                    document.querySelectorAll('.podloom-palette-btn').forEach(btn => {
+                        btn.style.borderColor = '#ddd';
+                        btn.style.boxShadow = 'none';
+                    });
+                    button.style.borderColor = '#2271b1';
+                    button.style.boxShadow = '0 0 0 1px #2271b1';
+                });
+            }
         },
 
-        editFeed: function(feedId, feedName) {
+        editFeed: function (feedId, feedName) {
             this.showModal(podloomData.strings.editFeedName, `
                 <label for="rss-feed-name-edit">${podloomData.strings.feedName}</label>
                 <input type="text" id="rss-feed-name-edit" value="${this.escapeHtml(feedName)}" />
@@ -89,13 +147,21 @@
             });
         },
 
-        showAddFeedModal: function() {
+        showAddFeedModal: function () {
             this.showModal(podloomData.strings.addNewFeed, `
                 <label for="rss-feed-name">${podloomData.strings.feedName}</label>
                 <input type="text" id="rss-feed-name" placeholder="${podloomData.strings.feedNamePlaceholder}" />
 
                 <label for="rss-feed-url">${podloomData.strings.feedUrl}</label>
                 <input type="url" id="rss-feed-url" placeholder="${podloomData.strings.feedUrlPlaceholder}" />
+
+                <label for="rss-feed-url">${podloomData.strings.feedUrl}</label>
+                <input type="url" id="rss-feed-url" placeholder="${podloomData.strings.feedUrlPlaceholder}" />
+
+                <div id="rss-modal-progress" style="display: none; margin-top: 15px; color: #2271b1;">
+                    <span class="spinner is-active" style="float: none; margin: 0 5px 0 0;"></span>
+                    ${podloomData.strings.addingFeedProgress}
+                </div>
 
                 <div id="rss-modal-error" style="display: none;"></div>
             `, (modal) => {
@@ -114,11 +180,18 @@
             });
         },
 
-        addFeed: function(name, url, modal, errorDiv) {
+        addFeed: function (name, url, modal, errorDiv) {
             const saveButton = modal.querySelector('.button-primary');
             const originalText = saveButton.textContent;
+            const progressDiv = document.getElementById('rss-modal-progress');
+
             saveButton.textContent = podloomData.strings.adding;
             saveButton.disabled = true;
+
+            if (progressDiv) {
+                progressDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+            }
 
             $.post(podloomData.ajaxUrl, {
                 action: 'podloom_add_rss_feed',
@@ -130,6 +203,9 @@
                     this.closeModal();
                     window.location.reload();
                 } else {
+                    if (progressDiv) {
+                        progressDiv.style.display = 'none';
+                    }
                     errorDiv.style.display = 'block';
                     errorDiv.className = 'rss-notice error';
                     errorDiv.textContent = response.data.message || podloomData.strings.errorAddingFeed;
@@ -139,7 +215,7 @@
             });
         },
 
-        updateFeedName: function(feedId, name, modal) {
+        updateFeedName: function (feedId, name, modal) {
             const saveButton = modal.querySelector('.button-primary');
             saveButton.textContent = podloomData.strings.saving;
             saveButton.disabled = true;
@@ -164,7 +240,7 @@
             });
         },
 
-        refreshFeed: function(feedId, button) {
+        refreshFeed: function (feedId, button) {
             const originalText = button.innerHTML;
             button.innerHTML = podloomData.strings.refreshing;
             button.disabled = true;
@@ -178,7 +254,7 @@
             });
         },
 
-        deleteFeed: function(feedId) {
+        deleteFeed: function (feedId) {
             if (!confirm(podloomData.strings.deleteFeedConfirm)) {
                 return;
             }
@@ -192,7 +268,7 @@
             });
         },
 
-        viewFeedXML: function(feedId) {
+        viewFeedXML: function (feedId) {
             $.post(podloomData.ajaxUrl, {
                 action: 'podloom_get_raw_rss_feed',
                 nonce: podloomData.nonce,
@@ -206,7 +282,7 @@
             });
         },
 
-        showXMLModal: function(xml) {
+        showXMLModal: function (xml) {
             // Remove any existing modals first
             const existingBackdrop = document.getElementById('xml-modal-backdrop');
             const existingModal = document.getElementById('xml-viewer-modal');
@@ -243,7 +319,7 @@
             backdrop.addEventListener('click', closeModal);
         },
 
-        saveSettings: function() {
+        saveSettings: function () {
             const button = document.getElementById('save-rss-settings');
             button.textContent = podloomData.strings.saving;
             button.disabled = true;
@@ -262,7 +338,8 @@
                 podloom_rss_display_chapters: document.getElementById('podloom_rss_display_chapters').checked ? '1' : '0',
                 podloom_rss_minimal_styling: document.getElementById('podloom_rss_minimal_styling').checked ? '1' : '0',
                 podloom_rss_description_limit: document.getElementById('podloom_rss_description_limit')?.value || '0',
-                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600'
+                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600',
+                podloom_rss_player_type: document.querySelector('input[name="podloom_rss_player_type"]:checked')?.value || 'native'
                 // RSS Cache Duration removed - now uses General Settings → Cache Duration
             };
 
@@ -303,9 +380,15 @@
             });
 
             // Add background color
-            const bgColor = document.getElementById('rss_background_color');
+            const bgColor = document.getElementById('podloom_rss_background_color');
             if (bgColor) {
                 data['podloom_rss_background_color'] = bgColor.value;
+            }
+
+            // Add accent color
+            const accentColor = document.getElementById('podloom_rss_accent_color');
+            if (accentColor) {
+                data['podloom_rss_accent_color'] = accentColor.value;
             }
 
             // Save all settings in a single request
@@ -328,7 +411,7 @@
             });
         },
 
-        showModal: function(title, bodyHtml, onSave) {
+        showModal: function (title, bodyHtml, onSave) {
             const backdrop = document.createElement('div');
             backdrop.id = 'rss-modal-backdrop';
             backdrop.style.display = 'block';
@@ -365,14 +448,14 @@
             backdrop.addEventListener('click', closeModal);
         },
 
-        closeModal: function() {
+        closeModal: function () {
             const backdrop = document.getElementById('rss-modal-backdrop');
             const modal = document.getElementById('rss-modal');
             if (backdrop) document.body.removeChild(backdrop);
             if (modal) document.body.removeChild(modal);
         },
 
-        showNotice: function(message, type) {
+        showNotice: function (message, type) {
             const container = document.getElementById('rss-feeds-settings');
             const notice = document.createElement('div');
             notice.className = `rss-notice ${type}`;
@@ -384,7 +467,7 @@
             }, 5000);
         },
 
-        escapeHtml: function(text) {
+        escapeHtml: function (text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;

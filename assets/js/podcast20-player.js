@@ -3,7 +3,7 @@
  * Handles tab switching and click-to-seek functionality for podcast chapters
  */
 
-(function() {
+(function () {
     'use strict';
 
     /**
@@ -13,21 +13,21 @@
         // Find all tab containers
         const tabContainers = document.querySelectorAll('.podcast20-tabs');
 
-        tabContainers.forEach(function(container) {
+        tabContainers.forEach(function (container) {
             const tabButtons = container.querySelectorAll('.podcast20-tab-button');
             const tabPanels = container.querySelectorAll('.podcast20-tab-panel');
 
-            tabButtons.forEach(function(button) {
-                button.addEventListener('click', function() {
+            tabButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
                     const targetTab = button.getAttribute('data-tab');
 
                     // Remove active class from all buttons and panels
-                    tabButtons.forEach(function(btn) {
+                    tabButtons.forEach(function (btn) {
                         btn.classList.remove('active');
                         btn.setAttribute('aria-selected', 'false');
                     });
 
-                    tabPanels.forEach(function(panel) {
+                    tabPanels.forEach(function (panel) {
                         panel.classList.remove('active');
                     });
 
@@ -52,7 +52,7 @@
         // Find all chapter lists on the page
         const chapterLists = document.querySelectorAll('.podcast20-chapters-list');
 
-        chapterLists.forEach(function(chapterList) {
+        chapterLists.forEach(function (chapterList) {
             // Find the closest RSS episode container
             const episodeContainer = chapterList.closest('.rss-episode-player');
 
@@ -69,15 +69,24 @@
                 return;
             }
 
+            // Store original artwork
+            const artworkContainer = episodeContainer.querySelector('.rss-episode-artwork img');
+            if (artworkContainer) {
+                // Store the original src if not already stored
+                if (!artworkContainer.hasAttribute('data-original-src')) {
+                    artworkContainer.setAttribute('data-original-src', artworkContainer.src);
+                }
+            }
+
             // Get all chapter items (make entire item clickable)
             const chapterItems = chapterList.querySelectorAll('.chapter-item');
 
             // Add click event to each chapter item
-            chapterItems.forEach(function(item) {
+            chapterItems.forEach(function (item) {
                 // Make the entire chapter item clickable
                 item.style.cursor = 'pointer';
 
-                item.addEventListener('click', function(e) {
+                item.addEventListener('click', function (e) {
                     // Don't trigger if clicking on the external link icon or its SVG
                     if (e.target.tagName === 'A' && e.target.classList.contains('chapter-external-link')) {
                         return;
@@ -93,13 +102,23 @@
 
                     if (!isNaN(startTime)) {
                         // Seek to the chapter start time
-                        audioPlayer.currentTime = startTime;
+                        if (audioPlayer.plyr) {
+                            audioPlayer.plyr.currentTime = startTime;
+                        } else {
+                            audioPlayer.currentTime = startTime;
+                        }
 
                         // Play the audio if it's not already playing
                         if (audioPlayer.paused) {
-                            audioPlayer.play().catch(function(error) {
-                                console.warn('PodLoom: Could not auto-play audio:', error);
-                            });
+                            if (audioPlayer.plyr) {
+                                audioPlayer.plyr.play().catch(function (error) {
+                                    console.warn('PodLoom: Could not auto-play audio (Plyr):', error);
+                                });
+                            } else {
+                                audioPlayer.play().catch(function (error) {
+                                    console.warn('PodLoom: Could not auto-play audio:', error);
+                                });
+                            }
                         }
 
                         // Update active state
@@ -109,7 +128,7 @@
             });
 
             // Listen to timeupdate event to highlight current chapter
-            audioPlayer.addEventListener('timeupdate', function() {
+            audioPlayer.addEventListener('timeupdate', function () {
                 const currentTime = audioPlayer.currentTime;
                 updateActiveChapter(chapterList, currentTime);
             });
@@ -127,7 +146,7 @@
         let activeChapter = null;
 
         // Find the chapter that should be active based on current time
-        chapterItems.forEach(function(item) {
+        chapterItems.forEach(function (item) {
             const startTime = parseFloat(item.getAttribute('data-start-time'));
 
             if (!isNaN(startTime) && currentTime >= startTime) {
@@ -136,13 +155,41 @@
         });
 
         // Remove active class from all chapters
-        chapterItems.forEach(function(item) {
+        chapterItems.forEach(function (item) {
             item.classList.remove('active');
         });
 
         // Add active class to current chapter
         if (activeChapter) {
             activeChapter.classList.add('active');
+        }
+
+        // Update artwork if chapter has image
+        const episodeContainer = chapterList.closest('.rss-episode-player');
+        if (episodeContainer) {
+            const artworkImg = episodeContainer.querySelector('.rss-episode-artwork img');
+            if (artworkImg) {
+                // Check if active chapter has an image
+                let chapterImgSrc = null;
+                if (activeChapter) {
+                    const chapterImg = activeChapter.querySelector('.chapter-img');
+                    if (chapterImg) {
+                        chapterImgSrc = chapterImg.src;
+                    }
+                }
+
+                // If chapter has image, use it. Otherwise revert to original.
+                if (chapterImgSrc) {
+                    if (artworkImg.src !== chapterImgSrc) {
+                        artworkImg.src = chapterImgSrc;
+                    }
+                } else {
+                    const originalSrc = artworkImg.getAttribute('data-original-src');
+                    if (originalSrc && artworkImg.src !== originalSrc) {
+                        artworkImg.src = originalSrc;
+                    }
+                }
+            }
         }
     }
 
@@ -177,9 +224,9 @@
             : url;
 
         fetch(proxyUrl)
-            .then(function(response) {
+            .then(function (response) {
                 // Always parse JSON to get error details
-                return response.json().then(function(data) {
+                return response.json().then(function (data) {
                     if (!response.ok) {
                         // Log detailed error from server
                         const errorMsg = data.data && data.data.message ? data.data.message : 'HTTP ' + response.status;
@@ -189,7 +236,7 @@
                     return data;
                 });
             })
-            .then(function(data) {
+            .then(function (data) {
                 // Handle WordPress AJAX response format
                 if (data.success && data.data && data.data.content) {
                     const parsed = parseTranscript(data.data.content, type);
@@ -205,7 +252,7 @@
                     throw new Error(data.data ? data.data.message : 'Failed to load transcript');
                 }
             })
-            .catch(function(error) {
+            .catch(function (error) {
                 console.warn('Transcript load failed for ' + url + ', trying next format...', error);
                 // Try next transcript format
                 tryLoadTranscript(transcripts, index + 1, button, content);
@@ -218,8 +265,8 @@
     function initTranscriptLoaders() {
         const transcriptButtons = document.querySelectorAll('.transcript-format-button');
 
-        transcriptButtons.forEach(function(button) {
-            button.addEventListener('click', function() {
+        transcriptButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
                 const viewer = button.closest('.podcast20-transcripts').querySelector('.transcript-viewer');
                 const content = viewer.querySelector('.transcript-content');
 
@@ -256,8 +303,8 @@
 
         // Close button handlers
         const closeButtons = document.querySelectorAll('.transcript-close');
-        closeButtons.forEach(function(closeBtn) {
-            closeBtn.addEventListener('click', function() {
+        closeButtons.forEach(function (closeBtn) {
+            closeBtn.addEventListener('click', function () {
                 const viewer = closeBtn.closest('.transcript-viewer');
                 const transcripts = closeBtn.closest('.podcast20-transcripts');
                 const button = transcripts.querySelector('.transcript-format-button');
@@ -307,7 +354,7 @@
         var lines = text.trim().split(/\n\s*\n/);
         var output = '';
 
-        lines.forEach(function(paragraph) {
+        lines.forEach(function (paragraph) {
             if (paragraph.trim()) {
                 output += '<p>' + escapeHTML(paragraph.trim().replace(/\n/g, '<br>')) + '</p>';
             }
@@ -351,7 +398,7 @@
         } else {
             // Fallback: copy body content but remove common non-transcript elements
             if (doc.body) {
-                Array.from(doc.body.childNodes).forEach(function(node) {
+                Array.from(doc.body.childNodes).forEach(function (node) {
                     temp.appendChild(node.cloneNode(true));
                 });
             }
@@ -363,24 +410,24 @@
                 '.sidebar', '.menu', '.social',
                 '[role="navigation"]', '[role="banner"]', '[role="complementary"]'
             ];
-            unwantedSelectors.forEach(function(selector) {
+            unwantedSelectors.forEach(function (selector) {
                 var elements = temp.querySelectorAll(selector);
-                elements.forEach(function(el) { el.remove(); });
+                elements.forEach(function (el) { el.remove(); });
             });
         }
 
         // Remove dangerous elements (script, iframe, object, embed, etc.)
         var dangerousTags = ['script', 'iframe', 'object', 'embed', 'link', 'style', 'form'];
-        dangerousTags.forEach(function(tag) {
+        dangerousTags.forEach(function (tag) {
             var elements = temp.querySelectorAll(tag);
-            elements.forEach(function(el) { el.remove(); });
+            elements.forEach(function (el) { el.remove(); });
         });
 
         // Remove dangerous attributes (on*, style with expressions, etc.)
         var allElements = temp.querySelectorAll('*');
-        allElements.forEach(function(el) {
+        allElements.forEach(function (el) {
             // Remove all on* event handlers
-            Array.from(el.attributes).forEach(function(attr) {
+            Array.from(el.attributes).forEach(function (attr) {
                 if (attr.name.startsWith('on') || attr.name === 'style') {
                     el.removeAttribute(attr.name);
                 }
@@ -397,7 +444,7 @@
 
         // Look for elements with data-time or data-timestamp attributes and make them clickable
         var timeElements = temp.querySelectorAll('[data-time], [data-timestamp]');
-        timeElements.forEach(function(el) {
+        timeElements.forEach(function (el) {
             // Add transcript-timestamp class if not already present
             if (!el.classList.contains('transcript-timestamp')) {
                 el.classList.add('transcript-timestamp');
@@ -411,7 +458,7 @@
         // Look for common timestamp patterns and convert them
         // Pattern: [00:00:00] or [00:00] or similar
         var textNodes = getTextNodes(temp);
-        textNodes.forEach(function(node) {
+        textNodes.forEach(function (node) {
             var text = node.textContent;
             // Match timestamps like [00:00:00], [00:00], (00:00:00), (00:00)
             var timestampRegex = /[\[\(]?(\d{1,2}):(\d{2})(?::(\d{2}))?[\]\)]?/g;
@@ -449,7 +496,7 @@
                 var fragment = document.createDocumentFragment();
                 var lastIndex = 0;
 
-                replacements.forEach(function(replacement) {
+                replacements.forEach(function (replacement) {
                     // Add text before timestamp
                     if (replacement.index > lastIndex) {
                         fragment.appendChild(document.createTextNode(text.substring(lastIndex, replacement.index)));
@@ -504,7 +551,7 @@
         var entries = [];
 
         // First pass: parse all SRT entries
-        blocks.forEach(function(block) {
+        blocks.forEach(function (block) {
             var lines = block.split('\n');
             if (lines.length < 3) return;
 
@@ -533,7 +580,7 @@
         var currentChunk = null;
         var gapThreshold = 3; // Start new paragraph if gap is 3+ seconds
 
-        entries.forEach(function(entry, index) {
+        entries.forEach(function (entry, index) {
             var previousEntry = index > 0 ? entries[index - 1] : null;
             var timeGap = previousEntry ? (entry.startTime - previousEntry.endTime) : 0;
 
@@ -559,10 +606,10 @@
 
         // Build output with chunked paragraphs
         var output = '';
-        chunks.forEach(function(chunk) {
+        chunks.forEach(function (chunk) {
             var combinedText = chunk.texts.join(' ');
             output += '<p><span class="transcript-timestamp" data-time="' + chunk.startTime + '">' +
-                     formatTime(chunk.startTime) + '</span> ' + escapeHTML(combinedText) + '</p>';
+                formatTime(chunk.startTime) + '</span> ' + escapeHTML(combinedText) + '</p>';
         });
 
         return output;
@@ -587,10 +634,10 @@
             var output = '';
 
             if (data.segments && Array.isArray(data.segments)) {
-                data.segments.forEach(function(segment) {
+                data.segments.forEach(function (segment) {
                     if (segment.startTime !== undefined && segment.body) {
                         output += '<p><span class="transcript-timestamp" data-time="' + segment.startTime + '">' +
-                                 formatTime(segment.startTime) + '</span>' + escapeHTML(segment.body) + '</p>';
+                            formatTime(segment.startTime) + '</span>' + escapeHTML(segment.body) + '</p>';
                     }
                 });
             }
@@ -652,15 +699,26 @@
         var audioPlayer = episodeContainer.querySelector('audio');
         if (!audioPlayer) return;
 
-        timestamps.forEach(function(timestamp) {
-            timestamp.addEventListener('click', function() {
+        timestamps.forEach(function (timestamp) {
+            timestamp.addEventListener('click', function () {
                 var time = parseFloat(timestamp.getAttribute('data-time'));
                 if (!isNaN(time)) {
-                    audioPlayer.currentTime = time;
+                    if (audioPlayer.plyr) {
+                        audioPlayer.plyr.currentTime = time;
+                    } else {
+                        audioPlayer.currentTime = time;
+                    }
+
                     if (audioPlayer.paused) {
-                        audioPlayer.play().catch(function(error) {
-                            console.warn('Could not auto-play audio:', error);
-                        });
+                        if (audioPlayer.plyr) {
+                            audioPlayer.plyr.play().catch(function (error) {
+                                console.warn('Could not auto-play audio (Plyr):', error);
+                            });
+                        } else {
+                            audioPlayer.play().catch(function (error) {
+                                console.warn('Could not auto-play audio:', error);
+                            });
+                        }
                     }
                 }
             });
@@ -685,15 +743,15 @@
 
     // Re-initialize when new content is loaded (for dynamic content/AJAX)
     if (typeof window.MutationObserver !== 'undefined') {
-        const observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
+        const observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
                 if (mutation.addedNodes.length) {
-                    mutation.addedNodes.forEach(function(node) {
+                    mutation.addedNodes.forEach(function (node) {
                         if (node.nodeType === 1 &&
                             (node.classList && (node.classList.contains('podcast20-tabs') ||
-                             node.classList.contains('podcast20-chapters-list')) ||
-                             node.querySelector && (node.querySelector('.podcast20-tabs') ||
-                             node.querySelector('.podcast20-chapters-list')))) {
+                                node.classList.contains('podcast20-chapters-list')) ||
+                                node.querySelector && (node.querySelector('.podcast20-tabs') ||
+                                    node.querySelector('.podcast20-chapters-list')))) {
                             init();
                         }
                     });
