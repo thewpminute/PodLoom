@@ -102,23 +102,13 @@
 
                     if (!isNaN(startTime)) {
                         // Seek to the chapter start time
-                        if (audioPlayer.plyr) {
-                            audioPlayer.plyr.currentTime = startTime;
-                        } else {
-                            audioPlayer.currentTime = startTime;
-                        }
+                        audioPlayer.currentTime = startTime;
 
                         // Play the audio if it's not already playing
                         if (audioPlayer.paused) {
-                            if (audioPlayer.plyr) {
-                                audioPlayer.plyr.play().catch(function (error) {
-                                    console.warn('PodLoom: Could not auto-play audio (Plyr):', error);
-                                });
-                            } else {
-                                audioPlayer.play().catch(function (error) {
-                                    console.warn('PodLoom: Could not auto-play audio:', error);
-                                });
-                            }
+                            audioPlayer.play().catch(function (error) {
+                                console.warn('PodLoom: Could not auto-play audio:', error);
+                            });
                         }
 
                         // Update active state
@@ -703,24 +693,43 @@
             timestamp.addEventListener('click', function () {
                 var time = parseFloat(timestamp.getAttribute('data-time'));
                 if (!isNaN(time)) {
-                    if (audioPlayer.plyr) {
-                        audioPlayer.plyr.currentTime = time;
-                    } else {
-                        audioPlayer.currentTime = time;
-                    }
+                    audioPlayer.currentTime = time;
 
                     if (audioPlayer.paused) {
-                        if (audioPlayer.plyr) {
-                            audioPlayer.plyr.play().catch(function (error) {
-                                console.warn('Could not auto-play audio (Plyr):', error);
-                            });
-                        } else {
-                            audioPlayer.play().catch(function (error) {
-                                console.warn('Could not auto-play audio:', error);
-                            });
-                        }
+                        audioPlayer.play().catch(function (error) {
+                            console.warn('Could not auto-play audio:', error);
+                        });
                     }
                 }
+            });
+        });
+    }
+
+    /**
+     * Initialize skip buttons for audio navigation
+     */
+    function initSkipButtons() {
+        var skipButtons = document.querySelectorAll('.podloom-skip-btn');
+
+        skipButtons.forEach(function (button) {
+            // Skip if already initialized
+            if (button.hasAttribute('data-initialized')) return;
+            button.setAttribute('data-initialized', 'true');
+
+            button.addEventListener('click', function () {
+                var skipAmount = parseInt(button.getAttribute('data-skip'), 10);
+                var episodeContainer = button.closest('.rss-episode-player');
+
+                if (!episodeContainer) return;
+
+                var audioPlayer = episodeContainer.querySelector('audio');
+                if (!audioPlayer) return;
+
+                // Calculate new time, clamped to valid range
+                var newTime = audioPlayer.currentTime + skipAmount;
+                newTime = Math.max(0, Math.min(newTime, audioPlayer.duration || Infinity));
+
+                audioPlayer.currentTime = newTime;
             });
         });
     }
@@ -732,6 +741,7 @@
         initTabSwitching();
         initChapterNavigation();
         initTranscriptLoaders();
+        initSkipButtons();
     }
 
     if (document.readyState === 'loading') {

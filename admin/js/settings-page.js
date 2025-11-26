@@ -26,22 +26,30 @@
             });
         }
 
-        // Danger Zone Toggle
-        const dangerZoneToggle = document.getElementById('danger-zone-toggle');
-        if (dangerZoneToggle) {
-            const dangerZoneContent = document.getElementById('danger-zone-content');
-            const arrow = dangerZoneToggle.querySelector('.danger-zone-arrow');
+        // Generic Accordion Toggle Handler
+        function initAccordion(toggleId, contentId, arrowSelector) {
+            const toggle = document.getElementById(toggleId);
+            if (toggle) {
+                const content = document.getElementById(contentId);
+                const arrow = toggle.querySelector(arrowSelector);
 
-            dangerZoneToggle.addEventListener('click', function() {
-                if (dangerZoneContent.style.display === 'none') {
-                    dangerZoneContent.style.display = 'block';
-                    arrow.classList.add('rotated');
-                } else {
-                    dangerZoneContent.style.display = 'none';
-                    arrow.classList.remove('rotated');
-                }
-            });
+                toggle.addEventListener('click', function() {
+                    if (content.style.display === 'none') {
+                        content.style.display = 'block';
+                        arrow.classList.add('rotated');
+                    } else {
+                        content.style.display = 'none';
+                        arrow.classList.remove('rotated');
+                    }
+                });
+            }
         }
+
+        // Danger Zone Toggle
+        initAccordion('danger-zone-toggle', 'danger-zone-content', '.danger-zone-arrow');
+
+        // Typography Accordion Toggle
+        initAccordion('typography-accordion-toggle', 'typography-accordion-content', '.podloom-accordion-arrow');
 
         // Reset confirmation
         window.confirmReset = function() {

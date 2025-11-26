@@ -7,7 +7,7 @@
   "icon": "microphone",
   "description": "Embed a Transistor.fm podcast episode player with PodLoom",
   "keywords": ["podcast", "audio", "podloom", "transistor", "episode"],
-  "textdomain": "podloom-player",
+  "textdomain": "podloom-podcast-player",
   "supports": {
     "html": false
   }

@@ -66,33 +66,33 @@
 
 .podcast20-tab-nav {
     display: flex;
-    gap: 0;
-    border-bottom: 2px solid #ddd;
+    gap: 4px;
+    border-bottom: 1px solid #ddd;
     margin-bottom: 0;
+    padding: 4px 4px 0 4px;
 }
 
 .podcast20-tab-button {
-    padding: 12px 20px;
+    padding: 10px 18px;
     background: transparent;
     border: none;
-    border-bottom: 3px solid transparent;
+    border-radius: 6px 6px 0 0;
     color: #666;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
-    margin-bottom: -2px;
+    transition: all 0.15s ease;
 }
 
 .podcast20-tab-button:hover {
     color: #1d2327;
-    background: #f9f9f9;
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .podcast20-tab-button.active {
-    color: #2e7d32;
-    border-bottom-color: #2e7d32;
-    background: transparent;
+    color: #1d2327;
+    background: rgba(0, 0, 0, 0.1);
+    font-weight: 600;
 }
 
 .podcast20-tab-panel {
@@ -480,21 +480,20 @@ a.podcast20-person-name:hover {
     .podcast20-tab-nav {
         flex-direction: column;
         border-bottom: none;
-        border-right: 2px solid #ddd;
+        gap: 2px;
+        padding: 4px;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 6px;
     }
 
     .podcast20-tab-button {
         padding: 12px 16px;
         text-align: left;
-        border-bottom: 1px solid #eee;
-        border-left: 3px solid transparent;
-        border-bottom-width: 1px;
-        margin-bottom: 0;
+        border-radius: 4px;
     }
 
     .podcast20-tab-button.active {
-        border-bottom-color: #eee;
-        border-left-color: #2e7d32;
+        background: rgba(0, 0, 0, 0.1);
     }
 
     .podcast20-tab-panel {

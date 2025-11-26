@@ -6,8 +6,8 @@
  */
 
 // Exit if accessed directly
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
  *
  * @param string $feed_id Feed ID to refresh
  */
-function podloom_cron_refresh_rss_feed($feed_id) {
-    Podloom_RSS::refresh_feed($feed_id);
+function podloom_cron_refresh_rss_feed( $feed_id ) {
+	Podloom_RSS::refresh_feed( $feed_id );
 }
-add_action('podloom_refresh_rss_feed', 'podloom_cron_refresh_rss_feed');
+add_action( 'podloom_refresh_rss_feed', 'podloom_cron_refresh_rss_feed' );

@@ -31,6 +31,17 @@
                 });
             }
 
+            // Toggle color palette section when minimal styling changes
+            const minimalStylingCheckbox = document.getElementById('podloom_rss_minimal_styling');
+            if (minimalStylingCheckbox) {
+                minimalStylingCheckbox.addEventListener('change', (e) => {
+                    const colorPaletteSection = document.getElementById('color-palette-section');
+                    if (colorPaletteSection) {
+                        colorPaletteSection.style.display = e.target.checked ? 'none' : '';
+                    }
+                });
+            }
+
             // Add new feed button
             const addButton = document.getElementById('add-new-rss-feed');
             if (addButton) {
@@ -69,6 +80,9 @@
             // Palette Switcher Logic
             const paletteContainer = document.querySelector('.podloom-palettes-grid');
             if (paletteContainer) {
+                // Detect and highlight current palette on page load
+                this.detectCurrentPalette();
+
                 paletteContainer.addEventListener('click', (e) => {
                     const button = e.target.closest('.podloom-palette-btn');
                     if (!button) return;
@@ -76,7 +90,7 @@
                     const bg = button.dataset.bg;
                     const title = button.dataset.title;
                     const text = button.dataset.text;
-                    const accent = button.dataset.accent; // Accent used for player theme if applicable
+                    const accent = button.dataset.accent;
 
                     // Update Background Color (Main Input)
                     const bgInput = document.getElementById('podloom_rss_background_color');
@@ -115,15 +129,39 @@
                         accentInput.value = accent;
                     }
 
-                    // Visual feedback for selection
-                    document.querySelectorAll('.podloom-palette-btn').forEach(btn => {
-                        btn.style.borderColor = '#ddd';
-                        btn.style.boxShadow = 'none';
-                    });
-                    button.style.borderColor = '#2271b1';
-                    button.style.boxShadow = '0 0 0 1px #2271b1';
+                    // Update selected state
+                    this.selectPalette(button);
                 });
             }
+        },
+
+        /**
+         * Detect and highlight the current palette based on saved background color
+         */
+        detectCurrentPalette: function() {
+            const bgInput = document.getElementById('podloom_rss_background_color');
+            if (!bgInput) return;
+
+            const currentBg = bgInput.value.toLowerCase();
+            const palettes = document.querySelectorAll('.podloom-palette-btn');
+
+            palettes.forEach(btn => {
+                if (btn.dataset.bg.toLowerCase() === currentBg) {
+                    this.selectPalette(btn);
+                }
+            });
+        },
+
+        /**
+         * Mark a palette button as selected
+         */
+        selectPalette: function(button) {
+            // Remove selected state from all palettes
+            document.querySelectorAll('.podloom-palette-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            // Add selected state to clicked palette
+            button.classList.add('selected');
         },
 
         editFeed: function (feedId, feedName) {
@@ -151,9 +189,6 @@
             this.showModal(podloomData.strings.addNewFeed, `
                 <label for="rss-feed-name">${podloomData.strings.feedName}</label>
                 <input type="text" id="rss-feed-name" placeholder="${podloomData.strings.feedNamePlaceholder}" />
-
-                <label for="rss-feed-url">${podloomData.strings.feedUrl}</label>
-                <input type="url" id="rss-feed-url" placeholder="${podloomData.strings.feedUrlPlaceholder}" />
 
                 <label for="rss-feed-url">${podloomData.strings.feedUrl}</label>
                 <input type="url" id="rss-feed-url" placeholder="${podloomData.strings.feedUrlPlaceholder}" />
@@ -338,8 +373,7 @@
                 podloom_rss_display_chapters: document.getElementById('podloom_rss_display_chapters').checked ? '1' : '0',
                 podloom_rss_minimal_styling: document.getElementById('podloom_rss_minimal_styling').checked ? '1' : '0',
                 podloom_rss_description_limit: document.getElementById('podloom_rss_description_limit')?.value || '0',
-                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600',
-                podloom_rss_player_type: document.querySelector('input[name="podloom_rss_player_type"]:checked')?.value || 'native'
+                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600'
                 // RSS Cache Duration removed - now uses General Settings → Cache Duration
             };
 

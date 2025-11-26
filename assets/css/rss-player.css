@@ -50,11 +50,58 @@
 
 .rss-episode-audio {
     width: 100%;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .rss-episode-audio.rss-audio-last {
     margin-bottom: 0;
+}
+
+/* Skip Buttons */
+.podloom-skip-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.podloom-skip-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.podloom-skip-btn:hover {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.1);
+}
+
+.podloom-skip-btn:active {
+    transform: scale(0.97);
+}
+
+.podloom-skip-btn svg {
+    flex-shrink: 0;
+}
+
+.podloom-skip-btn span {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Description fallback styles (used when minimal styling is enabled) */
+.rss-episode-description {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 15px;
 }
 
 .rss-episode-description p:first-child {
@@ -63,6 +110,15 @@
 
 .rss-episode-description p:last-child {
     margin-bottom: 0;
+}
+
+.rss-episode-description a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.rss-episode-description a:hover {
+    text-decoration: none;
 }
 
 /* Mobile Responsive */

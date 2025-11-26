@@ -52,6 +52,7 @@ rsync -av \
     --exclude='docs/' \
     --exclude='README.md' \
     --exclude='BUILD.md' \
+    --exclude='CLAUDE.md' \
     --exclude='build.sh' \
     --exclude='build/' \
     --exclude='node_modules/' \

@@ -23,12 +23,15 @@ The fastest way to style your podcast players is using the built-in color palett
 1. Go to **Settings → PodLoom Settings → RSS tab**
 2. Scroll to **Quick Color Palettes**
 3. Select a pre-designed palette:
-   - **Light & Clean** - White background with dark text
-   - **Warm Sunset** - Warm orange/brown tones
-   - **Cool Ocean** - Blue/teal color scheme
-   - **Modern Purple** - Purple accent colors
-   - **Earthy Green** - Natural green tones
-   - **Classic Dark** - Dark mode appearance
+   - **Classic Dark** - Dark mode appearance (#1a1a1a background)
+   - **Light Minimal** - Clean white background (#ffffff)
+   - **Midnight Blue** - Deep blue tones (#0f172a)
+   - **Forest Green** - Natural green palette (#064e3b)
+   - **Warm Amber** - Warm brown/amber tones (#78350f)
+   - **Sunset Vibes** - Orange/red warmth (#4c1d1d)
+   - **Deep Ocean** - Blue ocean tones (#0c4a6e)
+   - **Berry Smoothie** - Purple/magenta accents (#4a044e)
+   - **Slate Gray** - Neutral gray palette (#334155)
 
 4. The palette instantly updates:
    - Background color
@@ -95,6 +98,7 @@ Toggle which elements appear in your player:
 - Publication Date
 - Episode Duration
 - Episode Description
+- Skip Buttons (rewind 10s / forward 30s)
 
 #### Podcasting 2.0 Element Visibility
 
@@ -173,7 +177,8 @@ When enabled, PodLoom outputs **only semantic HTML** with CSS classes, without a
 - ✅ All typography settings are disabled
 - ✅ Color palette selector is hidden
 - ✅ PodLoom only outputs HTML structure with classes
-- ❌ No plugin styles are applied (except basic layout)
+- ✅ Player max-height setting still applies (for scrollable content)
+- ❌ No color or typography styles are applied
 
 ### Writing Your Own CSS
 
@@ -246,6 +251,15 @@ See the [CSS Class Reference](#css-class-reference) section below for all availa
 | `.rss-episode-duration` | Episode duration |
 | `.rss-episode-audio` | Audio player element |
 | `.rss-episode-description` | Description text |
+
+### Skip Buttons
+
+| Class | Description |
+|-------|-------------|
+| `.podloom-skip-buttons` | Container for skip buttons |
+| `.podloom-skip-btn` | Individual skip button |
+| `.podloom-skip-btn[data-skip="-10"]` | Rewind 10 seconds button |
+| `.podloom-skip-btn[data-skip="30"]` | Forward 30 seconds button |
 
 ### Podcasting 2.0 Tabs
 
@@ -323,7 +337,7 @@ See the [CSS Class Reference](#css-class-reference) section below for all availa
 ### Example 2: Creating a Dark Mode Player
 
 **Option A - Use Built-in Palette:**
-1. Select **"Classic Dark"** from Quick Color Palettes
+1. Select **"Classic Dark"** or **"Midnight Blue"** from Quick Color Palettes
 
 **Option B - Custom Dark Colors:**
 1. Set Background Color to a dark color (e.g., `#1a1a1a`)

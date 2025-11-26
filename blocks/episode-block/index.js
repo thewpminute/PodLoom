@@ -1013,7 +1013,7 @@ registerBlockType('podloom/episode-player', {
                         step: 10,
                         help: __('Adjust the height of the playlist player (200-1000px)', 'podloom-podcast-player')
                     }),
-                    sourceType === 'transistor' && wp.element.createElement(RadioControl, {
+                    sourceType === 'transistor' && showId && wp.element.createElement(RadioControl, {
                         label: __('Player Theme', 'podloom-podcast-player'),
                         selected: theme,
                         options: [
