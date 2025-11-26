@@ -26,3 +26,8 @@ build/
 
 # Development/debugging
 debug-*.php
+
+# Development files (not for distribution)
+docs/
+build.sh
+CLAUDE.md
