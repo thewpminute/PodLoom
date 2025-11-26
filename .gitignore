@@ -30,4 +30,5 @@ debug-*.php
 # Development files (not for distribution)
 docs/
 build.sh
+BUILD.md
 CLAUDE.md
