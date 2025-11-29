@@ -1,20 +1,22 @@
 {
   "name": "podloom-podcast-player",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "description": "Build tools for PodLoom Podcast Player",
   "private": true,
   "scripts": {
+    "build:blocks": "wp-scripts build",
+    "start:blocks": "wp-scripts start",
     "minify:js": "terser assets/js/podcast20-player.js -o assets/js/podcast20-player.min.js --compress --mangle",
-    "minify:css": "cleancss -o assets/css/podcast20-styles.min.css assets/css/podcast20-styles.css && cleancss -o assets/css/rss-player.min.css assets/css/rss-player.css",
-    "minify:admin-js": "terser admin/js/rss-manager.js -o admin/js/rss-manager.min.js --compress --mangle && terser admin/js/settings-page.js -o admin/js/settings-page.min.js --compress --mangle && terser admin/js/typography-manager.js -o admin/js/typography-manager.min.js --compress --mangle",
+    "minify:css": "cleancss -o assets/css/podcast20-styles.min.css assets/css/podcast20-styles.css && cleancss -o assets/css/rss-player.min.css assets/css/rss-player.css && cleancss -o assets/css/subscribe-buttons.min.css assets/css/subscribe-buttons.css",
+    "minify:admin-js": "terser admin/js/rss-manager.js -o admin/js/rss-manager.min.js --compress --mangle && terser admin/js/settings-page.js -o admin/js/settings-page.min.js --compress --mangle && terser admin/js/typography-manager.js -o admin/js/typography-manager.min.js --compress --mangle && terser admin/js/subscribe-admin.js -o admin/js/subscribe-admin.min.js --compress --mangle",
     "minify:admin-css": "cleancss -o admin/css/admin-styles.min.css admin/css/admin-styles.css",
     "minify:elementor": "terser includes/elementor/assets/js/elementor-editor.js -o includes/elementor/assets/js/elementor-editor.min.js --compress --mangle",
-    "minify:block": "terser blocks/episode-block/index.js -o blocks/episode-block/index.min.js --compress --mangle",
-    "build": "npm run minify:js && npm run minify:css && npm run minify:admin-js && npm run minify:admin-css && npm run minify:elementor && npm run minify:block",
+    "build": "npm run build:blocks && npm run minify:js && npm run minify:css && npm run minify:admin-js && npm run minify:admin-css && npm run minify:elementor",
     "build:frontend": "npm run minify:js && npm run minify:css"
   },
   "devDependencies": {
-    "terser": "^5.31.0",
-    "clean-css-cli": "^5.6.3"
+    "@wordpress/scripts": "^31.1.0",
+    "clean-css-cli": "^5.6.3",
+    "terser": "^5.31.0"
   }
 }

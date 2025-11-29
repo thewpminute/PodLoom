@@ -175,6 +175,18 @@ class Podloom_API {
 		$episode_id = sanitize_text_field( $episode_id );
 		return $this->request( "/episodes/{$episode_id}" );
 	}
+
+	/**
+	 * Get a single show
+	 *
+	 * @param string $show_id Show ID.
+	 * @return array|WP_Error Show data or error.
+	 */
+	public function get_show( $show_id ) {
+		// Sanitize show ID to prevent injection.
+		$show_id = sanitize_text_field( $show_id );
+		return $this->request( "/shows/{$show_id}" );
+	}
 }
 
 /**
@@ -402,6 +414,11 @@ function podloom_delete_all_plugin_data() {
 	delete_option( 'podloom_default_show' );
 	delete_option( 'podloom_enable_cache' );
 	delete_option( 'podloom_cache_duration' );
+	delete_option( 'podloom_cache_salt' );
+	delete_option( 'podloom_migration_complete' );
+
+	// Delete subscribe buttons options
+	delete_option( 'podloom_subscribe_links' );
 
 	// Delete RSS options
 	delete_option( 'podloom_rss_enabled' );

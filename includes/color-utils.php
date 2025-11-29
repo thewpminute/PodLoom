@@ -20,6 +20,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return array Array of calculated colors
  */
 function podloom_calculate_theme_colors( $bg_color ) {
+	// Validate and sanitize input color.
+	$bg_color = sanitize_hex_color( $bg_color );
+	if ( empty( $bg_color ) ) {
+		$bg_color = '#f9f9f9'; // Default fallback.
+	}
+
 	// Convert hex to RGB
 	$bg_rgb = podloom_hex_to_rgb( $bg_color );
 
@@ -135,6 +141,11 @@ function podloom_hex_to_rgb( $hex ) {
  * @return float Luminance value (0-1)
  */
 function podloom_get_luminance( $rgb ) {
+	// Validate input array.
+	if ( ! is_array( $rgb ) || ! isset( $rgb['r'], $rgb['g'], $rgb['b'] ) ) {
+		return 0.5; // Neutral luminance fallback.
+	}
+
 	$r = $rgb['r'] / 255;
 	$g = $rgb['g'] / 255;
 	$b = $rgb['b'] / 255;
@@ -152,9 +163,9 @@ function podloom_get_luminance( $rgb ) {
 function podloom_lighten_color( $hex, $percent ) {
 	$rgb = podloom_hex_to_rgb( $hex );
 
-	$r = min( 255, $rgb['r'] + ( 255 - $rgb['r'] ) * ( $percent / 100 ) );
-	$g = min( 255, $rgb['g'] + ( 255 - $rgb['g'] ) * ( $percent / 100 ) );
-	$b = min( 255, $rgb['b'] + ( 255 - $rgb['b'] ) * ( $percent / 100 ) );
+	$r = (int) min( 255, $rgb['r'] + ( 255 - $rgb['r'] ) * ( $percent / 100 ) );
+	$g = (int) min( 255, $rgb['g'] + ( 255 - $rgb['g'] ) * ( $percent / 100 ) );
+	$b = (int) min( 255, $rgb['b'] + ( 255 - $rgb['b'] ) * ( $percent / 100 ) );
 
 	return sprintf( '#%02x%02x%02x', $r, $g, $b );
 }
@@ -169,9 +180,9 @@ function podloom_lighten_color( $hex, $percent ) {
 function podloom_darken_color( $hex, $percent ) {
 	$rgb = podloom_hex_to_rgb( $hex );
 
-	$r = max( 0, $rgb['r'] - ( $rgb['r'] * ( $percent / 100 ) ) );
-	$g = max( 0, $rgb['g'] - ( $rgb['g'] * ( $percent / 100 ) ) );
-	$b = max( 0, $rgb['b'] - ( $rgb['b'] * ( $percent / 100 ) ) );
+	$r = (int) max( 0, $rgb['r'] - ( $rgb['r'] * ( $percent / 100 ) ) );
+	$g = (int) max( 0, $rgb['g'] - ( $rgb['g'] * ( $percent / 100 ) ) );
+	$b = (int) max( 0, $rgb['b'] - ( $rgb['b'] * ( $percent / 100 ) ) );
 
 	return sprintf( '#%02x%02x%02x', $r, $g, $b );
 }

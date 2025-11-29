@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 2,
+  "name": "podloom/subscribe-buttons",
+  "title": "PodLoom Subscribe Buttons",
+  "category": "media",
+  "icon": "share",
+  "description": "Display subscribe buttons for your podcast on various platforms",
+  "keywords": ["podcast", "subscribe", "podloom", "buttons", "apple", "spotify"],
+  "textdomain": "podloom-podcast-player",
+  "supports": {
+    "html": false,
+    "align": ["wide", "full"]
+  },
+  "attributes": {
+    "source": {
+      "type": "string",
+      "default": ""
+    },
+    "iconSize": {
+      "type": "number",
+      "default": 32
+    },
+    "colorMode": {
+      "type": "string",
+      "default": "brand"
+    },
+    "customColor": {
+      "type": "string",
+      "default": "#000000"
+    },
+    "layout": {
+      "type": "string",
+      "default": "horizontal"
+    },
+    "showLabels": {
+      "type": "boolean",
+      "default": false
+    },
+    "iconGap": {
+      "type": "number",
+      "default": 12
+    },
+    "labelFontSize": {
+      "type": "number",
+      "default": 14
+    },
+    "labelFontFamily": {
+      "type": "string",
+      "default": "inherit"
+    }
+  }
+}

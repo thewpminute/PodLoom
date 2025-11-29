@@ -32,3 +32,4 @@ docs/
 build.sh
 BUILD.md
 CLAUDE.md
+dist/

@@ -14,6 +14,7 @@ require_once PODLOOM_PLUGIN_DIR . 'admin/tabs/general.php';
 require_once PODLOOM_PLUGIN_DIR . 'admin/tabs/transistor.php';
 require_once PODLOOM_PLUGIN_DIR . 'admin/tabs/typography.php';
 require_once PODLOOM_PLUGIN_DIR . 'admin/tabs/rss.php';
+require_once PODLOOM_PLUGIN_DIR . 'admin/tabs/subscribe.php';
 
 /**
  * Enqueue admin scripts and styles
@@ -55,6 +56,15 @@ function podloom_enqueue_admin_scripts( $hook ) {
 		'podloom-rss-manager',
 		PODLOOM_PLUGIN_URL . 'admin/js/rss-manager' . PODLOOM_SCRIPT_SUFFIX . '.js',
 		array( 'jquery', 'podloom-typography-manager' ),
+		PODLOOM_PLUGIN_VERSION,
+		true
+	);
+
+	// Enqueue subscribe admin script (for Subscribe tab)
+	wp_enqueue_script(
+		'podloom-subscribe-admin',
+		PODLOOM_PLUGIN_URL . 'admin/js/subscribe-admin' . PODLOOM_SCRIPT_SUFFIX . '.js',
+		array(),
 		PODLOOM_PLUGIN_VERSION,
 		true
 	);
@@ -102,12 +112,18 @@ function podloom_enqueue_admin_scripts( $hook ) {
 				'feedRefreshed'        => __( 'Feed refreshed', 'podloom-podcast-player' ),
 				'episodes'             => __( 'episodes', 'podloom-podcast-player' ),
 				'usingCachedData'      => __( 'using cached data', 'podloom-podcast-player' ),
+
+				// Subscribe links strings
+				'saveLinks'            => __( 'Save Links', 'podloom-podcast-player' ),
+				'syncing'              => __( 'Syncing...', 'podloom-podcast-player' ),
+				'synced'               => __( 'Synced!', 'podloom-podcast-player' ),
+				'saved'                => __( 'Saved!', 'podloom-podcast-player' ),
 			),
 		)
 	);
 
 	// Initialize scripts based on current tab - must use nonce-verified tab value
-	$allowed_tabs = array( 'welcome', 'general', 'transistor', 'rss' );
+	$allowed_tabs = array( 'welcome', 'general', 'transistor', 'rss', 'subscribe' );
 	$current_tab  = 'welcome';
 
 	// Use nonce verification for tab determination to prevent CSRF
@@ -196,7 +212,7 @@ function podloom_render_settings_page() {
 	}
 
 	// Get current tab with nonce verification and whitelist validation
-	$allowed_tabs = array( 'welcome', 'general', 'transistor', 'rss' );
+	$allowed_tabs = array( 'welcome', 'general', 'transistor', 'rss', 'subscribe' );
 	$current_tab  = 'welcome';
 
 	if ( isset( $_GET['tab'] ) ) {
@@ -340,6 +356,23 @@ function podloom_render_settings_page() {
 			$test_result = $test_api->get_shows();
 			if ( ! is_wp_error( $test_result ) ) {
 				$success_message .= ' ' . __( 'Successfully connected to Transistor API!', 'podloom-podcast-player' );
+
+				// Schedule background sync of subscribe links to avoid blocking form submission.
+				if ( ! empty( $test_result['data'] ) && class_exists( 'Podloom_Subscribe' ) ) {
+					$show_ids = array();
+					foreach ( $test_result['data'] as $show ) {
+						if ( ! empty( $show['id'] ) ) {
+							$show_ids[] = $show['id'];
+						}
+					}
+					if ( ! empty( $show_ids ) ) {
+						// Schedule immediate background job for subscribe link sync.
+						if ( ! wp_next_scheduled( 'podloom_sync_subscribe_links', array( $show_ids ) ) ) {
+							wp_schedule_single_event( time(), 'podloom_sync_subscribe_links', array( $show_ids ) );
+						}
+						$success_message .= ' ' . esc_html__( 'Subscribe links will sync in the background.', 'podloom-podcast-player' );
+					}
+				}
 			}
 		}
 	}
@@ -396,6 +429,9 @@ function podloom_render_settings_page() {
 			<a href="<?php echo esc_url( wp_nonce_url( '?page=podloom-settings&tab=rss', 'podloom_switch_tab' ) ); ?>" class="nav-tab <?php echo $current_tab === 'rss' ? 'nav-tab-active' : ''; ?>">
 				<?php esc_html_e( 'RSS Feeds', 'podloom-podcast-player' ); ?>
 			</a>
+			<a href="<?php echo esc_url( wp_nonce_url( '?page=podloom-settings&tab=subscribe', 'podloom_switch_tab' ) ); ?>" class="nav-tab <?php echo $current_tab === 'subscribe' ? 'nav-tab-active' : ''; ?>">
+				<?php esc_html_e( 'Subscribe Links', 'podloom-podcast-player' ); ?>
+			</a>
 			<a href="<?php echo esc_url( wp_nonce_url( '?page=podloom-settings&tab=general', 'podloom_switch_tab' ) ); ?>" class="nav-tab <?php echo $current_tab === 'general' ? 'nav-tab-active' : ''; ?>">
 				<?php esc_html_e( 'General Settings', 'podloom-podcast-player' ); ?>
 			</a>
@@ -414,6 +450,10 @@ function podloom_render_settings_page() {
 
 		<?php elseif ( $current_tab === 'rss' ) : ?>
 			<?php podloom_render_rss_tab( $all_options ); ?>
+
+
+		<?php elseif ( $current_tab === 'subscribe' ) : ?>
+			<?php podloom_render_subscribe_tab( $all_options ); ?>
 
 
 		<?php endif; // End tab conditional ?>

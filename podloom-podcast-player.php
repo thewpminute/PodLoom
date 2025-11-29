@@ -3,7 +3,7 @@
  * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
  * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks or Elementor. Supports RSS feeds from any podcast platform.
- * Version: 2.9.0
+ * Version: 2.11.1
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'PODLOOM_PLUGIN_VERSION', '2.9.0' );
+define( 'PODLOOM_PLUGIN_VERSION', '2.11.1' );
 define( 'PODLOOM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_FILE', __FILE__ );
@@ -50,6 +50,12 @@ require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss-ajax.php';
 
 // Include Elementor integration (loads conditionally when Elementor is active).
 require_once PODLOOM_PLUGIN_DIR . 'includes/elementor/class-podloom-elementor.php';
+
+// Include subscribe buttons feature.
+require_once PODLOOM_PLUGIN_DIR . 'includes/subscribe/class-podloom-subscribe-icons.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/subscribe/class-podloom-subscribe.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/subscribe/class-podloom-subscribe-render.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/subscribe-ajax-handlers.php';
 
 // Include admin functions.
 require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
@@ -136,22 +142,27 @@ function podloom_run_migration() {
 add_action( 'admin_init', 'podloom_run_migration' );
 
 /**
- * Initialize the plugin and register block
+ * Initialize the plugin and register blocks
  */
 function podloom_init() {
-	// Register the block editor script
-	$block_script = 'blocks/episode-block/index' . PODLOOM_SCRIPT_SUFFIX . '.js';
-	wp_register_script(
-		'podloom-block-editor',
-		PODLOOM_PLUGIN_URL . $block_script,
-		array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n' ),
-		filemtime( PODLOOM_PLUGIN_DIR . $block_script ),
-		false // Block editor scripts must load in header
+	// Register episode block from build folder.
+	$episode_asset_file = PODLOOM_PLUGIN_DIR . 'build/episode-block/index.asset.php';
+	$episode_asset      = file_exists( $episode_asset_file ) ? require $episode_asset_file : array(
+		'dependencies' => array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n', 'wp-data' ),
+		'version'      => PODLOOM_PLUGIN_VERSION,
 	);
 
-	// Pass data to JavaScript
+	wp_register_script(
+		'podloom-episode-block-editor',
+		PODLOOM_PLUGIN_URL . 'build/episode-block/index.js',
+		$episode_asset['dependencies'],
+		$episode_asset['version'],
+		false
+	);
+
+	// Pass data to episode block.
 	wp_localize_script(
-		'podloom-block-editor',
+		'podloom-episode-block-editor',
 		'podloomData',
 		array(
 			'defaultShow' => get_option( 'podloom_default_show', '' ),
@@ -161,75 +172,46 @@ function podloom_init() {
 		)
 	);
 
-	// Register the block type
+	// Register the episode block type.
 	register_block_type(
-		'podloom/episode-player',
+		PODLOOM_PLUGIN_DIR . 'build/episode-block',
 		array(
-			'api_version'     => 2,
-			'editor_script'   => 'podloom-block-editor',
-			'title'           => __( 'PodLoom Podcast Episode', 'podloom-podcast-player' ),
-			'description'     => __( 'Embed a Transistor.fm podcast episode player', 'podloom-podcast-player' ),
-			'category'        => 'media',
-			'icon'            => 'microphone',
-			'keywords'        => array( 'podcast', 'audio', 'transistor', 'episode' ),
-			'supports'        => array(
-				'html' => false,
-			),
-			'attributes'      => array(
-				'sourceType'         => array(
-					'type'    => 'string',
-					'default' => 'transistor',
-				),
-				'episodeId'          => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'episodeTitle'       => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'showId'             => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'showTitle'          => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'showSlug'           => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'rssFeedId'          => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'rssEpisodeData'     => array(
-					'type'    => 'object',
-					'default' => null,
-				),
-				'episodeDescription' => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'embedHtml'          => array(
-					'type'    => 'string',
-					'default' => '',
-				),
-				'theme'              => array(
-					'type'    => 'string',
-					'default' => 'light',
-				),
-				'displayMode'        => array(
-					'type'    => 'string',
-					'default' => 'specific',
-				),
-				'playlistHeight'     => array(
-					'type'    => 'number',
-					'default' => 390,
-				),
-			),
+			'editor_script'   => 'podloom-episode-block-editor',
 			'render_callback' => 'podloom_render_block',
+		)
+	);
+
+	// Register subscribe block from build folder.
+	$subscribe_asset_file = PODLOOM_PLUGIN_DIR . 'build/subscribe-block/index.asset.php';
+	$subscribe_asset      = file_exists( $subscribe_asset_file ) ? require $subscribe_asset_file : array(
+		'dependencies' => array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n' ),
+		'version'      => PODLOOM_PLUGIN_VERSION,
+	);
+
+	wp_register_script(
+		'podloom-subscribe-block-editor',
+		PODLOOM_PLUGIN_URL . 'build/subscribe-block/index.js',
+		$subscribe_asset['dependencies'],
+		$subscribe_asset['version'],
+		false
+	);
+
+	// Pass data to subscribe block.
+	wp_localize_script(
+		'podloom-subscribe-block-editor',
+		'podloomData',
+		array(
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( 'podloom_nonce' ),
+		)
+	);
+
+	// Register the subscribe block type.
+	register_block_type(
+		PODLOOM_PLUGIN_DIR . 'build/subscribe-block',
+		array(
+			'editor_script'   => 'podloom-subscribe-block-editor',
+			'render_callback' => 'podloom_render_subscribe_block',
 		)
 	);
 }
@@ -777,6 +759,14 @@ function podloom_enqueue_rss_styles() {
 	if ( $custom_css ) {
 		wp_add_inline_style( 'podloom-rss-player', $custom_css );
 	}
+
+	// Register subscribe buttons styles (enqueued on-demand by blocks/widgets).
+	wp_register_style(
+		'podloom-subscribe-buttons',
+		PODLOOM_PLUGIN_URL . 'assets/css/subscribe-buttons' . PODLOOM_SCRIPT_SUFFIX . '.css',
+		array(),
+		PODLOOM_PLUGIN_VERSION
+	);
 }
 add_action( 'wp_enqueue_scripts', 'podloom_enqueue_rss_styles' );
 
@@ -1029,6 +1019,38 @@ function podloom_render_block( $attributes ) {
 	$safe_embed = wp_kses( $attributes['embedHtml'], $allowed_html );
 
 	return '<div class="wp-block-podloom-episode-player">' . $safe_embed . '</div>';
+}
+
+/**
+ * Render callback for the subscribe buttons block (frontend display)
+ *
+ * @param array $attributes Block attributes.
+ * @return string HTML output.
+ */
+function podloom_render_subscribe_block( $attributes ) {
+	$source_id = isset( $attributes['source'] ) ? sanitize_text_field( $attributes['source'] ) : '';
+
+	if ( empty( $source_id ) ) {
+		return '';
+	}
+
+	// Sanitize attributes before passing to render.
+	$sanitized_attributes = array(
+		'source'          => $source_id,
+		'iconSize'        => isset( $attributes['iconSize'] ) ? absint( $attributes['iconSize'] ) : 32,
+		'colorMode'       => isset( $attributes['colorMode'] ) ? sanitize_key( $attributes['colorMode'] ) : 'brand',
+		'layout'          => isset( $attributes['layout'] ) ? sanitize_key( $attributes['layout'] ) : 'horizontal',
+		'showLabels'      => isset( $attributes['showLabels'] ) ? (bool) $attributes['showLabels'] : false,
+		'customColor'     => isset( $attributes['customColor'] ) ? sanitize_hex_color( $attributes['customColor'] ) : '',
+		'iconGap'         => isset( $attributes['iconGap'] ) ? absint( $attributes['iconGap'] ) : 12,
+		'labelFontSize'   => isset( $attributes['labelFontSize'] ) ? absint( $attributes['labelFontSize'] ) : 14,
+		'labelFontFamily' => isset( $attributes['labelFontFamily'] ) ? sanitize_text_field( $attributes['labelFontFamily'] ) : 'inherit',
+	);
+
+	// Enqueue frontend styles.
+	wp_enqueue_style( 'podloom-subscribe-buttons' );
+
+	return Podloom_Subscribe_Render::render_block( $sanitized_attributes );
 }
 
 /**
@@ -1568,7 +1590,7 @@ function podloom_render_rss_episode( $attributes ) {
 	// Prepare description for tabs (if enabled)
 	$description_html = '';
 	// Prefer 'content' over 'description' as SimplePie's get_description() truncates by default
-	$description_source = ! empty( $episode['content'] ) ? $episode['content'] : $episode['description'];
+	$description_source = ! empty( $episode['content'] ) ? $episode['content'] : ( $episode['description'] ?? '' );
 	if ( $show_description && ! empty( $description_source ) ) {
 		// Use restrictive HTML sanitization to prevent XSS from untrusted RSS feeds
 		$allowed_html     = array(

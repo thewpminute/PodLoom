@@ -121,9 +121,11 @@ class Podloom_Elementor {
 	public function register_widgets( $widgets_manager ) {
 		// Include widget files.
 		require_once PODLOOM_PLUGIN_DIR . 'includes/elementor/widgets/class-podloom-elementor-widget.php';
+		require_once PODLOOM_PLUGIN_DIR . 'includes/elementor/widgets/class-podloom-elementor-subscribe-widget.php';
 
 		// Register widgets.
 		$widgets_manager->register( new Podloom_Elementor_Widget() );
+		$widgets_manager->register( new Podloom_Elementor_Subscribe_Widget() );
 	}
 
 	/**
@@ -239,6 +241,14 @@ class Podloom_Elementor {
 			'podloom-podcast20',
 			PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles' . PODLOOM_SCRIPT_SUFFIX . '.css',
 			array( 'podloom-rss-player' ),
+			PODLOOM_PLUGIN_VERSION
+		);
+
+		// Subscribe buttons styles.
+		wp_enqueue_style(
+			'podloom-subscribe-buttons',
+			PODLOOM_PLUGIN_URL . 'assets/css/subscribe-buttons' . PODLOOM_SCRIPT_SUFFIX . '.css',
+			array(),
 			PODLOOM_PLUGIN_VERSION
 		);
 	}

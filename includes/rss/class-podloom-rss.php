@@ -148,12 +148,11 @@ class Podloom_RSS {
 		// This prevents race condition where invalid feeds could be saved
 		$refresh_result = self::refresh_feed( $feed_id, true ); // Force full refresh for new feeds
 
-		// Update validation status based on refresh result
+		// Clear option cache to ensure we get the freshly updated feed data
+		wp_cache_delete( 'podloom_rss_feeds', 'options' );
+
+		// Get the updated feed data (refresh_feed already sets valid status)
 		$feeds = self::get_feeds();
-		if ( isset( $feeds[ $feed_id ] ) ) {
-			$feeds[ $feed_id ]['valid'] = ! empty( $refresh_result['success'] );
-			update_option( 'podloom_rss_feeds', $feeds );
-		}
 
 		// For subsequent refreshes, use async if requested
 		if ( $async_refresh ) {
@@ -162,9 +161,9 @@ class Podloom_RSS {
 		}
 
 		return array(
-			'success' => true,
-			'message' => 'Feed added successfully',
-			'feed'    => $feeds[ $feed_id ],
+			'success' => ! empty( $refresh_result['success'] ),
+			'message' => ! empty( $refresh_result['success'] ) ? 'Feed added successfully' : ( $refresh_result['message'] ?? 'Feed validation failed' ),
+			'feed'    => $feeds[ $feed_id ] ?? null,
 		);
 	}
 
@@ -231,12 +230,13 @@ class Podloom_RSS {
 	 * @return array Validation result with valid status and message
 	 */
 	public static function validate_feed( $url ) {
-		// Fetch the feed
+		// Fetch the feed with SSRF protection.
 		$response = wp_remote_get(
 			$url,
 			array(
-				'timeout' => 15,
-				'headers' => array(
+				'timeout'            => 15,
+				'reject_unsafe_urls' => true,
+				'headers'            => array(
 					'User-Agent' => 'PodLoom WordPress Plugin',
 				),
 			)
@@ -594,6 +594,7 @@ class Podloom_RSS {
 					'total'    => 0,
 					'page'     => $page,
 					'pages'    => 0,
+					'error'    => 'fetch_failed',
 				);
 			}
 			$episodes = podloom_cache_get( 'rss_episodes_' . $feed_id );

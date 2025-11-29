@@ -1,0 +1,76 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 2,
+  "name": "podloom/episode-player",
+  "title": "PodLoom Episode",
+  "category": "media",
+  "icon": "microphone",
+  "description": "Embed a Transistor.fm podcast episode player with PodLoom",
+  "keywords": ["podcast", "audio", "podloom", "transistor", "episode"],
+  "textdomain": "podloom-podcast-player",
+  "supports": {
+    "html": false
+  },
+  "attributes": {
+    "sourceType": {
+      "type": "string",
+      "default": "transistor"
+    },
+    "episodeId": {
+      "type": "string",
+      "default": ""
+    },
+    "episodeTitle": {
+      "type": "string",
+      "default": ""
+    },
+    "showId": {
+      "type": "string",
+      "default": ""
+    },
+    "showTitle": {
+      "type": "string",
+      "default": ""
+    },
+    "showSlug": {
+      "type": "string",
+      "default": ""
+    },
+    "rssFeedId": {
+      "type": "string",
+      "default": ""
+    },
+    "rssEpisodeData": {
+      "type": "object",
+      "default": null
+    },
+    "episodeDescription": {
+      "type": "string",
+      "default": ""
+    },
+    "embedHtml": {
+      "type": "string",
+      "default": ""
+    },
+    "theme": {
+      "type": "string",
+      "default": "light"
+    },
+    "displayMode": {
+      "type": "string",
+      "default": "specific"
+    },
+    "playlistHeight": {
+      "type": "number",
+      "default": 390
+    },
+    "playlistMaxEpisodes": {
+      "type": "number",
+      "default": 25
+    },
+    "playlistOrder": {
+      "type": "string",
+      "default": "episodic"
+    }
+  }
+}

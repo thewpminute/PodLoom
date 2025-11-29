@@ -21,6 +21,11 @@ function podloom_uninstall_delete_options() {
 	delete_option( 'podloom_default_show' );
 	delete_option( 'podloom_enable_cache' );
 	delete_option( 'podloom_cache_duration' );
+	delete_option( 'podloom_cache_salt' );
+	delete_option( 'podloom_migration_complete' );
+
+	// Subscribe buttons options
+	delete_option( 'podloom_subscribe_links' );
 
 	// RSS options
 	delete_option( 'podloom_rss_cache_duration' ); // Legacy option (now uses podloom_cache_duration)

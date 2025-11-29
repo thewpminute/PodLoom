@@ -92,3 +92,21 @@ function podloom_clear_feed_refresh_cron() {
 	}
 }
 register_deactivation_hook( PODLOOM_PLUGIN_FILE, 'podloom_clear_feed_refresh_cron' );
+
+/**
+ * Cron handler for syncing subscribe links in background.
+ *
+ * @param array $show_ids Array of Transistor show IDs to sync.
+ */
+function podloom_cron_sync_subscribe_links( $show_ids ) {
+	if ( empty( $show_ids ) || ! is_array( $show_ids ) || ! class_exists( 'Podloom_Subscribe' ) ) {
+		return;
+	}
+
+	foreach ( $show_ids as $show_id ) {
+		if ( ! empty( $show_id ) ) {
+			Podloom_Subscribe::sync_transistor_links( $show_id );
+		}
+	}
+}
+add_action( 'podloom_sync_subscribe_links', 'podloom_cron_sync_subscribe_links' );

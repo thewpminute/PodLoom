@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.9.0
+Stable tag: 2.11.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,17 @@ PodLoom automatically detects and displays all Podcasting 2.0 namespace tags:
 * Customizable player with typography controls
 * Background color and minimal styling options
 * **Playlist mode** with browsable episode list and auto-play next
+
+**Subscribe Buttons**
+
+* Display subscribe/follow buttons for all major podcast platforms
+* Supports 15+ platforms: Spotify, Apple Podcasts, Amazon Music, Pocket Casts, Overcast, and more
+* **Auto-sync from Transistor.fm** - Subscribe links imported automatically when you add your API key
+* **Three color modes**: Brand colors, monochrome, or custom color
+* **Flexible layouts**: Horizontal, vertical, or grid arrangements
+* **Full customization**: Icon size slider (16-64px), spacing control, optional labels with font settings
+* Available as Gutenberg block and Elementor widget
+* Manual link entry for RSS feeds and non-Transistor podcasts
 
 **Elementor Integration**
 
@@ -155,6 +166,21 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.11.1 =
+* **Subscribe Buttons Block**: New Gutenberg block to display podcast subscribe/follow buttons
+* **Subscribe Buttons Widget**: Elementor widget for subscribe buttons with full customization
+* **15+ Platform Support**: Spotify, Apple Podcasts, Amazon Music, Pocket Casts, Overcast, Castbox, Castro, Deezer, iHeartRadio, Pandora, Player FM, Podcast Addict, TuneIn, YouTube Music, YouTube, and RSS
+* **Auto-Sync from Transistor**: Subscribe links automatically imported when adding your API key
+* **Icon Customization**: Adjustable icon size (16-64px) with smooth slider control
+* **Color Modes**: Brand colors (platform colors), monochrome, or custom hex color
+* **Layout Options**: Horizontal, vertical, or grid arrangements
+* **Optional Labels**: Show platform names with customizable font size and family
+* **Icon Spacing**: Control gap between icons (4-48px)
+* **Background Sync**: Subscribe link sync runs in background for faster settings saves
+* **Bug Fixes**: Fixed RSS feed validation status not updating after adding feeds
+* **Security**: Fixed SSRF vulnerability in feed validation, added input validation to color utilities
+* **Code Quality**: Fixed undefined constant, improved error handling and response consistency
+
 = 2.9.0 =
 * **RSS Playlist Mode**: Display multiple episodes in a browsable playlist with an Episodes tab
 * **Episode Order Control**: Choose episodic (newest first) or serial (oldest first) ordering for playlists
@@ -221,6 +247,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.11.1 =
+New Subscribe Buttons feature! Display platform icons (Spotify, Apple Podcasts, etc.) with auto-sync from Transistor.fm. Includes security fixes and bug fixes for RSS feed validation.
 
 = 2.9.0 =
 New RSS Playlist mode displays multiple episodes in a browsable list with auto-play next, now-playing indicator, and dynamic Podcasting 2.0 tab updates.
