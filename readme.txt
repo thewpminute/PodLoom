@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.7.1
+Stable tag: 2.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ A lightweight, high-performance WordPress plugin for embedding podcast episodes 
 
 == Description ==
 
-PodLoom is a lightweight, high-performance WordPress plugin for embedding podcast episodes with full **Podcasting 2.0** support. Connect to Transistor.fm or any RSS feed and display rich podcast content including chapters, transcripts, credits, and funding buttons.
+PodLoom is a lightweight, high-performance WordPress plugin for embedding podcast episodes with full **Podcasting 2.0** support. Connect to Transistor.fm or any RSS feed and display rich podcast content including chapters, transcripts, credits, and funding buttons. Works seamlessly with both the **Gutenberg block editor** and **Elementor**.
 
 = Why PodLoom? =
 
@@ -67,6 +67,15 @@ PodLoom automatically detects and displays all Podcasting 2.0 namespace tags:
 * Customizable player with typography controls
 * Background color and minimal styling options
 
+**Elementor Integration**
+
+* Native Elementor widget with drag-and-drop support
+* Searchable episode selector with type-to-filter
+* Live preview in the Elementor editor
+* All display modes: Latest Episode, Specific Episode, Playlist
+* Full Podcasting 2.0 rendering for RSS sources
+* Respects global PodLoom styling settings
+
 **Performance & Caching**
 
 * Smart multi-layer caching system
@@ -93,6 +102,15 @@ PodLoom automatically detects and displays all Podcasting 2.0 namespace tags:
 2. Enable RSS feeds
 3. Add your podcast RSS feed URL
 4. Select episodes from the block editor
+
+= For Elementor Users =
+
+1. Ensure Elementor 3.0.0 or higher is installed and activated
+2. Configure your podcast sources in Settings → PodLoom (API key or RSS feeds)
+3. Open any page with Elementor
+4. Search for "PodLoom" in the widget panel
+5. Drag the PodLoom Episode widget onto your page
+6. Select your podcast source and episode
 
 == Frequently Asked Questions ==
 
@@ -131,8 +149,17 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 4. Admin settings - RSS Feeds tab
 5. Admin settings - Typography controls
 6. Block editor episode selection
+7. Elementor widget with searchable episode dropdown
 
 == Changelog ==
+
+= 2.8.0 =
+* **Elementor Integration**: New native Elementor widget for embedding podcast episodes
+* **Searchable Episode Selector**: Type-to-filter dropdown makes finding episodes fast and easy
+* **Live Editor Preview**: See your player render in real-time within Elementor
+* **Full Feature Parity**: All display modes (Latest, Specific, Playlist) available in Elementor
+* **Podcasting 2.0 in Elementor**: RSS sources display chapters, transcripts, and person tags
+* **Unified Source Selector**: Choose between Transistor shows and RSS feeds from one dropdown
 
 = 2.7.1 =
 * **Player Border Styling**: Customize border color, width, style, and radius
@@ -180,6 +207,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.8.0 =
+New Elementor widget for drag-and-drop podcast embedding. Includes searchable episode selector and full Podcasting 2.0 support.
 
 = 2.7.1 =
 New styling options for player borders and funding buttons, plus image caching and efficient RSS updates.
