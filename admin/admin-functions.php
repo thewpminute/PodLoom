@@ -27,7 +27,7 @@ function podloom_enqueue_admin_scripts( $hook ) {
 	// Enqueue admin styles
 	wp_enqueue_style(
 		'podloom-admin-styles',
-		PODLOOM_PLUGIN_URL . 'admin/css/admin-styles.css',
+		PODLOOM_PLUGIN_URL . 'admin/css/admin-styles' . PODLOOM_SCRIPT_SUFFIX . '.css',
 		array(),
 		PODLOOM_PLUGIN_VERSION
 	);
@@ -35,7 +35,7 @@ function podloom_enqueue_admin_scripts( $hook ) {
 	// Enqueue settings page general script
 	wp_enqueue_script(
 		'podloom-settings-page',
-		PODLOOM_PLUGIN_URL . 'admin/js/settings-page.js',
+		PODLOOM_PLUGIN_URL . 'admin/js/settings-page' . PODLOOM_SCRIPT_SUFFIX . '.js',
 		array( 'jquery' ),
 		PODLOOM_PLUGIN_VERSION,
 		true
@@ -44,7 +44,7 @@ function podloom_enqueue_admin_scripts( $hook ) {
 	// Enqueue typography manager (for RSS tab)
 	wp_enqueue_script(
 		'podloom-typography-manager',
-		PODLOOM_PLUGIN_URL . 'admin/js/typography-manager.js',
+		PODLOOM_PLUGIN_URL . 'admin/js/typography-manager' . PODLOOM_SCRIPT_SUFFIX . '.js',
 		array(),
 		PODLOOM_PLUGIN_VERSION,
 		true
@@ -53,7 +53,7 @@ function podloom_enqueue_admin_scripts( $hook ) {
 	// Enqueue RSS manager (for RSS tab)
 	wp_enqueue_script(
 		'podloom-rss-manager',
-		PODLOOM_PLUGIN_URL . 'admin/js/rss-manager.js',
+		PODLOOM_PLUGIN_URL . 'admin/js/rss-manager' . PODLOOM_SCRIPT_SUFFIX . '.js',
 		array( 'jquery', 'podloom-typography-manager' ),
 		PODLOOM_PLUGIN_VERSION,
 		true

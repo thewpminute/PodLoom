@@ -321,6 +321,25 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 			)
 		);
 
+		// Playlist order (RSS playlist only).
+		$this->add_control(
+			'playlist_order',
+			array(
+				'label'       => esc_html__( 'Episode Order', 'podloom-podcast-player' ),
+				'type'        => \Elementor\Controls_Manager::SELECT,
+				'default'     => 'episodic',
+				'options'     => array(
+					'episodic' => esc_html__( 'Episodic (newest first)', 'podloom-podcast-player' ),
+					'serial'   => esc_html__( 'Serial (oldest first)', 'podloom-podcast-player' ),
+				),
+				'description' => esc_html__( 'Episodic for talk shows, Serial for narrative podcasts.', 'podloom-podcast-player' ),
+				'condition'   => array(
+					'display_mode' => 'playlist',
+					'source!'      => $this->get_transistor_source_conditions(),
+				),
+			)
+		);
+
 		// Latest mode info notice.
 		$this->add_control(
 			'latest_info',
@@ -481,10 +500,13 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 					$attributes['episodeId']      = ! empty( $settings['episode_id'] ) ? sanitize_text_field( $settings['episode_id'] ) : '';
 				}
 			} elseif ( 'playlist' === $display_mode ) {
-				// RSS playlist mode - pass max episodes.
+				// RSS playlist mode - pass max episodes and order.
 				$max_episodes = isset( $settings['playlist_max_episodes'] ) ? absint( $settings['playlist_max_episodes'] ) : 25;
 				$max_episodes = max( 5, min( 100, $max_episodes ) );
 				$attributes['playlistMaxEpisodes'] = $max_episodes;
+
+				$playlist_order = isset( $settings['playlist_order'] ) ? sanitize_text_field( $settings['playlist_order'] ) : 'episodic';
+				$attributes['playlistOrder'] = in_array( $playlist_order, array( 'episodic', 'serial' ), true ) ? $playlist_order : 'episodic';
 			}
 		}
 

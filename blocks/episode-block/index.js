@@ -194,6 +194,10 @@ registerBlockType('podloom/episode-player', {
         playlistMaxEpisodes: {
             type: 'number',
             default: 25
+        },
+        playlistOrder: {
+            type: 'string',
+            default: 'episodic' // 'episodic' (newest first) or 'serial' (oldest first)
         }
     },
     /**
@@ -207,7 +211,7 @@ registerBlockType('podloom/episode-player', {
      * @param {string} props.clientId Unique block ID
      */
     edit: function EditComponent({ attributes, setAttributes, clientId }) {
-        const { sourceType, episodeId, episodeTitle, showId, showTitle, showSlug, rssFeedId, rssEpisodeData, episodeDescription, embedHtml, theme, displayMode, playlistHeight, playlistMaxEpisodes } = attributes;
+        const { sourceType, episodeId, episodeTitle, showId, showTitle, showSlug, rssFeedId, rssEpisodeData, episodeDescription, embedHtml, theme, displayMode, playlistHeight, playlistMaxEpisodes, playlistOrder } = attributes;
 
         const [transistorShows, setTransistorShows] = useState([]);
         const [rssFeeds, setRssFeeds] = useState([]);
@@ -1041,6 +1045,16 @@ registerBlockType('podloom/episode-player', {
                         step: 5,
                         help: __('Maximum number of episodes to display in the playlist (5-100)', 'podloom-podcast-player')
                     }),
+                    displayMode === 'playlist' && supportsRssPlaylist && wp.element.createElement(RadioControl, {
+                        label: __('Episode Order', 'podloom-podcast-player'),
+                        selected: playlistOrder || 'episodic',
+                        options: [
+                            { label: __('Episodic (newest first)', 'podloom-podcast-player'), value: 'episodic' },
+                            { label: __('Serial (oldest first)', 'podloom-podcast-player'), value: 'serial' }
+                        ],
+                        onChange: (value) => setAttributes({ playlistOrder: value }),
+                        help: __('Episodic for talk shows, Serial for narrative podcasts', 'podloom-podcast-player')
+                    }),
                     sourceType === 'transistor' && showId && wp.element.createElement(RadioControl, {
                         label: __('Player Theme', 'podloom-podcast-player'),
                         selected: theme,
@@ -1080,7 +1094,7 @@ registerBlockType('podloom/episode-player', {
                         'div',
                         { style: { marginTop: '16px', padding: '12px', background: '#e8f5e9', borderRadius: '4px', border: '1px solid #4caf50' } },
                         wp.element.createElement('strong', null, __('RSS Playlist Mode', 'podloom-podcast-player')),
-                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('Displays up to ', 'podloom-podcast-player') + playlistMaxEpisodes + __(' episodes from ', 'podloom-podcast-player') + showTitle + __('. Click any episode to play it. Chapters, transcripts, and credits update dynamically.', 'podloom-podcast-player'))
+                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('Displays up to ', 'podloom-podcast-player') + playlistMaxEpisodes + __(' episodes from ', 'podloom-podcast-player') + showTitle + ((playlistOrder === 'serial') ? __(' (oldest first)', 'podloom-podcast-player') : __(' (newest first)', 'podloom-podcast-player')) + __('. Click any episode to play it.', 'podloom-podcast-player'))
                     )
                 )
             ),

@@ -26,6 +26,9 @@ define( 'PODLOOM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_FILE', __FILE__ );
 
+// Use minified assets unless SCRIPT_DEBUG is enabled.
+define( 'PODLOOM_SCRIPT_SUFFIX', defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' : '.min' );
+
 // Global flag to track if P2.0 content is used on this page
 global $podloom_has_podcast20_content;
 $podloom_has_podcast20_content = false;
@@ -137,11 +140,12 @@ add_action( 'admin_init', 'podloom_run_migration' );
  */
 function podloom_init() {
 	// Register the block editor script
+	$block_script = 'blocks/episode-block/index' . PODLOOM_SCRIPT_SUFFIX . '.js';
 	wp_register_script(
 		'podloom-block-editor',
-		PODLOOM_PLUGIN_URL . 'blocks/episode-block/index.js',
+		PODLOOM_PLUGIN_URL . $block_script,
 		array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n' ),
-		filemtime( PODLOOM_PLUGIN_DIR . 'blocks/episode-block/index.js' ),
+		filemtime( PODLOOM_PLUGIN_DIR . $block_script ),
 		false // Block editor scripts must load in header
 	);
 
@@ -764,7 +768,7 @@ function podloom_enqueue_rss_styles() {
 	// Always enqueue base player styles
 	wp_enqueue_style(
 		'podloom-rss-player',
-		PODLOOM_PLUGIN_URL . 'assets/css/rss-player.css',
+		PODLOOM_PLUGIN_URL . 'assets/css/rss-player' . PODLOOM_SCRIPT_SUFFIX . '.css',
 		array(),
 		PODLOOM_PLUGIN_VERSION
 	);
@@ -792,7 +796,7 @@ function podloom_enqueue_podcast20_assets() {
 	// Enqueue Podcasting 2.0 styles
 	wp_enqueue_style(
 		'podloom-podcast20',
-		PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles.css',
+		PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles' . PODLOOM_SCRIPT_SUFFIX . '.css',
 		array(),
 		PODLOOM_PLUGIN_VERSION
 	);
@@ -800,7 +804,7 @@ function podloom_enqueue_podcast20_assets() {
 	// Enqueue Podcasting 2.0 chapter navigation script
 	wp_enqueue_script(
 		'podloom-podcast20-player',
-		PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player.js',
+		PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player' . PODLOOM_SCRIPT_SUFFIX . '.js',
 		array(),
 		PODLOOM_PLUGIN_VERSION,
 		true // Load in footer
@@ -847,7 +851,7 @@ function podloom_enqueue_editor_styles() {
 	// Base RSS player styles
 	wp_enqueue_style(
 		'podloom-rss-player-editor',
-		PODLOOM_PLUGIN_URL . 'assets/css/rss-player.css',
+		PODLOOM_PLUGIN_URL . 'assets/css/rss-player' . PODLOOM_SCRIPT_SUFFIX . '.css',
 		array(),
 		PODLOOM_PLUGIN_VERSION
 	);
@@ -855,7 +859,7 @@ function podloom_enqueue_editor_styles() {
 	// Podcasting 2.0 styles (for tabs, chapters, transcripts, etc.)
 	wp_enqueue_style(
 		'podloom-podcast20-editor',
-		PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles.css',
+		PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles' . PODLOOM_SCRIPT_SUFFIX . '.css',
 		array( 'podloom-rss-player-editor' ),
 		PODLOOM_PLUGIN_VERSION
 	);
@@ -863,7 +867,7 @@ function podloom_enqueue_editor_styles() {
 	// Podcasting 2.0 JavaScript (for tab switching, chapter navigation, transcript loading)
 	wp_enqueue_script(
 		'podloom-podcast20-player-editor',
-		PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player.js',
+		PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player' . PODLOOM_SCRIPT_SUFFIX . '.js',
 		array(),
 		PODLOOM_PLUGIN_VERSION,
 		true
@@ -1172,6 +1176,13 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 	}
 
 	$episodes = $episodes_data['episodes'];
+
+	// Sort episodes based on playlistOrder attribute
+	// 'episodic' = newest first (default RSS order), 'serial' = oldest first (reversed)
+	$playlist_order = isset( $attributes['playlistOrder'] ) ? $attributes['playlistOrder'] : 'episodic';
+	if ( 'serial' === $playlist_order && count( $episodes ) > 1 ) {
+		$episodes = array_reverse( $episodes );
+	}
 
 	// Use first episode as the current/active episode
 	$current_episode = $episodes[0];

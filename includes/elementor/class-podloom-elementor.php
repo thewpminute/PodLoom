@@ -137,7 +137,7 @@ class Podloom_Elementor {
 
 		wp_enqueue_script(
 			'podloom-elementor-editor',
-			PODLOOM_PLUGIN_URL . 'includes/elementor/assets/js/elementor-editor.js',
+			PODLOOM_PLUGIN_URL . 'includes/elementor/assets/js/elementor-editor' . PODLOOM_SCRIPT_SUFFIX . '.js',
 			array( 'elementor-editor', 'jquery' ),
 			PODLOOM_PLUGIN_VERSION,
 			true
@@ -223,7 +223,7 @@ class Podloom_Elementor {
 		// Base RSS player styles.
 		wp_enqueue_style(
 			'podloom-rss-player',
-			PODLOOM_PLUGIN_URL . 'assets/css/rss-player.css',
+			PODLOOM_PLUGIN_URL . 'assets/css/rss-player' . PODLOOM_SCRIPT_SUFFIX . '.css',
 			array(),
 			PODLOOM_PLUGIN_VERSION
 		);
@@ -237,7 +237,7 @@ class Podloom_Elementor {
 		// Podcasting 2.0 styles (for tabs, chapters, transcripts, etc.).
 		wp_enqueue_style(
 			'podloom-podcast20',
-			PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles.css',
+			PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles' . PODLOOM_SCRIPT_SUFFIX . '.css',
 			array( 'podloom-rss-player' ),
 			PODLOOM_PLUGIN_VERSION
 		);
@@ -252,7 +252,7 @@ class Podloom_Elementor {
 		// Podcasting 2.0 JavaScript (for tab switching, chapter navigation, transcript loading).
 		wp_enqueue_script(
 			'podloom-podcast20-player',
-			PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player.js',
+			PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player' . PODLOOM_SCRIPT_SUFFIX . '.js',
 			array(),
 			PODLOOM_PLUGIN_VERSION,
 			true
