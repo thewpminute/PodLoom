@@ -230,3 +230,7 @@ PodLoom does not collect any personal data from your website visitors. The plugi
 * Caches podcast data locally in your WordPress database
 
 No analytics, tracking, or external connections are made beyond the podcast sources you configure.
+
+== Disclaimer ==
+
+PodLoom is not affiliated with, endorsed by, or sponsored by WordPress, the WordPress Foundation, WordPress.com, Automattic, Elementor, or Transistor.fm. All trademarks and registered trademarks are the property of their respective owners.
