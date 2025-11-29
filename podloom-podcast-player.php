@@ -3,7 +3,7 @@
  * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
  * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks or Elementor. Supports RSS feeds from any podcast platform.
- * Version: 2.8.0
+ * Version: 2.9.0
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'PODLOOM_PLUGIN_VERSION', '2.8.0' );
+define( 'PODLOOM_PLUGIN_VERSION', '2.9.0' );
 define( 'PODLOOM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_FILE', __FILE__ );
@@ -30,20 +30,26 @@ define( 'PODLOOM_PLUGIN_FILE', __FILE__ );
 global $podloom_has_podcast20_content;
 $podloom_has_podcast20_content = false;
 
-// Include necessary files
-require_once PODLOOM_PLUGIN_DIR . 'includes/api.php';
-require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-rss.php';
-require_once PODLOOM_PLUGIN_DIR . 'includes/rss-cron.php';
-require_once PODLOOM_PLUGIN_DIR . 'includes/rss-ajax-handlers.php';
-require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-podcast20-parser.php';
+// Include shared utilities.
 require_once PODLOOM_PLUGIN_DIR . 'includes/cache.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/color-utils.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/utilities.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-image-cache.php';
-require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-podcast20-parser.php';
+
+// Include Transistor.fm integration.
+require_once PODLOOM_PLUGIN_DIR . 'includes/transistor/class-podloom-transistor-api.php';
+
+// Include RSS feed integration.
+require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss-cron.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss-ajax.php';
 
 // Include Elementor integration (loads conditionally when Elementor is active).
 require_once PODLOOM_PLUGIN_DIR . 'includes/elementor/class-podloom-elementor.php';
+
+// Include admin functions.
+require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
 
 /**
  * Run one-time migration from transistor_ to podloom_ options
@@ -820,6 +826,16 @@ function podloom_enqueue_podcast20_assets() {
 		);
 	}
 
+	// Pass AJAX URL for playlist P2.0 data fetching
+	wp_localize_script(
+		'podloom-podcast20-player',
+		'podloomPlaylist',
+		array(
+			'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			'nonce'   => wp_create_nonce( 'podloom_playlist_nonce' ),
+		)
+	);
+
 	echo '<!-- PodLoom: P2.0 assets loaded -->';
 }
 add_action( 'wp_footer', 'podloom_enqueue_podcast20_assets', 5 );
@@ -910,7 +926,13 @@ function podloom_render_block( $attributes ) {
 					'</div>';
 		}
 
-		if ( $display_mode === 'latest' ) {
+		if ( $display_mode === 'playlist' ) {
+			// Get max episodes from attributes (default 25)
+			$max_episodes = isset( $attributes['playlistMaxEpisodes'] ) ? absint( $attributes['playlistMaxEpisodes'] ) : 25;
+			$max_episodes = max( 5, min( 100, $max_episodes ) ); // Clamp between 5-100
+
+			return podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes );
+		} elseif ( $display_mode === 'latest' ) {
 			$latest_episode = Podloom_RSS::get_latest_episode( $feed_id );
 			if ( ! $latest_episode ) {
 				// Cache is cold - a background refresh has been scheduled
@@ -1127,6 +1149,206 @@ function podloom_increment_render_cache_version() {
  *   .rss-episode-audio.rss-audio-last (audio when last element)
  *   .rss-episode-description (description div)
  */
+
+/**
+ * Render RSS playlist player
+ *
+ * Displays a player with the first episode and an Episodes tab listing all episodes.
+ * Clicking an episode updates the player and tabs dynamically via JavaScript.
+ *
+ * @param string $feed_id      RSS feed ID.
+ * @param int    $max_episodes Maximum number of episodes to display.
+ * @param array  $attributes   Block attributes.
+ * @return string HTML output.
+ */
+function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
+	// Fetch episodes from the feed
+	$episodes_data = Podloom_RSS::get_episodes( $feed_id, 1, $max_episodes, true );
+
+	if ( empty( $episodes_data['episodes'] ) ) {
+		return '<div class="wp-block-podloom-episode-player podloom-loading" style="padding: 20px; background: #f8f9fa; border: 1px dashed #dee2e6; border-radius: 4px; text-align: center;">' .
+				'<p style="margin: 0; color: #6c757d;">' . esc_html__( 'Loading podcast episodes...', 'podloom-podcast-player' ) . '</p>' .
+				'</div>';
+	}
+
+	$episodes = $episodes_data['episodes'];
+
+	// Use first episode as the current/active episode
+	$current_episode = $episodes[0];
+
+	// Set global flag to indicate P2.0 content is used
+	global $podloom_has_podcast20_content;
+	$podloom_has_podcast20_content = true;
+
+	// Get display settings
+	$show_artwork      = get_option( 'podloom_rss_display_artwork', true );
+	$show_title        = get_option( 'podloom_rss_display_title', true );
+	$show_date         = get_option( 'podloom_rss_display_date', true );
+	$show_duration     = get_option( 'podloom_rss_display_duration', true );
+	$show_description  = get_option( 'podloom_rss_display_description', true );
+	$show_skip_buttons = get_option( 'podloom_rss_display_skip_buttons', true );
+
+	// Get background color for color calculations
+	$bg_color = get_option( 'podloom_rss_background_color', '#f9f9f9' );
+	$colors   = podloom_calculate_theme_colors( $bg_color );
+
+	// Generate unique player ID for this playlist instance
+	$player_id = 'podloom-playlist-' . wp_unique_id();
+
+	// Start building output
+	$output = '<div id="' . esc_attr( $player_id ) . '" class="wp-block-podloom-episode-player rss-episode-player rss-playlist-player" data-feed-id="' . esc_attr( $feed_id ) . '">';
+
+	// Get funding button HTML (if available)
+	$funding_button = '';
+	if ( ! empty( $current_episode['podcast20'] ) ) {
+		$funding_button = podloom_get_funding_button( $current_episode['podcast20'] );
+	}
+
+	// Mobile funding button
+	if ( ! empty( $funding_button ) ) {
+		$output .= '<div class="rss-funding-mobile">' . $funding_button . '</div>';
+	}
+
+	// Episode wrapper with data attributes for JS
+	$output .= '<div class="rss-episode-wrapper">';
+
+	// Artwork column
+	if ( $show_artwork && ! empty( $current_episode['image'] ) ) {
+		$output .= '<div class="rss-episode-artwork-column">';
+		$output .= sprintf(
+			'<div class="rss-episode-artwork"><img src="%s" alt="%s" class="podloom-playlist-artwork" /></div>',
+			esc_url( $current_episode['image'] ),
+			esc_attr( $current_episode['title'] )
+		);
+
+		// Desktop funding button
+		if ( ! empty( $funding_button ) ) {
+			$output .= '<div class="rss-funding-desktop">' . $funding_button . '</div>';
+		}
+
+		$output .= '</div>'; // .rss-episode-artwork-column
+	}
+
+	// Content container
+	$output .= '<div class="rss-episode-content">';
+
+	// Episode title
+	if ( $show_title && ! empty( $current_episode['title'] ) ) {
+		$output .= sprintf(
+			'<h3 class="rss-episode-title podloom-playlist-title">%s</h3>',
+			esc_html( $current_episode['title'] )
+		);
+	}
+
+	// Episode meta
+	if ( ( $show_date && ! empty( $current_episode['date'] ) ) || ( $show_duration && ! empty( $current_episode['duration'] ) ) ) {
+		$output .= '<div class="rss-episode-meta">';
+
+		if ( $show_date && ! empty( $current_episode['date'] ) ) {
+			$date    = date_i18n( get_option( 'date_format' ), $current_episode['date'] );
+			$output .= sprintf( '<span class="rss-episode-date podloom-playlist-date">%s</span>', esc_html( $date ) );
+		}
+
+		if ( $show_duration && ! empty( $current_episode['duration'] ) ) {
+			$duration = podloom_format_duration( $current_episode['duration'] );
+			if ( $duration ) {
+				$output .= sprintf( '<span class="rss-episode-duration podloom-playlist-duration">%s</span>', esc_html( $duration ) );
+			}
+		}
+
+		$output .= '</div>';
+	}
+
+	// Audio player
+	if ( ! empty( $current_episode['audio_url'] ) ) {
+		$output .= sprintf(
+			'<audio class="rss-episode-audio podloom-playlist-audio" controls preload="metadata"><source src="%s" type="%s">%s</audio>',
+			esc_url( $current_episode['audio_url'] ),
+			esc_attr( ! empty( $current_episode['audio_type'] ) ? $current_episode['audio_type'] : 'audio/mpeg' ),
+			esc_html__( 'Your browser does not support the audio player.', 'podloom-podcast-player' )
+		);
+
+		// Skip buttons
+		if ( $show_skip_buttons ) {
+			$output .= '<div class="podloom-skip-buttons">';
+			$output .= sprintf(
+				'<button type="button" class="podloom-skip-btn" data-skip="-10" aria-label="%s">
+					<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+						<polygon points="10,0 10,12 1,6"/>
+					</svg>
+					<span>10s</span>
+				</button>',
+				esc_attr__( 'Skip back 10 seconds', 'podloom-podcast-player' )
+			);
+			$output .= sprintf(
+				'<button type="button" class="podloom-skip-btn" data-skip="30" aria-label="%s">
+					<svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor">
+						<polygon points="0,0 0,12 7,6"/>
+						<polygon points="7,0 7,12 14,6"/>
+					</svg>
+					<span>30s</span>
+				</button>',
+				esc_attr__( 'Skip forward 30 seconds', 'podloom-podcast-player' )
+			);
+			$output .= '</div>';
+		}
+	}
+
+	$output .= '</div>'; // .rss-episode-content
+	$output .= '</div>'; // .rss-episode-wrapper
+
+	// Render tabs with Episodes tab first
+	$output .= podloom_render_playlist_tabs( $episodes, $current_episode, $show_description, $colors );
+
+	// Store all episode data as JSON for JavaScript
+	// Define allowed HTML tags for description/content sanitization (same as in podloom_render_playlist_tabs).
+	$allowed_html = array(
+		'p'          => array(),
+		'br'         => array(),
+		'strong'     => array(),
+		'b'          => array(),
+		'em'         => array(),
+		'i'          => array(),
+		'u'          => array(),
+		'a'          => array(
+			'href'   => array(),
+			'title'  => array(),
+			'target' => array(),
+			'rel'    => array(),
+		),
+		'ul'         => array(),
+		'ol'         => array(),
+		'li'         => array(),
+		'blockquote' => array(),
+		'code'       => array(),
+		'pre'        => array(),
+	);
+	$episodes_json = array();
+	foreach ( $episodes as $index => $ep ) {
+		// Sanitize description and content to prevent XSS when JavaScript updates the DOM.
+		$sanitized_description = ! empty( $ep['description'] ) ? wp_kses( $ep['description'], $allowed_html ) : '';
+		$sanitized_content     = ! empty( $ep['content'] ) ? wp_kses( $ep['content'], $allowed_html ) : '';
+
+		$episodes_json[] = array(
+			'id'          => $ep['id'] ?? $index,
+			'title'       => sanitize_text_field( $ep['title'] ?? '' ),
+			'audio_url'   => esc_url_raw( $ep['audio_url'] ?? '' ),
+			'image'       => esc_url_raw( $ep['image'] ?? '' ),
+			'date'        => $ep['date'] ?? 0,
+			'duration'    => $ep['duration'] ?? 0,
+			'description' => $sanitized_description,
+			'content'     => $sanitized_content,
+			'podcast20'   => $ep['podcast20'] ?? null,
+		);
+	}
+
+	$output .= '<script type="application/json" class="podloom-playlist-data">' . wp_json_encode( $episodes_json ) . '</script>';
+
+	$output .= '</div>'; // .wp-block-podloom-episode-player
+
+	return $output;
+}
+
 function podloom_render_rss_episode( $attributes ) {
 	// Check if we have RSS episode data
 	if ( empty( $attributes['rssEpisodeData'] ) ) {
@@ -1933,6 +2155,297 @@ function podloom_get_funding_button( $p20_data ) {
 	}
 
 	return '';
+}
+
+/**
+ * Render playlist tabs with Episodes tab first
+ *
+ * Creates a tabbed interface for the playlist player with:
+ * - Episodes tab (first) - list of all episodes with play buttons
+ * - Description tab - current episode description
+ * - Credits tab - hosts/guests
+ * - Chapters tab - chapter markers
+ * - Transcripts tab - episode transcript
+ *
+ * @param array $episodes        Array of all episodes.
+ * @param array $current_episode Currently playing episode data.
+ * @param bool  $show_description Whether to show description tab.
+ * @param array $colors          Theme colors from color calculation.
+ * @return string HTML output.
+ */
+function podloom_render_playlist_tabs( $episodes, $current_episode, $show_description, $colors ) {
+	// Get display settings
+	$display_transcripts   = get_option( 'podloom_rss_display_transcripts', true );
+	$display_people_hosts  = get_option( 'podloom_rss_display_people_hosts', true );
+	$display_people_guests = get_option( 'podloom_rss_display_people_guests', true );
+	$display_chapters      = get_option( 'podloom_rss_display_chapters', true );
+
+	$p20_data = $current_episode['podcast20'] ?? array();
+	if ( ! is_array( $p20_data ) ) {
+		$p20_data = array();
+	}
+
+	// Build tabs array
+	$tabs = array();
+
+	// Tab 0: Episodes (always first for playlist)
+	$tabs[] = array(
+		'id'      => 'episodes',
+		'label'   => __( 'Episodes', 'podloom-podcast-player' ),
+		'content' => podloom_render_episodes_list( $episodes, $current_episode, $colors ),
+	);
+
+	// Tab 1: Description
+	$description_html = '';
+	$description_source = ! empty( $current_episode['content'] ) ? $current_episode['content'] : ( $current_episode['description'] ?? '' );
+	if ( $show_description && ! empty( $description_source ) ) {
+		$allowed_html = array(
+			'p'          => array(),
+			'br'         => array(),
+			'strong'     => array(),
+			'b'          => array(),
+			'em'         => array(),
+			'i'          => array(),
+			'u'          => array(),
+			'a'          => array(
+				'href'   => array(),
+				'title'  => array(),
+				'target' => array(),
+				'rel'    => array(),
+			),
+			'ul'         => array(),
+			'ol'         => array(),
+			'li'         => array(),
+			'blockquote' => array(),
+			'code'       => array(),
+			'pre'        => array(),
+		);
+		$description_html = wp_kses( $description_source, $allowed_html );
+
+		// Apply character limit if set
+		$char_limit = get_option( 'podloom_rss_description_limit', 0 );
+		if ( $char_limit > 0 ) {
+			$description_html = podloom_truncate_html( $description_html, $char_limit );
+		}
+
+		$tabs[] = array(
+			'id'      => 'description',
+			'label'   => __( 'Description', 'podloom-podcast-player' ),
+			'content' => '<div class="rss-episode-description podloom-playlist-description">' . $description_html . '</div>',
+		);
+	}
+
+	// Tab: Credits (People) - Always show for playlist so JS can update it
+	if ( $display_people_hosts || $display_people_guests ) {
+		$people_to_show = array();
+		if ( $display_people_hosts && ! empty( $p20_data['people_channel'] ) ) {
+			$people_to_show = array_merge( $people_to_show, $p20_data['people_channel'] );
+		}
+		if ( $display_people_guests && ! empty( $p20_data['people_episode'] ) ) {
+			$people_to_show = array_merge( $people_to_show, $p20_data['people_episode'] );
+		}
+		// Deduplicate by name
+		$seen_names = array();
+		$people_to_show = array_filter(
+			$people_to_show,
+			function ( $person ) use ( &$seen_names ) {
+				$name_key = strtolower( trim( $person['name'] ) );
+				if ( isset( $seen_names[ $name_key ] ) ) {
+					return false;
+				}
+				$seen_names[ $name_key ] = true;
+				return true;
+			}
+		);
+		if ( ! empty( $people_to_show ) ) {
+			usort(
+				$people_to_show,
+				function ( $a, $b ) {
+					$priority = array( 'host' => 1, 'co-host' => 2, 'guest' => 3 );
+					$a_priority = $priority[ strtolower( $a['role'] ) ] ?? 999;
+					$b_priority = $priority[ strtolower( $b['role'] ) ] ?? 999;
+					return $a_priority - $b_priority;
+				}
+			);
+			$credits_content = podloom_render_people( $people_to_show );
+		} else {
+			$credits_content = '<p class="no-content">' . esc_html__( 'No credits available for this episode.', 'podloom-podcast-player' ) . '</p>';
+		}
+		$tabs[] = array(
+			'id'      => 'credits',
+			'label'   => __( 'Credits', 'podloom-podcast-player' ),
+			'content' => '<div class="podloom-playlist-credits">' . $credits_content . '</div>',
+		);
+	}
+
+	// Tab: Chapters - Always show for playlist so JS can update it
+	if ( $display_chapters ) {
+		if ( ! empty( $p20_data['chapters'] ) ) {
+			$chapters_content = podloom_render_chapters( $p20_data['chapters'] );
+		} else {
+			$chapters_content = '<p class="no-content">' . esc_html__( 'No chapters available for this episode.', 'podloom-podcast-player' ) . '</p>';
+		}
+		$tabs[] = array(
+			'id'      => 'chapters',
+			'label'   => __( 'Chapters', 'podloom-podcast-player' ),
+			'content' => '<div class="podloom-playlist-chapters">' . $chapters_content . '</div>',
+		);
+	}
+
+	// Tab: Transcripts - Always show for playlist so JS can update it
+	if ( $display_transcripts ) {
+		if ( ! empty( $p20_data['transcripts'] ) ) {
+			$transcripts_content = podloom_render_transcripts( $p20_data['transcripts'] );
+		} else {
+			$transcripts_content = '<p class="no-content">' . esc_html__( 'No transcript available for this episode.', 'podloom-podcast-player' ) . '</p>';
+		}
+		$tabs[] = array(
+			'id'      => 'transcripts',
+			'label'   => __( 'Transcripts', 'podloom-podcast-player' ),
+			'content' => '<div class="podloom-playlist-transcripts">' . $transcripts_content . '</div>',
+		);
+	}
+
+	// If only Episodes tab, still show it
+	if ( empty( $tabs ) ) {
+		return '';
+	}
+
+	// Build tab navigation
+	$output  = '<div class="podcast20-tabs podloom-playlist-tabs">';
+	$output .= '<div class="podcast20-tab-nav" role="tablist">';
+
+	foreach ( $tabs as $index => $tab ) {
+		$is_active = ( $index === 0 ) ? 'active' : '';
+		$output   .= sprintf(
+			'<button class="podcast20-tab-button %s" data-tab="%s" role="tab" aria-selected="%s" aria-controls="tab-panel-%s">%s</button>',
+			$is_active,
+			esc_attr( $tab['id'] ),
+			$is_active ? 'true' : 'false',
+			esc_attr( $tab['id'] ),
+			esc_html( $tab['label'] )
+		);
+	}
+
+	$output .= '</div>'; // .podcast20-tab-nav
+
+	// Build tab panels
+	foreach ( $tabs as $index => $tab ) {
+		$is_active = ( $index === 0 ) ? 'active' : '';
+		$output   .= sprintf(
+			'<div class="podcast20-tab-panel %s" id="tab-panel-%s" role="tabpanel" data-tab-id="%s">%s</div>',
+			$is_active,
+			esc_attr( $tab['id'] ),
+			esc_attr( $tab['id'] ),
+			$tab['content']
+		);
+	}
+
+	$output .= '</div>'; // .podcast20-tabs
+
+	return $output;
+}
+
+/**
+ * Render episodes list for playlist tab
+ *
+ * @param array $episodes        Array of all episodes.
+ * @param array $current_episode Currently playing episode.
+ * @param array $colors          Theme colors.
+ * @return string HTML output.
+ */
+function podloom_render_episodes_list( $episodes, $current_episode, $colors ) {
+	$output = '<div class="podloom-episodes-list">';
+
+	foreach ( $episodes as $index => $episode ) {
+		$is_current = ( $episode['audio_url'] === $current_episode['audio_url'] );
+		$current_class = $is_current ? ' podloom-episode-current' : '';
+
+		// Format date
+		$date_formatted = '';
+		if ( ! empty( $episode['date'] ) ) {
+			$date_formatted = date_i18n( get_option( 'date_format' ), $episode['date'] );
+		}
+
+		// Format duration
+		$duration_formatted = '';
+		if ( ! empty( $episode['duration'] ) ) {
+			$duration_formatted = podloom_format_duration( $episode['duration'] );
+		}
+
+		$output .= '<div class="podloom-episode-item' . $current_class . '" data-episode-index="' . esc_attr( $index ) . '">';
+
+		// Episode thumbnail
+		if ( ! empty( $episode['image'] ) ) {
+			$output .= '<div class="podloom-episode-thumb">';
+			$output .= '<img src="' . esc_url( $episode['image'] ) . '" alt="' . esc_attr( $episode['title'] ) . '" loading="lazy" />';
+			// Play/Now Playing indicator overlay
+			$output .= '<div class="podloom-episode-play-overlay">';
+			if ( $is_current ) {
+				$output .= '<span class="podloom-now-playing-icon" title="' . esc_attr__( 'Now Playing', 'podloom-podcast-player' ) . '">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+						<rect x="4" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite"/></rect>
+						<rect x="10" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="8;16;8" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="8;4;8" dur="0.8s" repeatCount="indefinite"/></rect>
+						<rect x="16" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite" begin="0.2s"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite" begin="0.2s"/></rect>
+					</svg>
+				</span>';
+			} else {
+				$output .= '<span class="podloom-play-icon" title="' . esc_attr__( 'Play', 'podloom-podcast-player' ) . '">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+						<polygon points="5,3 19,12 5,21"/>
+					</svg>
+				</span>';
+			}
+			$output .= '</div>'; // .podloom-episode-play-overlay
+			$output .= '</div>'; // .podloom-episode-thumb
+		} else {
+			// Placeholder thumbnail with play button
+			$output .= '<div class="podloom-episode-thumb podloom-episode-thumb-placeholder">';
+			$output .= '<div class="podloom-episode-play-overlay">';
+			if ( $is_current ) {
+				$output .= '<span class="podloom-now-playing-icon" title="' . esc_attr__( 'Now Playing', 'podloom-podcast-player' ) . '">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+						<rect x="4" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite"/></rect>
+						<rect x="10" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="8;16;8" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="8;4;8" dur="0.8s" repeatCount="indefinite"/></rect>
+						<rect x="16" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite" begin="0.2s"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite" begin="0.2s"/></rect>
+					</svg>
+				</span>';
+			} else {
+				$output .= '<span class="podloom-play-icon" title="' . esc_attr__( 'Play', 'podloom-podcast-player' ) . '">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+						<polygon points="5,3 19,12 5,21"/>
+					</svg>
+				</span>';
+			}
+			$output .= '</div>'; // .podloom-episode-play-overlay
+			$output .= '</div>'; // .podloom-episode-thumb
+		}
+
+		// Episode info
+		$output .= '<div class="podloom-episode-info">';
+		$output .= '<div class="podloom-episode-title-row">';
+		$output .= '<span class="podloom-episode-item-title">' . esc_html( $episode['title'] ) . '</span>';
+		$output .= '</div>';
+
+		// Meta row (date and duration)
+		if ( $date_formatted || $duration_formatted ) {
+			$output .= '<div class="podloom-episode-meta-row">';
+			if ( $date_formatted ) {
+				$output .= '<span class="podloom-episode-item-date">' . esc_html( $date_formatted ) . '</span>';
+			}
+			if ( $duration_formatted ) {
+				$output .= '<span class="podloom-episode-item-duration">' . esc_html( $duration_formatted ) . '</span>';
+			}
+			$output .= '</div>';
+		}
+		$output .= '</div>'; // .podloom-episode-info
+
+		$output .= '</div>'; // .podloom-episode-item
+	}
+
+	$output .= '</div>'; // .podloom-episodes-list
+
+	return $output;
 }
 
 /**

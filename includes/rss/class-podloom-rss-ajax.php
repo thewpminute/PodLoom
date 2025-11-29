@@ -519,3 +519,61 @@ function podloom_ajax_process_image_cache() {
 }
 add_action( 'wp_ajax_podloom_process_image_cache', 'podloom_ajax_process_image_cache' );
 add_action( 'wp_ajax_nopriv_podloom_process_image_cache', 'podloom_ajax_process_image_cache' );
+
+/**
+ * AJAX Handler: Get Episode Podcast 2.0 Data
+ *
+ * Returns P2.0 data (chapters, transcripts, people) for a specific episode.
+ * Used by playlist player when switching episodes to update tab content.
+ * Available to both logged-in and logged-out users since it's frontend functionality.
+ */
+function podloom_ajax_get_episode_p20() {
+	// Verify nonce.
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'podloom_playlist_nonce' ) ) {
+		wp_send_json_error( array( 'message' => 'Invalid security token' ), 403 );
+		return;
+	}
+
+	// Rate limiting: 60 requests per minute (similar to get_episodes).
+	if ( ! Podloom_RSS::check_rate_limit( 'get_episode_p20', 60, 60 ) ) {
+		wp_send_json_error( array( 'message' => 'Rate limit exceeded. Please try again later.' ), 429 );
+		return;
+	}
+
+	$feed_id    = isset( $_POST['feed_id'] ) ? sanitize_text_field( wp_unslash( $_POST['feed_id'] ) ) : '';
+	$episode_id = isset( $_POST['episode_id'] ) ? sanitize_text_field( wp_unslash( $_POST['episode_id'] ) ) : '';
+
+	if ( empty( $feed_id ) || empty( $episode_id ) ) {
+		wp_send_json_error( array( 'message' => 'Feed ID and Episode ID are required' ) );
+		return;
+	}
+
+	// Get all episodes for this feed (with P2.0 data).
+	$result = Podloom_RSS::get_episodes( $feed_id, 1, 100, true );
+
+	if ( empty( $result['episodes'] ) ) {
+		wp_send_json_error( array( 'message' => 'No episodes found' ) );
+		return;
+	}
+
+	// Find the specific episode by ID.
+	$episode = null;
+	foreach ( $result['episodes'] as $ep ) {
+		if ( isset( $ep['id'] ) && $ep['id'] === $episode_id ) {
+			$episode = $ep;
+			break;
+		}
+	}
+
+	if ( ! $episode ) {
+		wp_send_json_error( array( 'message' => 'Episode not found' ) );
+		return;
+	}
+
+	// Return P2.0 data.
+	$p20_data = isset( $episode['podcast20'] ) ? $episode['podcast20'] : array();
+
+	wp_send_json_success( $p20_data );
+}
+add_action( 'wp_ajax_podloom_get_episode_p20', 'podloom_ajax_get_episode_p20' );
+add_action( 'wp_ajax_nopriv_podloom_get_episode_p20', 'podloom_ajax_get_episode_p20' );

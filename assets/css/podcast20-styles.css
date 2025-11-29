@@ -440,6 +440,168 @@ a.podcast20-person-name:hover {
     background: #1b5e20;
 }
 
+/* Playlist Episodes Tab */
+.podloom-episodes-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.podloom-episode-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+}
+
+.podloom-episode-item:last-child {
+    margin-bottom: 0;
+}
+
+.podloom-episode-item:hover {
+    background: #f9f9f9;
+    border-color: #e0e0e0;
+}
+
+.podloom-episode-item.podloom-episode-current {
+    background: #e3f2fd;
+    border-color: #90caf9;
+}
+
+.podloom-episode-item.podloom-episode-current:hover {
+    background: #d0e8fc;
+}
+
+/* Episode thumbnail */
+.podloom-episode-thumb {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.podloom-episode-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.podloom-episode-thumb-placeholder {
+    background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
+}
+
+/* Play overlay */
+.podloom-episode-play-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.podloom-episode-item:hover .podloom-episode-play-overlay,
+.podloom-episode-item.podloom-episode-current .podloom-episode-play-overlay {
+    opacity: 1;
+}
+
+.podloom-play-icon,
+.podloom-now-playing-icon {
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.podloom-now-playing-icon svg {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* Episode info */
+.podloom-episode-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.podloom-episode-title-row {
+    margin-bottom: 4px;
+}
+
+.podloom-episode-item-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1d2327;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.podloom-episode-item.podloom-episode-current .podloom-episode-item-title {
+    color: #1565c0;
+    font-weight: 600;
+}
+
+.podloom-episode-meta-row {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: #757575;
+}
+
+.podloom-episode-item-date,
+.podloom-episode-item-duration {
+    display: inline-flex;
+    align-items: center;
+}
+
+.podloom-episode-item-duration::before {
+    content: '•';
+    margin-right: 12px;
+    color: #ccc;
+}
+
+/* Scrollbar styling */
+.podloom-episodes-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.podloom-episodes-list::-webkit-scrollbar-track {
+    background: #f0f0f0;
+    border-radius: 3px;
+}
+
+.podloom-episodes-list::-webkit-scrollbar-thumb {
+    background: #c0c0c0;
+    border-radius: 3px;
+}
+
+.podloom-episodes-list::-webkit-scrollbar-thumb:hover {
+    background: #a0a0a0;
+}
+
+/* No content placeholder */
+.no-content {
+    color: #757575;
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+}
+
 /* Responsive - Mobile Breakpoint for iPhones */
 @media screen and (max-width: 640px) {
     /* Tabs - Stack vertically on mobile */
@@ -509,5 +671,29 @@ a.podcast20-person-name:hover {
 
     .chapter-title {
         font-size: 13px;
+    }
+
+    /* Playlist Episodes - Mobile */
+    .podloom-episodes-list {
+        max-height: 300px;
+    }
+
+    .podloom-episode-item {
+        gap: 10px;
+        padding: 8px;
+    }
+
+    .podloom-episode-thumb {
+        width: 48px;
+        height: 48px;
+    }
+
+    .podloom-episode-item-title {
+        font-size: 13px;
+        -webkit-line-clamp: 1;
+    }
+
+    .podloom-episode-meta-row {
+        font-size: 11px;
     }
 }

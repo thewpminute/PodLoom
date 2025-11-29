@@ -735,6 +735,641 @@
     }
 
     /**
+     * Initialize RSS playlist player functionality
+     * Handles episode switching, now-playing indicators, and auto-play next
+     */
+    function initPlaylistPlayer() {
+        var playlistPlayers = document.querySelectorAll('.rss-playlist-player');
+
+        playlistPlayers.forEach(function (playerContainer) {
+            // Skip if already initialized
+            if (playerContainer.hasAttribute('data-playlist-initialized')) {
+                return;
+            }
+            playerContainer.setAttribute('data-playlist-initialized', 'true');
+
+            // Get episode data from embedded JSON
+            var dataScript = playerContainer.querySelector('.podloom-playlist-data');
+            if (!dataScript) {
+                console.warn('PodLoom: No playlist data found');
+                return;
+            }
+
+            var episodes;
+            try {
+                episodes = JSON.parse(dataScript.textContent);
+            } catch (e) {
+                console.error('PodLoom: Failed to parse playlist data', e);
+                return;
+            }
+
+            if (!episodes || episodes.length === 0) {
+                return;
+            }
+
+            // Get player elements
+            var audioPlayer = playerContainer.querySelector('.podloom-playlist-audio');
+            var artworkImg = playerContainer.querySelector('.podloom-playlist-artwork');
+            var titleEl = playerContainer.querySelector('.podloom-playlist-title');
+            var dateEl = playerContainer.querySelector('.podloom-playlist-date');
+            var durationEl = playerContainer.querySelector('.podloom-playlist-duration');
+            var episodesList = playerContainer.querySelector('.podloom-episodes-list');
+
+            if (!audioPlayer || !episodesList) {
+                return;
+            }
+
+            var currentIndex = 0;
+            var feedId = playerContainer.getAttribute('data-feed-id') || '';
+
+            /**
+             * Format duration in seconds to human-readable format
+             */
+            function formatDuration(seconds) {
+                if (!seconds || isNaN(seconds)) return '';
+
+                seconds = parseInt(seconds, 10);
+                var hours = Math.floor(seconds / 3600);
+                var minutes = Math.floor((seconds % 3600) / 60);
+                var secs = seconds % 60;
+
+                if (hours > 0) {
+                    return hours + ':' + padZero(minutes) + ':' + padZero(secs);
+                }
+                return minutes + ':' + padZero(secs);
+            }
+
+            function padZero(num) {
+                return num < 10 ? '0' + num : num;
+            }
+
+            /**
+             * Format Unix timestamp to localized date
+             */
+            function formatDate(timestamp) {
+                if (!timestamp) return '';
+                var date = new Date(timestamp * 1000);
+                return date.toLocaleDateString();
+            }
+
+            /**
+             * Update now-playing indicator in episode list
+             */
+            function updateNowPlayingIndicator(newIndex) {
+                var items = episodesList.querySelectorAll('.podloom-episode-item');
+
+                items.forEach(function (item, idx) {
+                    var overlay = item.querySelector('.podloom-episode-play-overlay');
+                    if (!overlay) return;
+
+                    if (idx === newIndex) {
+                        item.classList.add('podloom-episode-current');
+                        // Replace play icon with now-playing animation
+                        overlay.innerHTML = '<span class="podloom-now-playing-icon" title="Now Playing">' +
+                            '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
+                            '<rect x="4" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite"/></rect>' +
+                            '<rect x="10" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="8;16;8" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="8;4;8" dur="0.8s" repeatCount="indefinite"/></rect>' +
+                            '<rect x="16" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite" begin="0.2s"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite" begin="0.2s"/></rect>' +
+                            '</svg></span>';
+                    } else {
+                        item.classList.remove('podloom-episode-current');
+                        // Replace with play icon
+                        overlay.innerHTML = '<span class="podloom-play-icon" title="Play">' +
+                            '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
+                            '<polygon points="5,3 19,12 5,21"/>' +
+                            '</svg></span>';
+                    }
+                });
+            }
+
+            /**
+             * Update player metadata (title, date, artwork, duration)
+             */
+            function updatePlayerMetadata(episode) {
+                if (titleEl && episode.title) {
+                    titleEl.textContent = episode.title;
+                }
+
+                if (dateEl && episode.date) {
+                    dateEl.textContent = formatDate(episode.date);
+                }
+
+                if (durationEl && episode.duration) {
+                    durationEl.textContent = formatDuration(episode.duration);
+                }
+
+                if (artworkImg && episode.image) {
+                    artworkImg.src = episode.image;
+                    artworkImg.alt = episode.title || '';
+                    // Store as original src for chapter navigation
+                    artworkImg.setAttribute('data-original-src', episode.image);
+                }
+            }
+
+            /**
+             * Update Podcasting 2.0 tabs (Description, Credits, Chapters, Transcripts)
+             */
+            function updateP20Tabs(episode) {
+                // Update Description tab
+                var descPanel = playerContainer.querySelector('[data-tab-id="description"]');
+                if (descPanel) {
+                    var descContent = descPanel.querySelector('.podloom-playlist-description');
+                    if (descContent) {
+                        var desc = episode.content || episode.description || '';
+                        descContent.innerHTML = desc;
+                    }
+                }
+
+                // For Credits, Chapters, Transcripts - need to fetch from server
+                // if podcast20 data exists in episode, use it
+                var p20 = episode.podcast20;
+
+                // Update Chapters tab
+                // Note: chapters structure is { chapters: [...], url: '...' }
+                var chaptersPanel = playerContainer.querySelector('[data-tab-id="chapters"]');
+                if (chaptersPanel) {
+                    var chaptersContent = chaptersPanel.querySelector('.podloom-playlist-chapters');
+                    if (chaptersContent) {
+                        // Check for nested chapters array
+                        var chaptersArray = p20 && p20.chapters && p20.chapters.chapters ? p20.chapters.chapters : null;
+                        if (chaptersArray && chaptersArray.length > 0) {
+                            // Render chapters client-side
+                            chaptersContent.innerHTML = renderChaptersHTML(chaptersArray);
+                            // Reinitialize chapter click handlers
+                            initChapterClickHandlers(chaptersContent, audioPlayer);
+                        } else {
+                            // Try to fetch via AJAX if we have a feed ID
+                            if (feedId && episode.id) {
+                                fetchEpisodeP20Data(feedId, episode.id, function (data) {
+                                    var fetchedChapters = data && data.chapters && data.chapters.chapters ? data.chapters.chapters : null;
+                                    if (fetchedChapters && fetchedChapters.length > 0) {
+                                        chaptersContent.innerHTML = renderChaptersHTML(fetchedChapters);
+                                        initChapterClickHandlers(chaptersContent, audioPlayer);
+                                    } else {
+                                        chaptersContent.innerHTML = '<p class="no-content">No chapters available for this episode.</p>';
+                                    }
+                                });
+                            } else {
+                                chaptersContent.innerHTML = '<p class="no-content">No chapters available for this episode.</p>';
+                            }
+                        }
+                    }
+                }
+
+                // Update Credits tab
+                var creditsPanel = playerContainer.querySelector('[data-tab-id="credits"]');
+                if (creditsPanel) {
+                    var creditsContent = creditsPanel.querySelector('.podloom-playlist-credits');
+                    if (creditsContent) {
+                        var hasPeople = p20 && ((p20.people_channel && p20.people_channel.length > 0) || (p20.people_episode && p20.people_episode.length > 0));
+                        if (hasPeople) {
+                            var allPeople = [];
+                            if (p20.people_channel) allPeople = allPeople.concat(p20.people_channel);
+                            if (p20.people_episode) allPeople = allPeople.concat(p20.people_episode);
+                            creditsContent.innerHTML = renderCreditsHTML(allPeople);
+                        } else if (feedId && episode.id) {
+                            fetchEpisodeP20Data(feedId, episode.id, function (data) {
+                                if (data) {
+                                    var people = [];
+                                    if (data.people_channel) people = people.concat(data.people_channel);
+                                    if (data.people_episode) people = people.concat(data.people_episode);
+                                    if (people.length > 0) {
+                                        creditsContent.innerHTML = renderCreditsHTML(people);
+                                    } else {
+                                        creditsContent.innerHTML = '<p class="no-content">No credits available for this episode.</p>';
+                                    }
+                                } else {
+                                    creditsContent.innerHTML = '<p class="no-content">No credits available for this episode.</p>';
+                                }
+                            });
+                        } else {
+                            creditsContent.innerHTML = '<p class="no-content">No credits available for this episode.</p>';
+                        }
+                    }
+                }
+
+                // Update Transcripts tab
+                var transcriptsPanel = playerContainer.querySelector('[data-tab-id="transcripts"]');
+                if (transcriptsPanel) {
+                    var transcriptsContent = transcriptsPanel.querySelector('.podloom-playlist-transcripts');
+                    if (transcriptsContent) {
+                        if (p20 && p20.transcripts && p20.transcripts.length > 0) {
+                            transcriptsContent.innerHTML = renderTranscriptsHTML(p20.transcripts);
+                            // Reinitialize transcript loaders
+                            initTranscriptLoadersInContainer(transcriptsContent);
+                        } else if (feedId && episode.id) {
+                            fetchEpisodeP20Data(feedId, episode.id, function (data) {
+                                if (data && data.transcripts && data.transcripts.length > 0) {
+                                    transcriptsContent.innerHTML = renderTranscriptsHTML(data.transcripts);
+                                    initTranscriptLoadersInContainer(transcriptsContent);
+                                } else {
+                                    transcriptsContent.innerHTML = '<p class="no-content">No transcript available for this episode.</p>';
+                                }
+                            });
+                        } else {
+                            transcriptsContent.innerHTML = '<p class="no-content">No transcript available for this episode.</p>';
+                        }
+                    }
+                }
+            }
+
+            /**
+             * Render chapters HTML (matches PHP podloom_render_chapters structure)
+             */
+            function renderChaptersHTML(chapters) {
+                if (!chapters || chapters.length === 0) {
+                    return '<p class="no-content">No chapters available for this episode.</p>';
+                }
+
+                var html = '<div class="podcast20-chapters-list">';
+                html += '<h4 class="chapters-heading">Chapters</h4>';
+
+                chapters.forEach(function (chapter) {
+                    var time = chapter.startTime || 0;
+                    var formattedTime = formatDuration(time);
+                    var title = escapeHTML(chapter.title || '');
+
+                    html += '<div class="chapter-item" data-start-time="' + time + '">';
+
+                    // Chapter image or placeholder
+                    if (chapter.img) {
+                        html += '<img src="' + escapeHTML(chapter.img) + '" alt="' + title + '" class="chapter-img" loading="lazy" />';
+                    } else {
+                        html += '<div class="chapter-img-placeholder"></div>';
+                    }
+
+                    // Chapter info
+                    html += '<div class="chapter-info">';
+                    html += '<button class="chapter-timestamp" data-start-time="' + time + '">' + formattedTime + '</button>';
+
+                    // Chapter title with optional external link
+                    html += '<span class="chapter-title">' + title;
+                    if (chapter.url) {
+                        html += ' <a href="' + escapeHTML(chapter.url) + '" target="_blank" rel="noopener noreferrer" class="chapter-external-link" title="Open chapter link">';
+                        html += '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="display: inline-block; vertical-align: middle; margin-left: 4px;">';
+                        html += '<path d="M6.354 5.5H4a3 3 0 000 6h3a3 3 0 002.83-4H9c-.086 0-.17.01-.25.031A2 2 0 017 10.5H4a2 2 0 110-4h1.535c.218-.376.495-.714.82-1z"/>';
+                        html += '<path d="M9 5.5a3 3 0 00-2.83 4h1.098A2 2 0 019 6.5h3a2 2 0 110 4h-1.535a4.02 4.02 0 01-.82 1H12a3 3 0 100-6H9z"/>';
+                        html += '</svg></a>';
+                    }
+                    html += '</span>';
+
+                    html += '</div>'; // .chapter-info
+                    html += '</div>'; // .chapter-item
+                });
+
+                html += '</div>'; // .podcast20-chapters-list
+
+                return html;
+            }
+
+            /**
+             * Render credits/people HTML (matches PHP podloom_render_people structure)
+             */
+            function renderCreditsHTML(people) {
+                if (!people || people.length === 0) {
+                    return '<p class="no-content">No credits available for this episode.</p>';
+                }
+
+                var html = '<div class="podcast20-people">';
+                html += '<h4 class="podcast20-heading">Credits</h4>';
+                html += '<div class="podcast20-people-list">';
+
+                people.forEach(function (person) {
+                    if (!person.name) return;
+
+                    var name = escapeHTML(person.name);
+                    var role = person.role ? escapeHTML(person.role) : '';
+
+                    html += '<div class="podcast20-person">';
+
+                    // Person image or default avatar
+                    if (person.img) {
+                        html += '<img src="' + escapeHTML(person.img) + '" alt="' + name + '" class="podcast20-person-img">';
+                    } else {
+                        html += '<div class="podcast20-person-avatar">';
+                        html += '<svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor">';
+                        html += '<path d="M11 6a3 3 0 11-6 0 3 3 0 016 0z"/>';
+                        html += '<path d="M2 0a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V2a2 2 0 00-2-2H2zm12 1a1 1 0 011 1v12a1 1 0 01-1 1v-1c0-1-1-4-6-4s-6 3-6 4v1a1 1 0 01-1-1V2a1 1 0 011-1h12z"/>';
+                        html += '</svg></div>';
+                    }
+
+                    html += '<div class="podcast20-person-info">';
+
+                    // Role first
+                    if (role) {
+                        html += '<span class="podcast20-person-role">' + role.charAt(0).toUpperCase() + role.slice(1) + '</span>';
+                    }
+
+                    // Name (with optional link)
+                    if (person.href) {
+                        html += '<a href="' + escapeHTML(person.href) + '" target="_blank" rel="noopener noreferrer" class="podcast20-person-name">' + name + '</a>';
+                    } else {
+                        html += '<span class="podcast20-person-name">' + name + '</span>';
+                    }
+
+                    html += '</div>'; // .podcast20-person-info
+                    html += '</div>'; // .podcast20-person
+                });
+
+                html += '</div>'; // .podcast20-people-list
+                html += '</div>'; // .podcast20-people
+
+                return html;
+            }
+
+            /**
+             * Render transcripts HTML (matches PHP podloom_render_transcripts structure)
+             */
+            function renderTranscriptsHTML(transcripts) {
+                if (!transcripts || transcripts.length === 0) {
+                    return '<p class="no-content">No transcript available for this episode.</p>';
+                }
+
+                // Sort by format preference: HTML > SRT > VTT > JSON > text/plain
+                var formatPriority = {
+                    'text/html': 1,
+                    'application/x-subrip': 2,
+                    'text/srt': 2,
+                    'text/vtt': 3,
+                    'application/json': 4,
+                    'text/plain': 5
+                };
+
+                transcripts.sort(function (a, b) {
+                    var aPriority = formatPriority[a.type] || 999;
+                    var bPriority = formatPriority[b.type] || 999;
+                    return aPriority - bPriority;
+                });
+
+                // Get the primary (highest priority) transcript
+                var primary = transcripts[0];
+                var transcriptsJson = JSON.stringify(transcripts);
+
+                var html = '<div class="podcast20-transcripts">';
+                html += '<div class="transcript-formats">';
+
+                // Button with data attributes
+                html += '<button class="transcript-format-button" data-url="' + escapeHTML(primary.url) + '" data-type="' + escapeHTML(primary.type || 'text/plain') + '" data-transcripts=\'' + escapeHTML(transcriptsJson).replace(/'/g, '&#39;') + '\'>';
+                html += '<svg class="podcast20-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">';
+                html += '<path d="M14 4.5V14a2 2 0 01-2 2H4a2 2 0 01-2-2V2a2 2 0 012-2h5.5L14 4.5zm-3 0A1.5 1.5 0 019.5 3V1H4a1 1 0 00-1 1v12a1 1 0 001 1h8a1 1 0 001-1V4.5h-2z"/>';
+                html += '<path d="M3 9.5h10v1H3v-1zm0 2h10v1H3v-1z"/>';
+                html += '</svg>';
+                html += '<span>Click for Transcript</span>';
+                html += '</button>';
+
+                // Fallback external link
+                html += ' <a href="' + escapeHTML(primary.url) + '" target="_blank" rel="noopener noreferrer" class="transcript-external-link" title="Open transcript in new tab">';
+                html += '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">';
+                html += '<path d="M6.354 5.5H4a3 3 0 000 6h3a3 3 0 002.83-4H9c-.086 0-.17.01-.25.031A2 2 0 017 10.5H4a2 2 0 110-4h1.535c.218-.376.495-.714.82-1z"/>';
+                html += '<path d="M9 5.5a3 3 0 00-2.83 4h1.098A2 2 0 019 6.5h3a2 2 0 110 4h-1.535a4.02 4.02 0 01-.82 1H12a3 3 0 100-6H9z"/>';
+                html += '</svg></a>';
+
+                html += '</div>'; // .transcript-formats
+
+                // Transcript viewer (hidden)
+                html += '<div class="transcript-viewer" style="display: none;">';
+                html += '<div class="transcript-content"></div>';
+                html += '<button class="transcript-close">Close</button>';
+                html += '</div>'; // .transcript-viewer
+
+                html += '</div>'; // .podcast20-transcripts
+
+                return html;
+            }
+
+            /**
+             * Initialize chapter click handlers in a container
+             */
+            function initChapterClickHandlers(container, audio) {
+                var chapterItems = container.querySelectorAll('.chapter-item');
+                chapterItems.forEach(function (item) {
+                    item.style.cursor = 'pointer';
+                    item.addEventListener('click', function (e) {
+                        if (e.target.closest('.chapter-external-link')) return;
+                        e.preventDefault();
+                        var startTime = parseFloat(item.getAttribute('data-start-time'));
+                        if (!isNaN(startTime)) {
+                            audio.currentTime = startTime;
+                            if (audio.paused) {
+                                audio.play().catch(function (err) {
+                                    console.warn('PodLoom: Could not auto-play', err);
+                                });
+                            }
+                        }
+                    });
+                });
+            }
+
+            /**
+             * Initialize transcript loaders in a specific container
+             */
+            function initTranscriptLoadersInContainer(container) {
+                var buttons = container.querySelectorAll('.transcript-format-button');
+                buttons.forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        var viewer = button.closest('.podcast20-transcripts').querySelector('.transcript-viewer');
+                        var content = viewer.querySelector('.transcript-content');
+
+                        if (button.classList.contains('active')) {
+                            button.classList.remove('active');
+                            viewer.style.display = 'none';
+                            content.innerHTML = '';
+                            return;
+                        }
+
+                        var transcripts;
+                        try {
+                            transcripts = JSON.parse(button.getAttribute('data-transcripts'));
+                        } catch (e) {
+                            transcripts = [];
+                        }
+
+                        if (transcripts.length === 0) return;
+
+                        button.classList.add('loading');
+                        viewer.style.display = 'block';
+                        content.innerHTML = '<div class="transcript-loading">Loading transcript...</div>';
+
+                        tryLoadTranscript(transcripts, 0, button, content);
+                    });
+                });
+
+                var closeButtons = container.querySelectorAll('.transcript-close');
+                closeButtons.forEach(function (closeBtn) {
+                    closeBtn.addEventListener('click', function () {
+                        var viewer = closeBtn.closest('.transcript-viewer');
+                        var transcripts = closeBtn.closest('.podcast20-transcripts');
+                        var button = transcripts.querySelector('.transcript-format-button');
+                        var content = viewer.querySelector('.transcript-content');
+
+                        button.classList.remove('active');
+                        viewer.style.display = 'none';
+                        content.innerHTML = '';
+                    });
+                });
+            }
+
+            /**
+             * Fetch episode P2.0 data via AJAX
+             */
+            function fetchEpisodeP20Data(feedId, episodeId, callback) {
+                if (typeof podloomPlaylist === 'undefined' || !podloomPlaylist.ajaxUrl) {
+                    callback(null);
+                    return;
+                }
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', podloomPlaylist.ajaxUrl, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            try {
+                                var response = JSON.parse(xhr.responseText);
+                                if (response.success && response.data) {
+                                    callback(response.data);
+                                } else {
+                                    callback(null);
+                                }
+                            } catch (e) {
+                                callback(null);
+                            }
+                        } else {
+                            callback(null);
+                        }
+                    }
+                };
+
+                xhr.send('action=podloom_get_episode_p20&feed_id=' + encodeURIComponent(feedId) + '&episode_id=' + encodeURIComponent(episodeId) + '&nonce=' + encodeURIComponent(podloomPlaylist.nonce || ''));
+            }
+
+            /**
+             * Switch to a specific episode
+             */
+            function switchToEpisode(index) {
+                if (index < 0 || index >= episodes.length) {
+                    return;
+                }
+
+                var episode = episodes[index];
+                currentIndex = index;
+
+                // Update audio source
+                var sourceEl = audioPlayer.querySelector('source');
+                if (sourceEl) {
+                    sourceEl.src = episode.audio_url;
+                } else {
+                    audioPlayer.src = episode.audio_url;
+                }
+
+                // Load and play
+                audioPlayer.load();
+                audioPlayer.play().catch(function (error) {
+                    console.warn('PodLoom: Could not auto-play episode', error);
+                });
+
+                // Update metadata
+                updatePlayerMetadata(episode);
+
+                // Update now-playing indicator
+                updateNowPlayingIndicator(index);
+
+                // Update P2.0 tabs
+                updateP20Tabs(episode);
+
+                // Scroll the current episode into view in the list
+                var currentItem = episodesList.querySelector('[data-episode-index="' + index + '"]');
+                if (currentItem) {
+                    currentItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+
+            /**
+             * Escape HTML entities
+             */
+            function escapeHTML(text) {
+                if (!text) return '';
+                var div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            // Click handler for episode items
+            var episodeItems = episodesList.querySelectorAll('.podloom-episode-item');
+            episodeItems.forEach(function (item) {
+                item.style.cursor = 'pointer';
+                item.addEventListener('click', function () {
+                    var index = parseInt(item.getAttribute('data-episode-index'), 10);
+                    if (!isNaN(index) && index !== currentIndex) {
+                        switchToEpisode(index);
+                    } else if (index === currentIndex && audioPlayer.paused) {
+                        // If clicking current episode and paused, resume
+                        audioPlayer.play().catch(function (err) {
+                            console.warn('PodLoom: Could not play', err);
+                        });
+                    }
+                });
+            });
+
+            // Auto-play next episode when current one ends
+            audioPlayer.addEventListener('ended', function () {
+                var nextIndex = currentIndex + 1;
+                if (nextIndex < episodes.length) {
+                    switchToEpisode(nextIndex);
+                }
+            });
+
+            // Update chapter highlighting for playlist player
+            audioPlayer.addEventListener('timeupdate', function () {
+                var chaptersContainer = playerContainer.querySelector('.podloom-playlist-chapters .podcast20-chapters-list');
+                if (chaptersContainer) {
+                    var chapterItems = chaptersContainer.querySelectorAll('.chapter-item');
+                    var currentTime = audioPlayer.currentTime;
+                    var activeChapter = null;
+
+                    chapterItems.forEach(function (item) {
+                        var startTime = parseFloat(item.getAttribute('data-start-time'));
+                        if (!isNaN(startTime) && currentTime >= startTime) {
+                            activeChapter = item;
+                        }
+                    });
+
+                    chapterItems.forEach(function (item) {
+                        item.classList.remove('active');
+                    });
+
+                    if (activeChapter) {
+                        activeChapter.classList.add('active');
+                    }
+
+                    // Update artwork if chapter has image
+                    if (artworkImg) {
+                        var chapterImgSrc = null;
+                        if (activeChapter) {
+                            var chapterImg = activeChapter.querySelector('.chapter-img');
+                            if (chapterImg) {
+                                chapterImgSrc = chapterImg.src;
+                            }
+                        }
+
+                        if (chapterImgSrc) {
+                            if (artworkImg.src !== chapterImgSrc) {
+                                artworkImg.src = chapterImgSrc;
+                            }
+                        } else {
+                            var originalSrc = artworkImg.getAttribute('data-original-src');
+                            if (originalSrc && artworkImg.src !== originalSrc) {
+                                artworkImg.src = originalSrc;
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    /**
      * Initialize all features when DOM is ready
      */
     /**
@@ -774,6 +1409,7 @@
         initChapterNavigation();
         initTranscriptLoaders();
         initSkipButtons();
+        initPlaylistPlayer();
 
         // Process image cache queue after a short delay (let page render first)
         setTimeout(processImageCacheQueue, 500);
@@ -794,9 +1430,11 @@
                     mutation.addedNodes.forEach(function (node) {
                         if (node.nodeType === 1 &&
                             (node.classList && (node.classList.contains('podcast20-tabs') ||
-                                node.classList.contains('podcast20-chapters-list')) ||
+                                node.classList.contains('podcast20-chapters-list') ||
+                                node.classList.contains('rss-playlist-player')) ||
                                 node.querySelector && (node.querySelector('.podcast20-tabs') ||
-                                    node.querySelector('.podcast20-chapters-list')))) {
+                                    node.querySelector('.podcast20-chapters-list') ||
+                                    node.querySelector('.rss-playlist-player')))) {
                             init();
                         }
                     });

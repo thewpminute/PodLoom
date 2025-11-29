@@ -190,6 +190,10 @@ registerBlockType('podloom/episode-player', {
         playlistHeight: {
             type: 'number',
             default: 390
+        },
+        playlistMaxEpisodes: {
+            type: 'number',
+            default: 25
         }
     },
     /**
@@ -203,7 +207,7 @@ registerBlockType('podloom/episode-player', {
      * @param {string} props.clientId Unique block ID
      */
     edit: function EditComponent({ attributes, setAttributes, clientId }) {
-        const { sourceType, episodeId, episodeTitle, showId, showTitle, showSlug, rssFeedId, rssEpisodeData, episodeDescription, embedHtml, theme, displayMode, playlistHeight } = attributes;
+        const { sourceType, episodeId, episodeTitle, showId, showTitle, showSlug, rssFeedId, rssEpisodeData, episodeDescription, embedHtml, theme, displayMode, playlistHeight, playlistMaxEpisodes } = attributes;
 
         const [transistorShows, setTransistorShows] = useState([]);
         const [rssFeeds, setRssFeeds] = useState([]);
@@ -925,7 +929,8 @@ registerBlockType('podloom/episode-player', {
         }
 
         // Check if source can support display modes
-        const supportsLatestAndPlaylist = sourceType === 'transistor' && showSlug;
+        const supportsTransistorPlaylist = sourceType === 'transistor' && showSlug;
+        const supportsRssPlaylist = sourceType === 'rss' && rssFeedId;
         const supportsLatest = (sourceType === 'transistor' && showSlug) || (sourceType === 'rss' && rssFeedId);
 
         return wp.element.createElement(
@@ -1003,7 +1008,7 @@ registerBlockType('podloom/episode-player', {
                             ...(supportsLatest ? [
                                 { label: __('Latest Episode', 'podloom-podcast-player'), value: 'latest' }
                             ] : []),
-                            ...(supportsLatestAndPlaylist ? [
+                            ...((supportsTransistorPlaylist || supportsRssPlaylist) ? [
                                 { label: __('Playlist', 'podloom-podcast-player'), value: 'playlist' }
                             ] : [])
                         ],
@@ -1012,11 +1017,13 @@ registerBlockType('podloom/episode-player', {
                         },
                         help: displayMode === 'latest'
                             ? __('Will always show the most recent episode from this source', 'podloom-podcast-player')
-                            : displayMode === 'playlist'
+                            : displayMode === 'playlist' && supportsTransistorPlaylist
                                 ? __('Displays a playlist of episodes. Episode count is controlled in your Transistor settings.', 'podloom-podcast-player')
-                                : null
+                                : displayMode === 'playlist' && supportsRssPlaylist
+                                    ? __('Displays a playlist with an Episodes tab. Select episodes to play and view their details.', 'podloom-podcast-player')
+                                    : null
                     }),
-                    displayMode === 'playlist' && NumberControl && wp.element.createElement(NumberControl, {
+                    displayMode === 'playlist' && supportsTransistorPlaylist && NumberControl && wp.element.createElement(NumberControl, {
                         label: __('Playlist Height (px)', 'podloom-podcast-player'),
                         value: playlistHeight,
                         onChange: (value) => setAttributes({ playlistHeight: parseInt(value) || 390 }),
@@ -1024,6 +1031,15 @@ registerBlockType('podloom/episode-player', {
                         max: 1000,
                         step: 10,
                         help: __('Adjust the height of the playlist player (200-1000px)', 'podloom-podcast-player')
+                    }),
+                    displayMode === 'playlist' && supportsRssPlaylist && NumberControl && wp.element.createElement(NumberControl, {
+                        label: __('Max Episodes', 'podloom-podcast-player'),
+                        value: playlistMaxEpisodes,
+                        onChange: (value) => setAttributes({ playlistMaxEpisodes: parseInt(value) || 25 }),
+                        min: 5,
+                        max: 100,
+                        step: 5,
+                        help: __('Maximum number of episodes to display in the playlist (5-100)', 'podloom-podcast-player')
                     }),
                     sourceType === 'transistor' && showId && wp.element.createElement(RadioControl, {
                         label: __('Player Theme', 'podloom-podcast-player'),
@@ -1054,11 +1070,17 @@ registerBlockType('podloom/episode-player', {
                         wp.element.createElement('strong', null, __('Latest Episode Mode', 'podloom-podcast-player')),
                         wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('This block will always display the most recent episode from ', 'podloom-podcast-player') + showTitle)
                     ),
-                    displayMode === 'playlist' && showId && wp.element.createElement(
+                    displayMode === 'playlist' && supportsTransistorPlaylist && wp.element.createElement(
                         'div',
                         { style: { marginTop: '16px', padding: '12px', background: '#f3e5f5', borderRadius: '4px', border: '1px solid #9c27b0' } },
                         wp.element.createElement('strong', null, __('Playlist Mode', 'podloom-podcast-player')),
                         wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('This block will display a playlist from ', 'podloom-podcast-player') + showTitle + __('. Episode count is controlled in your Transistor settings.', 'podloom-podcast-player'))
+                    ),
+                    displayMode === 'playlist' && supportsRssPlaylist && wp.element.createElement(
+                        'div',
+                        { style: { marginTop: '16px', padding: '12px', background: '#e8f5e9', borderRadius: '4px', border: '1px solid #4caf50' } },
+                        wp.element.createElement('strong', null, __('RSS Playlist Mode', 'podloom-podcast-player')),
+                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px' } }, __('Displays up to ', 'podloom-podcast-player') + playlistMaxEpisodes + __(' episodes from ', 'podloom-podcast-player') + showTitle + __('. Click any episode to play it. Chapters, transcripts, and credits update dynamically.', 'podloom-podcast-player'))
                     )
                 )
             ),
@@ -1115,14 +1137,26 @@ registerBlockType('podloom/episode-player', {
                                         wp.element.createElement('p', { style: { margin: '0', fontSize: '14px', color: '#666' } }, __('Loading episode...', 'podloom-podcast-player'))
                                     )
                                 ) :
-                                    // Placeholder
-                                    wp.element.createElement(
-                                        Placeholder,
-                                        { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom-podcast-player') },
-                                        !showId && !rssFeedId ? wp.element.createElement('p', null, __('Please select a source from the sidebar.', 'podloom-podcast-player')) :
-                                            displayMode === 'specific' && !episodeId ? wp.element.createElement('p', null, __('Please select an episode from the sidebar.', 'podloom-podcast-player')) :
-                                                wp.element.createElement('p', null, __('Please configure the block settings.', 'podloom-podcast-player'))
-                                    )
+                                    // Playlist Mode - RSS
+                                    displayMode === 'playlist' && sourceType === 'rss' && rssFeedId ? wp.element.createElement(
+                                        'div',
+                                        { style: { background: '#f9f9f9', border: '1px solid #ddd', borderRadius: '8px', padding: '20px', minHeight: '200px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' } },
+                                        wp.element.createElement('span', {
+                                            className: 'dashicons dashicons-playlist-audio',
+                                            style: { fontSize: '48px', color: '#4caf50', marginBottom: '10px' }
+                                        }),
+                                        wp.element.createElement('p', { style: { margin: '0', fontSize: '16px', color: '#333', textAlign: 'center', fontWeight: '600' } }, __('RSS Playlist Player', 'podloom-podcast-player')),
+                                        wp.element.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px', color: '#666', textAlign: 'center' } }, __('Displays ', 'podloom-podcast-player') + playlistMaxEpisodes + __(' episodes with an Episodes tab', 'podloom-podcast-player')),
+                                        wp.element.createElement('p', { style: { margin: '4px 0 0 0', fontSize: '12px', color: '#999', textAlign: 'center' } }, __('Preview available on frontend', 'podloom-podcast-player'))
+                                    ) :
+                                        // Placeholder
+                                        wp.element.createElement(
+                                            Placeholder,
+                                            { icon: 'microphone', label: __('PodLoom Podcast Episode', 'podloom-podcast-player') },
+                                            !showId && !rssFeedId ? wp.element.createElement('p', null, __('Please select a source from the sidebar.', 'podloom-podcast-player')) :
+                                                displayMode === 'specific' && !episodeId ? wp.element.createElement('p', null, __('Please select an episode from the sidebar.', 'podloom-podcast-player')) :
+                                                    wp.element.createElement('p', null, __('Please configure the block settings.', 'podloom-podcast-player'))
+                                        )
             )
         );
     },

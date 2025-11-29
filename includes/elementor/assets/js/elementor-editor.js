@@ -64,6 +64,7 @@
 
     /**
      * Update display mode dropdown options based on source type
+     * Note: Both Transistor and RSS sources now support playlist mode.
      */
     function updateDisplayModeOptions(source, panel) {
         const $displayModeControl = panel.$el.find('[data-setting="display_mode"]');
@@ -73,16 +74,8 @@
 
         const $playlistOption = $displayModeControl.find('option[value="playlist"]');
 
-        if (source && source.startsWith('rss:')) {
-            // Hide playlist option for RSS sources.
-            $playlistOption.hide();
-
-            // If playlist was selected, reset to specific.
-            if ($displayModeControl.val() === 'playlist') {
-                $displayModeControl.val('specific').trigger('change');
-            }
-        } else {
-            // Show playlist option for Transistor sources.
+        // Show playlist option for both Transistor and RSS sources.
+        if (source) {
             $playlistOption.show();
         }
     }
@@ -105,10 +98,6 @@
                     updateShowSlug(newSource, model);
                 } else {
                     settingsModel.set('show_slug', '');
-                    // Reset to specific mode if playlist was selected for RSS.
-                    if (settingsModel.get('display_mode') === 'playlist') {
-                        settingsModel.set('display_mode', 'specific');
-                    }
                 }
 
                 // Update display mode options based on source type.

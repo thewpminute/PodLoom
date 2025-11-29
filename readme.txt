@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.8.0
+Stable tag: 2.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -66,6 +66,7 @@ PodLoom automatically detects and displays all Podcasting 2.0 namespace tags:
 * Multiple feed management with validation
 * Customizable player with typography controls
 * Background color and minimal styling options
+* **Playlist mode** with browsable episode list and auto-play next
 
 **Elementor Integration**
 
@@ -150,8 +151,19 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 5. Admin settings - Typography controls
 6. Block editor episode selection
 7. Elementor widget with searchable episode dropdown
+8. RSS Playlist mode with browsable episode list
 
 == Changelog ==
+
+= 2.9.0 =
+* **RSS Playlist Mode**: Display multiple episodes in a browsable playlist with an Episodes tab
+* **Click-to-Play Episodes**: Select any episode from the list to immediately start playback
+* **Auto-Play Next**: Automatically plays the next episode when the current one finishes
+* **Now Playing Indicator**: Animated visual indicator shows which episode is currently playing
+* **Dynamic P2.0 Updates**: Chapters, Transcripts, and Credits tabs update when switching episodes
+* **Configurable Episode Count**: Set maximum episodes (5-100) displayed in the playlist
+* **Elementor Playlist Support**: RSS Playlist mode now available in Elementor widget
+* **Security Enhancement**: Added sanitization for playlist episode data
 
 = 2.8.0 =
 * **Elementor Integration**: New native Elementor widget for embedding podcast episodes
@@ -207,6 +219,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.9.0 =
+New RSS Playlist mode displays multiple episodes in a browsable list with auto-play next, now-playing indicator, and dynamic Podcasting 2.0 tab updates.
 
 = 2.8.0 =
 New Elementor widget for drag-and-drop podcast embedding. Includes searchable episode selector and full Podcasting 2.0 support.

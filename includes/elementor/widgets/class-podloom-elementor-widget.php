@@ -203,7 +203,7 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 				'options'   => array(
 					'specific' => esc_html__( 'Specific Episode', 'podloom-podcast-player' ),
 					'latest'   => esc_html__( 'Latest Episode', 'podloom-podcast-player' ),
-					'playlist' => esc_html__( 'Playlist (Transistor only)', 'podloom-podcast-player' ),
+					'playlist' => esc_html__( 'Playlist', 'podloom-podcast-player' ),
 				),
 				'condition' => array(
 					'source!' => '',
@@ -278,7 +278,7 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 			)
 		);
 
-		// Playlist height.
+		// Playlist height (Transistor only).
 		$this->add_control(
 			'playlist_height',
 			array(
@@ -298,6 +298,25 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 				),
 				'condition'   => array(
 					'display_mode' => 'playlist',
+					'source'       => $this->get_transistor_source_conditions(),
+				),
+			)
+		);
+
+		// Max episodes (RSS playlist only).
+		$this->add_control(
+			'playlist_max_episodes',
+			array(
+				'label'       => esc_html__( 'Max Episodes', 'podloom-podcast-player' ),
+				'type'        => \Elementor\Controls_Manager::NUMBER,
+				'min'         => 5,
+				'max'         => 100,
+				'step'        => 5,
+				'default'     => 25,
+				'description' => esc_html__( 'Maximum number of episodes to display in the playlist (5-100).', 'podloom-podcast-player' ),
+				'condition'   => array(
+					'display_mode' => 'playlist',
+					'source!'      => $this->get_transistor_source_conditions(),
 				),
 			)
 		);
@@ -326,7 +345,7 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 				'type'            => \Elementor\Controls_Manager::RAW_HTML,
 				'raw'             => '<div style="padding: 10px; background: rgba(128, 128, 128, 0.1); border-radius: 4px; border-left: 3px solid #888;">' .
 									'<strong style="color: inherit;">' . esc_html__( 'Playlist Mode', 'podloom-podcast-player' ) . '</strong><br>' .
-									'<span style="color: inherit; opacity: 0.8;">' . esc_html__( 'This widget displays a playlist of episodes. Episode count is controlled in your Transistor settings.', 'podloom-podcast-player' ) . '</span>' .
+									'<span style="color: inherit; opacity: 0.8;">' . esc_html__( 'This widget displays a playlist of episodes with an Episodes tab. Click any episode to play it.', 'podloom-podcast-player' ) . '</span>' .
 									'</div>',
 				'separator'       => 'before',
 				'condition'       => array(
@@ -461,6 +480,11 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 					$attributes['rssEpisodeData'] = $sanitized_episode;
 					$attributes['episodeId']      = ! empty( $settings['episode_id'] ) ? sanitize_text_field( $settings['episode_id'] ) : '';
 				}
+			} elseif ( 'playlist' === $display_mode ) {
+				// RSS playlist mode - pass max episodes.
+				$max_episodes = isset( $settings['playlist_max_episodes'] ) ? absint( $settings['playlist_max_episodes'] ) : 25;
+				$max_episodes = max( 5, min( 100, $max_episodes ) );
+				$attributes['playlistMaxEpisodes'] = $max_episodes;
 			}
 		}
 
