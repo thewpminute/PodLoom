@@ -157,12 +157,14 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 = 2.9.0 =
 * **RSS Playlist Mode**: Display multiple episodes in a browsable playlist with an Episodes tab
+* **Episode Order Control**: Choose episodic (newest first) or serial (oldest first) ordering for playlists
 * **Click-to-Play Episodes**: Select any episode from the list to immediately start playback
 * **Auto-Play Next**: Automatically plays the next episode when the current one finishes
 * **Now Playing Indicator**: Animated visual indicator shows which episode is currently playing
 * **Dynamic P2.0 Updates**: Chapters, Transcripts, and Credits tabs update when switching episodes
 * **Configurable Episode Count**: Set maximum episodes (5-100) displayed in the playlist
 * **Elementor Playlist Support**: RSS Playlist mode now available in Elementor widget
+* **Asset Minification**: JavaScript and CSS now minified for faster page loads (~66% smaller)
 * **Security Enhancement**: Added sanitization for playlist episode data
 
 = 2.8.0 =
