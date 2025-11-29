@@ -24,6 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'PODLOOM_PLUGIN_VERSION', '2.5.3' );
 define( 'PODLOOM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+define( 'PODLOOM_PLUGIN_FILE', __FILE__ );
 
 // Global flag to track if P2.0 content is used on this page
 global $podloom_has_podcast20_content;
@@ -38,6 +39,7 @@ require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-podcast20-parser.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/cache.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/color-utils.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/utilities.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/class-podloom-image-cache.php';
 require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
 
 /**
@@ -420,6 +422,19 @@ function podloom_get_rss_dynamic_css() {
 	$typo     = podloom_get_rss_typography_styles();
 	$bg_color = get_option( 'podloom_rss_background_color', '#f9f9f9' );
 
+	// Get border settings
+	$border_color  = get_option( 'podloom_rss_border_color', '#dddddd' );
+	$border_width  = get_option( 'podloom_rss_border_width', '1px' );
+	$border_style  = get_option( 'podloom_rss_border_style', 'solid' );
+	$border_radius = get_option( 'podloom_rss_border_radius', '8px' );
+
+	// Get funding button settings
+	$funding_font_family      = get_option( 'podloom_rss_funding_font_family', 'inherit' );
+	$funding_font_size        = get_option( 'podloom_rss_funding_font_size', '13px' );
+	$funding_background_color = get_option( 'podloom_rss_funding_background_color', '#2271b1' );
+	$funding_text_color       = get_option( 'podloom_rss_funding_text_color', '#ffffff' );
+	$funding_border_radius    = get_option( 'podloom_rss_funding_border_radius', '4px' );
+
 	// Calculate theme-aware colors for tabs and P2.0 elements
 	$theme_colors = podloom_calculate_theme_colors( $bg_color );
 
@@ -435,10 +450,24 @@ function podloom_get_rss_dynamic_css() {
 		'
         .wp-block-podloom-episode-player.rss-episode-player {
             background: %s;
+            border: %s %s %s;
+            border-radius: %s;
             max-height: %dpx;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+        }
+        /* Funding button styles */
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-funding-button {
+            font-family: %s;
+            font-size: %s;
+            background: %s;
+            color: %s;
+            border-radius: %s;
+        }
+        .wp-block-podloom-episode-player.rss-episode-player .podcast20-funding-button:hover {
+            background: %s;
+            color: %s;
         }
         .wp-block-podloom-episode-player.rss-episode-player .rss-episode-wrapper {
             flex-shrink: 0;
@@ -617,7 +646,21 @@ function podloom_get_rss_dynamic_css() {
         }
 ',
 		esc_attr( $bg_color ),
+		// Border styles
+		esc_attr( $border_width ),
+		esc_attr( $border_style ),
+		esc_attr( $border_color ),
+		esc_attr( $border_radius ),
 		absint( $player_height ),
+		// Funding button styles
+		esc_attr( $funding_font_family ),
+		esc_attr( $funding_font_size ),
+		esc_attr( $funding_background_color ),
+		esc_attr( $funding_text_color ),
+		esc_attr( $funding_border_radius ),
+		// Funding button hover (darken background slightly)
+		esc_attr( podloom_adjust_color_brightness( $funding_background_color, -15 ) ),
+		esc_attr( $funding_text_color ),
 		absint( $player_height + 100 ), // Mobile height - add 100px for stacked layout
 		// Mobile tab nav background
 		esc_attr( $theme_colors['content_bg'] ),
@@ -763,6 +806,17 @@ function podloom_enqueue_podcast20_assets() {
 		)
 	);
 
+	// Pass AJAX URL for background image caching (only if enabled)
+	if ( Podloom_Image_Cache::is_enabled() ) {
+		wp_localize_script(
+			'podloom-podcast20-player',
+			'podloomImageCache',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			)
+		);
+	}
+
 	echo '<!-- PodLoom: P2.0 assets loaded -->';
 }
 add_action( 'wp_footer', 'podloom_enqueue_podcast20_assets', 5 );
@@ -805,6 +859,17 @@ function podloom_enqueue_editor_styles() {
 		)
 	);
 
+	// Pass AJAX URL for background image caching (only if enabled)
+	if ( Podloom_Image_Cache::is_enabled() ) {
+		wp_localize_script(
+			'podloom-podcast20-player-editor',
+			'podloomImageCache',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+			)
+		);
+	}
+
 	// Add dynamic CSS based on user settings (colors, fonts, etc.)
 	$custom_css = podloom_get_rss_dynamic_css();
 	if ( $custom_css ) {
@@ -845,7 +910,11 @@ function podloom_render_block( $attributes ) {
 		if ( $display_mode === 'latest' ) {
 			$latest_episode = Podloom_RSS::get_latest_episode( $feed_id );
 			if ( ! $latest_episode ) {
-				return '';
+				// Cache is cold - a background refresh has been scheduled
+				// Show a minimal placeholder that doesn't break the page layout
+				return '<div class="wp-block-podloom-episode-player podloom-loading" style="padding: 20px; background: #f8f9fa; border: 1px dashed #dee2e6; border-radius: 4px; text-align: center;">' .
+						'<p style="margin: 0; color: #6c757d;">' . esc_html__( 'Loading podcast episode...', 'podloom-podcast-player' ) . '</p>' .
+						'</div>';
 			}
 
 			// Create temporary attributes with the latest episode data
@@ -1145,26 +1214,43 @@ function podloom_render_rss_episode( $attributes ) {
 	// Start building the output
 	$output = '<div class="wp-block-podloom-episode-player rss-episode-player">';
 
+	// Get funding button HTML (if available) - we'll place it in different locations for mobile vs desktop
+	$funding_button = '';
+	if ( ! empty( $episode['podcast20'] ) ) {
+		$funding_button = podloom_get_funding_button( $episode['podcast20'] );
+	}
+
+	// Mobile funding button (full width, shown only on mobile via CSS)
+	if ( ! empty( $funding_button ) ) {
+		$output .= '<div class="rss-funding-mobile">';
+		$output .= $funding_button;
+		$output .= '</div>';
+	}
+
 	// Add a wrapper for flexbox layout
 	$output .= '<div class="rss-episode-wrapper">';
 
-	// Episode artwork
+	// Episode artwork column (includes artwork + funding button on desktop/tablet)
 	if ( $show_artwork && ! empty( $episode['image'] ) ) {
+		$output .= '<div class="rss-episode-artwork-column">';
 		$output .= sprintf(
 			'<div class="rss-episode-artwork"><img src="%s" alt="%s" /></div>',
 			esc_url( $episode['image'] ),
 			esc_attr( $episode['title'] )
 		);
+
+		// Desktop/tablet funding button (below artwork, hidden on mobile via CSS)
+		if ( ! empty( $funding_button ) ) {
+			$output .= '<div class="rss-funding-desktop">';
+			$output .= $funding_button;
+			$output .= '</div>';
+		}
+
+		$output .= '</div>'; // .rss-episode-artwork-column
 	}
 
 	// Episode content container
 	$output .= '<div class="rss-episode-content">';
-
-	// Episode header with title and funding button
-	$output .= '<div class="rss-episode-header">';
-
-	// Title and meta in left section
-	$output .= '<div class="rss-episode-header-content">';
 
 	// Episode title
 	if ( $show_title && ! empty( $episode['title'] ) ) {
@@ -1198,20 +1284,6 @@ function podloom_render_rss_episode( $attributes ) {
 
 		$output .= '</div>';
 	}
-
-	$output .= '</div>'; // .rss-episode-header-content
-
-	// Funding button in top-right
-	if ( ! empty( $episode['podcast20'] ) ) {
-		$funding_button = podloom_get_funding_button( $episode['podcast20'] );
-		if ( ! empty( $funding_button ) ) {
-			$output .= '<div class="rss-episode-header-actions">';
-			$output .= $funding_button;
-			$output .= '</div>';
-		}
-	}
-
-	$output .= '</div>'; // .rss-episode-header
 
 	// Audio player (always shown) - uses native HTML5 audio controls
 	if ( ! empty( $episode['audio_url'] ) ) {

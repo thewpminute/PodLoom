@@ -56,43 +56,44 @@ function podloom_uninstall_delete_options() {
 	delete_option( 'podloom_rss_minimal_styling' );
 	delete_option( 'podloom_rss_player_height' );
 
+	// Border styling options
+	delete_option( 'podloom_rss_border_color' );
+	delete_option( 'podloom_rss_border_width' );
+	delete_option( 'podloom_rss_border_style' );
+	delete_option( 'podloom_rss_border_radius' );
+
+	// Funding button styling options
+	delete_option( 'podloom_rss_funding_font_family' );
+	delete_option( 'podloom_rss_funding_font_size' );
+	delete_option( 'podloom_rss_funding_background_color' );
+	delete_option( 'podloom_rss_funding_text_color' );
+	delete_option( 'podloom_rss_funding_border_radius' );
+
 	// Cache version option
 	delete_option( 'podloom_render_cache_version' );
+
+	// Image cache options
+	delete_option( 'podloom_cache_images' );
+	delete_option( 'podloom_cached_images' );
 }
 
 /**
  * Delete all cached data (transients)
+ *
+ * Uses a single comprehensive query to delete ALL podloom transients,
+ * including: cache, RSS episodes, editor cache, rate limits, image queue, etc.
  */
 function podloom_uninstall_delete_transients() {
 	global $wpdb;
 
-	// Delete all Transistor API cache transients
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deleting transients during uninstall, caching not applicable
+	// Delete ALL transients that start with 'podloom_' (comprehensive cleanup)
+	// This covers: podloom_cache_*, podloom_rss_*, podloom_editor_*, podloom_image_*, etc.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deleting transients during uninstall, caching not applicable
 	$wpdb->query(
 		$wpdb->prepare(
 			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
-			$wpdb->esc_like( '_transient_podloom_cache_' ) . '%',
-			$wpdb->esc_like( '_transient_timeout_podloom_cache_' ) . '%'
-		)
-	);
-
-	// Delete all RSS cache transients
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deleting transients during uninstall, caching not applicable
-	$wpdb->query(
-		$wpdb->prepare(
-			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
-			$wpdb->esc_like( '_transient_podloom_rss_episodes_' ) . '%',
-			$wpdb->esc_like( '_transient_timeout_podloom_rss_episodes_' ) . '%'
-		)
-	);
-
-	// Delete all editor rendered episode cache transients
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Deleting transients during uninstall, caching not applicable
-	$wpdb->query(
-		$wpdb->prepare(
-			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
-			$wpdb->esc_like( '_transient_podloom_editor_' ) . '%',
-			$wpdb->esc_like( '_transient_timeout_podloom_editor_' ) . '%'
+			$wpdb->esc_like( '_transient_podloom_' ) . '%',
+			$wpdb->esc_like( '_transient_timeout_podloom_' ) . '%'
 		)
 	);
 }

@@ -434,8 +434,24 @@ function podloom_delete_all_plugin_data() {
 	delete_option( 'podloom_rss_minimal_styling' );
 	delete_option( 'podloom_rss_player_height' );
 
+	// Delete border styling options
+	delete_option( 'podloom_rss_border_color' );
+	delete_option( 'podloom_rss_border_width' );
+	delete_option( 'podloom_rss_border_style' );
+	delete_option( 'podloom_rss_border_radius' );
+
+	// Delete funding button styling options
+	delete_option( 'podloom_rss_funding_font_family' );
+	delete_option( 'podloom_rss_funding_font_size' );
+	delete_option( 'podloom_rss_funding_background_color' );
+	delete_option( 'podloom_rss_funding_text_color' );
+	delete_option( 'podloom_rss_funding_border_radius' );
+
 	// Delete cache version option
 	delete_option( 'podloom_render_cache_version' );
+
+	// Delete image cache setting
+	delete_option( 'podloom_cache_images' );
 
 	// Clear all cached data
 	podloom_clear_all_cache();
@@ -447,4 +463,36 @@ function podloom_delete_all_plugin_data() {
 
 	// Clear editor rendered episode cache
 	podloom_clear_editor_cache();
+
+	// Delete all cached images from media library
+	if ( class_exists( 'Podloom_Image_Cache' ) ) {
+		Podloom_Image_Cache::delete_all_images();
+		Podloom_Image_Cache::clear_queue();
+	}
+
+	// Clear all remaining podloom transients (rate limits, etc.)
+	podloom_clear_all_transients();
+}
+
+/**
+ * Clear ALL podloom transients from the database.
+ *
+ * This is a comprehensive cleanup that removes any transient starting with 'podloom_'.
+ * Used during full plugin reset to ensure no orphaned data remains.
+ */
+function podloom_clear_all_transients() {
+	global $wpdb;
+
+	// Delete ALL transients that start with 'podloom_' (covers all patterns)
+	$pattern1 = $wpdb->esc_like( '_transient_podloom_' ) . '%';
+	$pattern2 = $wpdb->esc_like( '_transient_timeout_podloom_' ) . '%';
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+			$pattern1,
+			$pattern2
+		)
+	);
 }

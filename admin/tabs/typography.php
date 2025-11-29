@@ -58,19 +58,67 @@ function podloom_render_typography_settings( $all_options ) {
 			'font_weight' => $all_options[ "podloom_rss_{$element}_font_weight" ] ?? $defaults[ $element ]['font_weight'],
 		);
 	}
+
+	// Funding button defaults
+	$funding_defaults = array(
+		'font_family'      => 'inherit',
+		'font_size'        => '13px',
+		'background_color' => '#2271b1',
+		'text_color'       => '#ffffff',
+		'border_radius'    => '4px',
+	);
+
+	$funding = array(
+		'font_family'      => $all_options['podloom_rss_funding_font_family'] ?? $funding_defaults['font_family'],
+		'font_size'        => $all_options['podloom_rss_funding_font_size'] ?? $funding_defaults['font_size'],
+		'background_color' => $all_options['podloom_rss_funding_background_color'] ?? $funding_defaults['background_color'],
+		'text_color'       => $all_options['podloom_rss_funding_text_color'] ?? $funding_defaults['text_color'],
+		'border_radius'    => $all_options['podloom_rss_funding_border_radius'] ?? $funding_defaults['border_radius'],
+	);
+
+	// Player border defaults
+	$border_defaults = array(
+		'color'  => '#dddddd',
+		'width'  => '1px',
+		'style'  => 'solid',
+		'radius' => '8px',
+	);
+
+	$border = array(
+		'color'  => $all_options['podloom_rss_border_color'] ?? $border_defaults['color'],
+		'width'  => $all_options['podloom_rss_border_width'] ?? $border_defaults['width'],
+		'style'  => $all_options['podloom_rss_border_style'] ?? $border_defaults['style'],
+		'radius' => $all_options['podloom_rss_border_radius'] ?? $border_defaults['radius'],
+	);
 	?>
 
 	<div class="podloom-accordion-container">
 		<div class="podloom-accordion-header" id="typography-accordion-toggle">
 			<span class="dashicons dashicons-admin-customizer" style="color: #2271b1; margin-right: 8px;"></span>
-			<strong><?php esc_html_e( 'Advanced Typography Settings', 'podloom-podcast-player' ); ?></strong>
+			<strong><?php esc_html_e( 'Advanced Typography & Player Style Settings', 'podloom-podcast-player' ); ?></strong>
 			<span class="description" style="margin-left: 10px;">
 				<?php esc_html_e( 'Click to customize fonts, sizes, and colors', 'podloom-podcast-player' ); ?>
 			</span>
 			<span class="dashicons dashicons-arrow-down-alt2 podloom-accordion-arrow"></span>
 		</div>
 		<div class="podloom-accordion-content" id="typography-accordion-content" style="display: none;">
-			<div class="typography-settings-container">
+			<!-- Minimal Styling Mode Toggle -->
+			<div class="podloom-toggle-row" id="minimal-styling-toggle" style="border-top: none; margin-top: 0; padding: 20px 0;">
+				<input type="checkbox" id="podloom_rss_minimal_styling" name="podloom_rss_minimal_styling" value="1" <?php checked( $all_options['podloom_rss_minimal_styling'] ?? false, true ); ?> />
+				<div class="podloom-toggle-info">
+					<span class="podloom-toggle-label"><?php esc_html_e( 'Minimal Styling Mode', 'podloom-podcast-player' ); ?></span>
+					<span class="podloom-toggle-description"><?php esc_html_e( 'Disable plugin styling and use your theme\'s CSS instead. Shows available CSS classes below.', 'podloom-podcast-player' ); ?></span>
+				</div>
+			</div>
+
+			<!-- CSS Classes Notice (shown when minimal styling is enabled) -->
+			<div id="minimal-styling-notice" class="notice notice-info inline" style="margin: 0 0 20px 0; <?php echo ( $all_options['podloom_rss_minimal_styling'] ?? false ) ? '' : 'display: none;'; ?>">
+				<p><strong><?php esc_html_e( 'Minimal Styling Mode is enabled.', 'podloom-podcast-player' ); ?></strong> <?php esc_html_e( 'Typography and color settings are disabled. Add your own CSS using the following classes:', 'podloom-podcast-player' ); ?></p>
+				<p><strong><?php esc_html_e( 'Episode Elements:', 'podloom-podcast-player' ); ?></strong> <code>.rss-episode-player</code>, <code>.rss-episode-title</code>, <code>.rss-episode-date</code>, <code>.rss-episode-duration</code>, <code>.rss-episode-description</code>, <code>.rss-episode-artwork</code>, <code>.rss-episode-audio</code></p>
+				<p><strong><?php esc_html_e( 'Podcasting 2.0 Elements:', 'podloom-podcast-player' ); ?></strong> <code>.podcast20-tabs</code>, <code>.podcast20-tab-button</code>, <code>.podcast20-tab-panel</code>, <code>.podcast20-funding-button</code>, <code>.podcast20-transcripts</code>, <code>.transcript-format-button</code>, <code>.transcript-viewer</code>, <code>.podcast20-people</code>, <code>.podcast20-person</code>, <code>.podcast20-person-name</code>, <code>.podcast20-chapters-list</code>, <code>.chapter-item</code>, <code>.chapter-title</code>, <code>.chapter-timestamp</code></p>
+			</div>
+
+			<div class="typography-settings-container" style="<?php echo ( $all_options['podloom_rss_minimal_styling'] ?? false ) ? 'display: none;' : ''; ?>">
 			<div class="typography-controls">
 				<!-- Background Color Section -->
 				<div class="typography-element-section">
@@ -155,14 +203,123 @@ function podloom_render_typography_settings( $all_options ) {
 				</table>
 			</div>
 			<?php endforeach; ?>
+
+			<!-- Player Border Settings -->
+			<div class="typography-element-section" id="border_settings_section">
+				<h4><?php esc_html_e( 'Player Border', 'podloom-podcast-player' ); ?></h4>
+				<table class="form-table">
+					<tr>
+						<th><label><?php esc_html_e( 'Border Color', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<input type="color" id="podloom_rss_border_color" name="podloom_rss_border_color" value="<?php echo esc_attr( $border['color'] ); ?>" class="typo-control color-picker">
+						</td>
+					</tr>
+					<tr>
+						<th><label><?php esc_html_e( 'Border Width', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<input type="range" id="podloom_rss_border_width_range" min="0" max="10" step="1" value="<?php echo esc_attr( (int) $border['width'] ); ?>" style="flex: 1;">
+								<input type="number" id="podloom_rss_border_width_value" name="podloom_rss_border_width" min="0" max="20" step="1" value="<?php echo esc_attr( (int) $border['width'] ); ?>" class="small-text" style="width: 70px;">
+								<span style="width: 30px;">px</span>
+							</div>
+						</td>
+					</tr>
+					<tr>
+						<th><label><?php esc_html_e( 'Border Style', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<select id="podloom_rss_border_style" name="podloom_rss_border_style" class="regular-text">
+								<option value="solid" <?php selected( $border['style'], 'solid' ); ?>><?php esc_html_e( 'Solid', 'podloom-podcast-player' ); ?></option>
+								<option value="dashed" <?php selected( $border['style'], 'dashed' ); ?>><?php esc_html_e( 'Dashed', 'podloom-podcast-player' ); ?></option>
+								<option value="dotted" <?php selected( $border['style'], 'dotted' ); ?>><?php esc_html_e( 'Dotted', 'podloom-podcast-player' ); ?></option>
+								<option value="double" <?php selected( $border['style'], 'double' ); ?>><?php esc_html_e( 'Double', 'podloom-podcast-player' ); ?></option>
+								<option value="none" <?php selected( $border['style'], 'none' ); ?>><?php esc_html_e( 'None', 'podloom-podcast-player' ); ?></option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th><label><?php esc_html_e( 'Border Radius', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<input type="range" id="podloom_rss_border_radius_range" min="0" max="30" step="1" value="<?php echo esc_attr( (int) $border['radius'] ); ?>" style="flex: 1;">
+								<input type="number" id="podloom_rss_border_radius_value" name="podloom_rss_border_radius" min="0" max="50" step="1" value="<?php echo esc_attr( (int) $border['radius'] ); ?>" class="small-text" style="width: 70px;">
+								<span style="width: 30px;">px</span>
+							</div>
+						</td>
+					</tr>
+				</table>
+			</div>
+
+			<!-- Funding Button Settings -->
+			<div class="typography-element-section" id="funding_settings_section">
+				<h4><?php esc_html_e( 'Funding Button', 'podloom-podcast-player' ); ?></h4>
+				<table class="form-table">
+					<tr>
+						<th><label><?php esc_html_e( 'Font Family', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<select id="podloom_rss_funding_font_family" name="podloom_rss_funding_font_family" class="regular-text">
+								<option value="inherit" <?php selected( $funding['font_family'], 'inherit' ); ?>><?php esc_html_e( 'Inherit', 'podloom-podcast-player' ); ?></option>
+								<option value="Arial, sans-serif" <?php selected( $funding['font_family'], 'Arial, sans-serif' ); ?>>Arial</option>
+								<option value="Helvetica, sans-serif" <?php selected( $funding['font_family'], 'Helvetica, sans-serif' ); ?>>Helvetica</option>
+								<option value="'Times New Roman', serif" <?php selected( $funding['font_family'], "'Times New Roman', serif" ); ?>>Times New Roman</option>
+								<option value="Georgia, serif" <?php selected( $funding['font_family'], 'Georgia, serif' ); ?>>Georgia</option>
+								<option value="'Courier New', monospace" <?php selected( $funding['font_family'], "'Courier New', monospace" ); ?>>Courier New</option>
+								<option value="Verdana, sans-serif" <?php selected( $funding['font_family'], 'Verdana, sans-serif' ); ?>>Verdana</option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th><label><?php esc_html_e( 'Font Size', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<input type="range" id="podloom_rss_funding_font_size_range" min="10" max="24" step="1" value="<?php echo esc_attr( (int) $funding['font_size'] ); ?>" style="flex: 1;">
+								<input type="number" id="podloom_rss_funding_font_size_value" name="podloom_rss_funding_font_size" min="8" max="32" step="1" value="<?php echo esc_attr( (int) $funding['font_size'] ); ?>" class="small-text" style="width: 70px;">
+								<span style="width: 30px;">px</span>
+							</div>
+						</td>
+					</tr>
+					<tr>
+						<th><label><?php esc_html_e( 'Background Color', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<input type="color" id="podloom_rss_funding_background_color" name="podloom_rss_funding_background_color" value="<?php echo esc_attr( $funding['background_color'] ); ?>" class="typo-control color-picker">
+						</td>
+					</tr>
+					<tr>
+						<th><label><?php esc_html_e( 'Text Color', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<input type="color" id="podloom_rss_funding_text_color" name="podloom_rss_funding_text_color" value="<?php echo esc_attr( $funding['text_color'] ); ?>" class="typo-control color-picker">
+						</td>
+					</tr>
+					<tr>
+						<th><label><?php esc_html_e( 'Border Radius', 'podloom-podcast-player' ); ?></label></th>
+						<td>
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<input type="range" id="podloom_rss_funding_border_radius_range" min="0" max="30" step="1" value="<?php echo esc_attr( (int) $funding['border_radius'] ); ?>" style="flex: 1;">
+								<input type="number" id="podloom_rss_funding_border_radius_value" name="podloom_rss_funding_border_radius" min="0" max="50" step="1" value="<?php echo esc_attr( (int) $funding['border_radius'] ); ?>" class="small-text" style="width: 70px;">
+								<span style="width: 30px;">px</span>
+							</div>
+						</td>
+					</tr>
+				</table>
+			</div>
 		</div>
 
 		<div class="typography-preview">
 			<h4><?php esc_html_e( 'Live Preview', 'podloom-podcast-player' ); ?></h4>
-			<div id="rss-episode-preview" class="rss-episode-player" style="background: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
+			<div id="rss-episode-preview" class="rss-episode-player" style="background: #f9f9f9; border: <?php echo esc_attr( $border['width'] ); ?>px <?php echo esc_attr( $border['style'] ); ?> <?php echo esc_attr( $border['color'] ); ?>; border-radius: <?php echo esc_attr( (int) $border['radius'] ); ?>px; padding: 20px;">
 				<div class="rss-episode-wrapper" style="display: flex; gap: 20px; align-items: flex-start;">
-					<div id="preview-artwork" class="rss-episode-artwork" style="flex-shrink: 0; width: 200px;">
-						<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect fill='%23f0f0f0' width='300' height='300'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='18' fill='%23666'%3EPodcast Artwork%3C/text%3E%3C/svg%3E" alt="<?php esc_attr_e( 'Podcast Artwork', 'podloom-podcast-player' ); ?>" style="width: 100%; height: auto; border-radius: 4px; display: block;">
+					<div class="rss-episode-artwork-column" style="flex-shrink: 0; width: 200px;">
+						<div id="preview-artwork" class="rss-episode-artwork">
+							<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Crect fill='%23f0f0f0' width='300' height='300'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='18' fill='%23666'%3EPodcast Artwork%3C/text%3E%3C/svg%3E" alt="<?php esc_attr_e( 'Podcast Artwork', 'podloom-podcast-player' ); ?>" style="width: 100%; height: auto; border-radius: 4px; display: block;">
+						</div>
+						<div class="rss-funding-desktop" style="margin-top: 12px;">
+							<a href="#" id="preview-funding-button" class="podcast20-funding-button" style="display: inline-flex; align-items: center; gap: 6px; width: 100%; justify-content: center; box-sizing: border-box; text-decoration: none; font-weight: 500; font-family: <?php echo esc_attr( $funding['font_family'] ); ?>; font-size: <?php echo esc_attr( (int) $funding['font_size'] ); ?>px; background: <?php echo esc_attr( $funding['background_color'] ); ?>; color: <?php echo esc_attr( $funding['text_color'] ); ?>; padding: 8px 16px; border-radius: <?php echo esc_attr( (int) $funding['border_radius'] ); ?>px;" onclick="return false;">
+								<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+									<path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+									<path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+								</svg>
+								<span><?php esc_html_e( 'Support the Show', 'podloom-podcast-player' ); ?></span>
+							</a>
+						</div>
 					</div>
 					<div class="rss-episode-content" style="flex: 1; min-width: 0;">
 						<h3 id="preview-title" class="rss-episode-title" style="margin: 0 0 10px 0;">Sample Episode Title</h3>

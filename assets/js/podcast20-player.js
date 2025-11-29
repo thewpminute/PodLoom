@@ -737,11 +737,46 @@
     /**
      * Initialize all features when DOM is ready
      */
+    /**
+     * Process queued images for background caching
+     * This runs after page load to avoid blocking rendering
+     */
+    function processImageCacheQueue() {
+        // Check if we have the ajax URL (only available if image caching is enabled)
+        if (typeof podloomImageCache === 'undefined' || !podloomImageCache.ajaxUrl) {
+            return;
+        }
+
+        // Use fetch to process the queue in the background
+        fetch(podloomImageCache.ajaxUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'action=podloom_process_image_cache'
+        })
+            .then(function (response) {
+                return response.json();
+            })
+            .then(function (data) {
+                if (data.success && data.data.remaining > 0) {
+                    // More images to process, continue after a short delay
+                    setTimeout(processImageCacheQueue, 1000);
+                }
+            })
+            .catch(function () {
+                // Silently fail - image caching is not critical
+            });
+    }
+
     function init() {
         initTabSwitching();
         initChapterNavigation();
         initTranscriptLoaders();
         initSkipButtons();
+
+        // Process image cache queue after a short delay (let page render first)
+        setTimeout(processImageCacheQueue, 500);
     }
 
     if (document.readyState === 'loading') {

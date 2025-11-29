@@ -89,12 +89,19 @@ function podloom_enqueue_admin_scripts( $hook ) {
 				// Messages
 				'errorAddingFeed'      => __( 'Error adding feed.', 'podloom-podcast-player' ),
 				'errorUpdatingFeed'    => __( 'Error updating feed name.', 'podloom-podcast-player' ),
+				'errorRefreshingFeed'  => __( 'Error refreshing feed', 'podloom-podcast-player' ),
 				'errorLoadingFeed'     => __( 'Error loading feed', 'podloom-podcast-player' ),
 				'errorSavingSettings'  => __( 'Error saving settings.', 'podloom-podcast-player' ),
 				'settingsSavedSuccess' => __( 'RSS settings saved successfully!', 'podloom-podcast-player' ),
 				'unknownError'         => __( 'Unknown error', 'podloom-podcast-player' ),
 				'deleteFeedConfirm'    => __( 'Are you sure you want to delete this RSS feed? This action cannot be undone.', 'podloom-podcast-player' ),
 				'rssFeedXml'           => __( 'RSS Feed XML', 'podloom-podcast-player' ),
+
+				// Feed refresh status messages
+				'feedUpToDate'         => __( 'Feed is up to date', 'podloom-podcast-player' ),
+				'feedRefreshed'        => __( 'Feed refreshed', 'podloom-podcast-player' ),
+				'episodes'             => __( 'episodes', 'podloom-podcast-player' ),
+				'usingCachedData'      => __( 'using cached data', 'podloom-podcast-player' ),
 			),
 		)
 	);
@@ -209,15 +216,49 @@ function podloom_render_settings_page() {
 	$error_message   = '';
 
 	// Handle clear cache request
-    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified on next line
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified on next line
 	if ( isset( $_POST['podloom_clear_cache'] ) ) {
 		check_admin_referer( 'podloom_clear_cache', 'podloom_clear_cache_nonce' );
+
+		// Clear Transistor API cache
 		podloom_clear_all_cache();
-		$success_message = esc_html__( 'Cache cleared successfully!', 'podloom-podcast-player' );
+
+		// Clear RSS episode cache and force refresh all feeds (bypassing ETag/Last-Modified)
+		Podloom_RSS::clear_all_caches();
+
+		// Force refresh all RSS feeds to get fresh data
+		$feeds           = Podloom_RSS::get_feeds();
+		$refreshed_count = 0;
+		foreach ( $feeds as $feed_id => $feed_data ) {
+			// Use force=true to bypass conditional headers and fetch fresh content
+			$result = Podloom_RSS::refresh_feed( $feed_id, true );
+			if ( ! empty( $result['success'] ) ) {
+				++$refreshed_count;
+			}
+		}
+
+		$success_message = sprintf(
+			/* translators: %d: number of feeds refreshed */
+			esc_html__( 'Cache cleared and %d RSS feed(s) refreshed!', 'podloom-podcast-player' ),
+			$refreshed_count
+		);
+	}
+
+	// Handle delete cached images request
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified on next line
+	if ( isset( $_POST['podloom_delete_cached_images'] ) ) {
+		check_admin_referer( 'podloom_delete_cached_images', 'podloom_delete_cached_images_nonce' );
+
+		$deleted_count   = Podloom_Image_Cache::delete_all_images();
+		$success_message = sprintf(
+			/* translators: %d: number of images deleted */
+			esc_html__( '%d cached image(s) deleted from the media library.', 'podloom-podcast-player' ),
+			$deleted_count
+		);
 	}
 
 	// Handle plugin reset validation error (successful reset is handled in admin_init hook)
-    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified on next line
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified on next line
 	if ( isset( $_POST['podloom_reset_plugin'] ) ) {
 		check_admin_referer( 'podloom_reset_plugin', 'podloom_reset_plugin_nonce' );
 
@@ -235,9 +276,12 @@ function podloom_render_settings_page() {
 	}
 
 	// Handle form submission
-    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified on next line
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified on next line
 	if ( isset( $_POST['podloom_settings_submit'] ) ) {
 		check_admin_referer( 'podloom_settings_save', 'podloom_settings_nonce' );
+
+		// Determine which tab submitted the form
+		$settings_tab = isset( $_POST['podloom_settings_tab'] ) ? sanitize_text_field( wp_unslash( $_POST['podloom_settings_tab'] ) ) : '';
 
 		$api_key      = isset( $_POST['podloom_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['podloom_api_key'] ) ) : '';
 		$default_show = isset( $_POST['podloom_default_show'] ) ? sanitize_text_field( wp_unslash( $_POST['podloom_default_show'] ) ) : '';
@@ -245,39 +289,45 @@ function podloom_render_settings_page() {
 		// Handle checkbox - when checked it's '1', when unchecked the field is not submitted
 		$enable_cache   = isset( $_POST['podloom_enable_cache'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_enable_cache'] ) ) === '1';
 		$cache_duration = isset( $_POST['podloom_cache_duration'] ) ? absint( wp_unslash( $_POST['podloom_cache_duration'] ) ) : 21600;
+		$cache_images   = isset( $_POST['podloom_cache_images'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_cache_images'] ) ) === '1';
 
 		update_option( 'podloom_api_key', $api_key );
 		update_option( 'podloom_default_show', $default_show );
 		update_option( 'podloom_enable_cache', $enable_cache );
 		update_option( 'podloom_cache_duration', $cache_duration );
+		update_option( 'podloom_cache_images', $cache_images );
 
-		// Save RSS Settings
-		$rss_enabled = isset( $_POST['podloom_rss_enabled'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_rss_enabled'] ) ) === '1';
-		update_option( 'podloom_rss_enabled', $rss_enabled );
+		// Only update RSS settings if NOT submitted from the General tab
+		// RSS settings are saved via AJAX from the RSS tab, so we don't want to overwrite them here
+		if ( 'general' !== $settings_tab ) {
+			// Save RSS Settings
+			$rss_enabled = isset( $_POST['podloom_rss_enabled'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_rss_enabled'] ) ) === '1';
+			update_option( 'podloom_rss_enabled', $rss_enabled );
 
-		// RSS Display Settings
-		$rss_display_settings = array(
-			'podloom_rss_display_artwork',
-			'podloom_rss_display_title',
-			'podloom_rss_display_date',
-			'podloom_rss_display_duration',
-			'podloom_rss_display_description',
-			'podloom_rss_display_skip_buttons',
-			'podloom_rss_display_funding',
-			'podloom_rss_display_transcripts',
-			'podloom_rss_display_people_hosts',
-			'podloom_rss_display_people_guests',
-			'podloom_rss_display_chapters',
-		);
+			// RSS Display Settings
+			$rss_display_settings = array(
+				'podloom_rss_display_artwork',
+				'podloom_rss_display_title',
+				'podloom_rss_display_date',
+				'podloom_rss_display_duration',
+				'podloom_rss_display_description',
+				'podloom_rss_display_skip_buttons',
+				'podloom_rss_display_funding',
+				'podloom_rss_display_transcripts',
+				'podloom_rss_display_people_hosts',
+				'podloom_rss_display_people_guests',
+				'podloom_rss_display_chapters',
+			);
 
-		foreach ( $rss_display_settings as $setting ) {
-			$value = isset( $_POST[ $setting ] ) && sanitize_text_field( wp_unslash( $_POST[ $setting ] ) ) === '1';
-			update_option( $setting, $value );
-		}
+			foreach ( $rss_display_settings as $setting ) {
+				$value = isset( $_POST[ $setting ] ) && sanitize_text_field( wp_unslash( $_POST[ $setting ] ) ) === '1';
+				update_option( $setting, $value );
+			}
 
-		// RSS Color Settings
-		if ( isset( $_POST['podloom_rss_background_color'] ) ) {
-			update_option( 'podloom_rss_background_color', sanitize_hex_color( wp_unslash( $_POST['podloom_rss_background_color'] ) ) );
+			// RSS Color Settings
+			if ( isset( $_POST['podloom_rss_background_color'] ) ) {
+				update_option( 'podloom_rss_background_color', sanitize_hex_color( wp_unslash( $_POST['podloom_rss_background_color'] ) ) );
+			}
 		}
 
 		// Clear cache when settings change

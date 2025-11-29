@@ -146,12 +146,12 @@ class Podloom_RSS {
 
 		// Always do initial refresh synchronously to ensure feed is validated before use
 		// This prevents race condition where invalid feeds could be saved
-		$refresh_result = self::refresh_feed( $feed_id );
+		$refresh_result = self::refresh_feed( $feed_id, true ); // Force full refresh for new feeds
 
 		// Update validation status based on refresh result
 		$feeds = self::get_feeds();
 		if ( isset( $feeds[ $feed_id ] ) ) {
-			$feeds[ $feed_id ]['valid'] = ! empty( $refresh_result );
+			$feeds[ $feed_id ]['valid'] = ! empty( $refresh_result['success'] );
 			update_option( 'podloom_rss_feeds', $feeds );
 		}
 
@@ -283,10 +283,15 @@ class Podloom_RSS {
 	/**
 	 * Refresh a feed (fetch and cache episodes)
 	 *
-	 * @param string $feed_id Feed ID
-	 * @return array Result with success status and message
+	 * Uses HTTP conditional requests (ETag/Last-Modified) to avoid re-downloading
+	 * unchanged feeds. This makes it safe to use shorter cache durations without
+	 * hammering remote podcast hosts.
+	 *
+	 * @param string $feed_id Feed ID.
+	 * @param bool   $force   Force full refresh, bypassing conditional headers. Default false.
+	 * @return array Result with success status, message, and status code.
 	 */
-	public static function refresh_feed( $feed_id ) {
+	public static function refresh_feed( $feed_id, $force = false ) {
 		$feed_data = self::get_feed( $feed_id );
 
 		if ( ! $feed_data ) {
@@ -296,15 +301,27 @@ class Podloom_RSS {
 			);
 		}
 
-		// Clear existing cache before refresh (handles both object cache and transients)
-		podloom_cache_delete( 'rss_episodes_' . $feed_id );
-
-		// Clear SimplePie cache for this feed
+		// Clear SimplePie cache for this feed (separate from our episode cache)
 		$cache_location = WP_CONTENT_DIR . '/cache/simplepie';
 		if ( file_exists( $cache_location ) ) {
 			$cache_file = $cache_location . '/' . md5( $feed_data['url'] ) . '.spc';
 			if ( file_exists( $cache_file ) ) {
 				wp_delete_file( $cache_file );
+			}
+		}
+
+		// Build request headers
+		$request_headers = array(
+			'User-Agent' => 'PodLoom WordPress Plugin',
+		);
+
+		// Add conditional headers if not forcing and we have cached values
+		if ( ! $force ) {
+			if ( ! empty( $feed_data['etag'] ) ) {
+				$request_headers['If-None-Match'] = $feed_data['etag'];
+			}
+			if ( ! empty( $feed_data['last_modified'] ) ) {
+				$request_headers['If-Modified-Since'] = $feed_data['last_modified'];
 			}
 		}
 
@@ -315,22 +332,55 @@ class Podloom_RSS {
 				'timeout'            => 15,
 				'redirection'        => 3, // Limit redirects to prevent redirect chains
 				'reject_unsafe_urls' => true, // WordPress built-in SSRF protection
-				'headers'            => array(
-					'User-Agent' => 'PodLoom WordPress Plugin',
-				),
+				'headers'            => $request_headers,
 			)
 		);
 
 		if ( is_wp_error( $response ) ) {
-			// Mark feed as invalid
+			// Mark feed as having issues, but DO NOT delete existing cache
+			// This preserves last-known-good data when the feed is temporarily unavailable
 			$feeds                             = self::get_feeds();
 			$feeds[ $feed_id ]['valid']        = false;
 			$feeds[ $feed_id ]['last_checked'] = time();
 			update_option( 'podloom_rss_feeds', $feeds );
 
 			return array(
-				'success' => false,
-				'message' => 'Could not fetch feed: ' . $response->get_error_message(),
+				'success'     => false,
+				'message'     => 'Could not fetch feed: ' . $response->get_error_message(),
+				'status_code' => 0,
+				'cache_kept'  => true,
+			);
+		}
+
+		$status_code = wp_remote_retrieve_response_code( $response );
+
+		// Handle 304 Not Modified - feed hasn't changed
+		if ( 304 === $status_code ) {
+			$feeds                             = self::get_feeds();
+			$feeds[ $feed_id ]['valid']        = true;
+			$feeds[ $feed_id ]['last_checked'] = time();
+			update_option( 'podloom_rss_feeds', $feeds );
+
+			return array(
+				'success'     => true,
+				'message'     => 'Feed is up to date',
+				'status_code' => 304,
+				'not_modified'=> true,
+			);
+		}
+
+		// Handle non-200 responses (but not 304 which we handled above)
+		if ( $status_code < 200 || $status_code >= 300 ) {
+			$feeds                             = self::get_feeds();
+			$feeds[ $feed_id ]['valid']        = false;
+			$feeds[ $feed_id ]['last_checked'] = time();
+			update_option( 'podloom_rss_feeds', $feeds );
+
+			return array(
+				'success'     => false,
+				'message'     => 'Feed returned HTTP ' . $status_code,
+				'status_code' => $status_code,
+				'cache_kept'  => true,
 			);
 		}
 
@@ -348,15 +398,18 @@ class Podloom_RSS {
 		$feed->init();
 
 		if ( $feed->error() ) {
-			// Mark feed as invalid
+			// Mark feed as invalid but DO NOT delete existing cache
+			// This preserves last-known-good data when feed XML is temporarily broken
 			$feeds                             = self::get_feeds();
 			$feeds[ $feed_id ]['valid']        = false;
 			$feeds[ $feed_id ]['last_checked'] = time();
 			update_option( 'podloom_rss_feeds', $feeds );
 
 			return array(
-				'success' => false,
-				'message' => 'Invalid RSS feed: ' . $feed->error(),
+				'success'     => false,
+				'message'     => 'Invalid RSS feed: ' . $feed->error(),
+				'status_code' => $status_code,
+				'cache_kept'  => true,
 			);
 		}
 
@@ -370,6 +423,12 @@ class Podloom_RSS {
 		// Parse channel-level P2.0 data (applies to all episodes)
 		$channel_p20_data = $p20_parser->parse_from_simplepie_channel( $feed );
 
+		// Get the podcast cover image (channel-level) and cache it if image caching is enabled.
+		$podcast_cover_url = $feed->get_image_url() ? $feed->get_image_url() : '';
+		if ( ! empty( $podcast_cover_url ) && Podloom_Image_Cache::is_enabled() ) {
+			$podcast_cover_url = Podloom_Image_Cache::get_local_url( $podcast_cover_url, 'cover', $feed_id );
+		}
+
 		foreach ( $items as $item ) {
 			$enclosure = $item->get_enclosure();
 
@@ -378,6 +437,24 @@ class Podloom_RSS {
 
 			// Merge channel and item data (item takes precedence)
 			$p20_data = $p20_parser->merge_data( $item_p20_data, $channel_p20_data );
+
+			// Get episode image (item thumbnail or fallback to podcast cover).
+			$episode_image_url = '';
+			$thumbnail         = $item->get_thumbnail();
+			if ( $thumbnail && ! empty( $thumbnail['url'] ) ) {
+				$episode_image_url = $thumbnail['url'];
+				// Cache episode-specific artwork if different from podcast cover.
+				if ( Podloom_Image_Cache::is_enabled() ) {
+					$episode_image_url = Podloom_Image_Cache::get_local_url( $episode_image_url, 'cover', $feed_id );
+				}
+			} else {
+				// Use podcast cover (already cached above).
+				$episode_image_url = $podcast_cover_url;
+			}
+
+			// Note: Chapter images are cached lazily when the episode is rendered,
+			// not during feed refresh. This avoids downloading images for episodes
+			// that may never be embedded. See podloom_cache_chapter_images().
 
 			$episode = array(
 				'id'          => md5( $item->get_permalink() ),
@@ -390,15 +467,24 @@ class Podloom_RSS {
 				'audio_url'   => $enclosure ? $enclosure->get_link() : '',
 				'audio_type'  => $enclosure ? $enclosure->get_type() : '',
 				'duration'    => $enclosure ? $enclosure->get_duration() : '',
-				'image'       => $item->get_thumbnail() ? $item->get_thumbnail()['url'] : ( $feed->get_image_url() ? $feed->get_image_url() : '' ),
-				'podcast20'   => $p20_data, // Add P2.0 data
+				'image'       => $episode_image_url,
+				'podcast20'   => $p20_data,
 			);
 
 			$episodes[] = $episode;
 		}
 
-		// Cache episodes with configurable duration (uses object cache if available)
-		// Uses the general cache duration setting from Settings → General
+		/*
+		 * Cache episodes with configurable duration (uses object cache if available).
+		 *
+		 * This duration controls how often PodLoom checks for new episodes.
+		 * Since we now use HTTP conditional requests (ETag/Last-Modified), it's safe
+		 * to use shorter durations (e.g., 1-2 hours) without overloading podcast hosts:
+		 * - If the feed hasn't changed, the server returns 304 Not Modified (~200 bytes)
+		 * - Full feed content is only downloaded when there are actual changes
+		 *
+		 * @see Settings → General → Cache Duration
+		 */
 		$cache_duration = get_option( 'podloom_cache_duration', 21600 ); // Default: 6 hours
 
 		/**
@@ -423,16 +509,30 @@ class Podloom_RSS {
 		// Uses atomic increment function to avoid race conditions
 		podloom_increment_render_cache_version();
 
-		// Update feed metadata
+		// Extract ETag and Last-Modified headers for future conditional requests
+		$response_etag          = wp_remote_retrieve_header( $response, 'etag' );
+		$response_last_modified = wp_remote_retrieve_header( $response, 'last-modified' );
+
+		// Update feed metadata including conditional request headers
 		$feeds                              = self::get_feeds();
 		$feeds[ $feed_id ]['valid']         = true;
 		$feeds[ $feed_id ]['last_checked']  = time();
 		$feeds[ $feed_id ]['episode_count'] = count( $episodes );
+
+		// Store headers for conditional requests (may be empty if server doesn't support them)
+		if ( ! empty( $response_etag ) ) {
+			$feeds[ $feed_id ]['etag'] = $response_etag;
+		}
+		if ( ! empty( $response_last_modified ) ) {
+			$feeds[ $feed_id ]['last_modified'] = $response_last_modified;
+		}
+
 		update_option( 'podloom_rss_feeds', $feeds );
 
 		return array(
 			'success'       => true,
 			'message'       => 'Feed refreshed successfully',
+			'status_code'   => 200,
 			'episode_count' => count( $episodes ),
 		);
 	}
@@ -456,7 +556,7 @@ class Podloom_RSS {
 			$episodes = false;
 		}
 
-		// If no cache, refresh feed
+		// If no cache, handle based on context
 		if ( $episodes === false ) {
 			// If remote fetch is disabled (e.g. in editor), return empty result immediately
 			if ( ! $allow_remote_fetch ) {
@@ -469,6 +569,24 @@ class Podloom_RSS {
 				);
 			}
 
+			// On frontend, never block page load with synchronous fetch
+			// Schedule background refresh and return empty - cron will populate cache
+			if ( ! is_admin() && ! wp_doing_ajax() && ! ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+				// Schedule immediate background refresh if not already scheduled
+				if ( ! wp_next_scheduled( 'podloom_refresh_rss_feed', array( $feed_id ) ) ) {
+					wp_schedule_single_event( time(), 'podloom_refresh_rss_feed', array( $feed_id ) );
+				}
+
+				return array(
+					'episodes' => array(),
+					'total'    => 0,
+					'page'     => $page,
+					'pages'    => 0,
+					'error'    => 'cache_miss',
+				);
+			}
+
+			// In admin/AJAX contexts, allow synchronous fetch for immediate feedback
 			$result = self::refresh_feed( $feed_id );
 			if ( ! $result['success'] ) {
 				return array(

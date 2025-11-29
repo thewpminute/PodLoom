@@ -153,20 +153,23 @@ function podloom_ajax_refresh_rss_feed() {
 	// Get updated feed data
 	$feed = Podloom_RSS::get_feed( $feed_id );
 
+	// Build response with status details
+	$response = array(
+		'message'      => $result['message'],
+		'feed'         => $feed,
+		'status_code'  => isset( $result['status_code'] ) ? $result['status_code'] : null,
+		'not_modified' => isset( $result['not_modified'] ) ? $result['not_modified'] : false,
+		'cache_kept'   => isset( $result['cache_kept'] ) ? $result['cache_kept'] : false,
+	);
+
+	if ( isset( $result['episode_count'] ) ) {
+		$response['episode_count'] = $result['episode_count'];
+	}
+
 	if ( $result['success'] ) {
-		wp_send_json_success(
-			array(
-				'message' => $result['message'],
-				'feed'    => $feed,
-			)
-		);
+		wp_send_json_success( $response );
 	} else {
-		wp_send_json_error(
-			array(
-				'message' => $result['message'],
-				'feed'    => $feed,
-			)
-		);
+		wp_send_json_error( $response );
 	}
 }
 add_action( 'wp_ajax_podloom_refresh_rss_feed', 'podloom_ajax_refresh_rss_feed' );
@@ -444,3 +447,75 @@ function podloom_ajax_render_rss_episode() {
 	);
 }
 add_action( 'wp_ajax_podloom_render_rss_episode', 'podloom_ajax_render_rss_episode' );
+
+/**
+ * AJAX Handler: Process Image Cache Queue
+ *
+ * Processes queued images for background caching.
+ * Called via AJAX after page load to avoid blocking rendering.
+ */
+function podloom_ajax_process_image_cache() {
+	// No nonce check - this is a background process that runs on page load.
+	// Security is handled by: rate limiting, URL validation in cache_image(),
+	// and the fact that it only processes URLs already queued during rendering.
+
+	// Rate limiting: 20 requests per minute per IP.
+	if ( ! Podloom_RSS::check_rate_limit( 'image_cache', 20, 60 ) ) {
+		wp_send_json_error( array( 'message' => 'Rate limit exceeded' ), 429 );
+		return;
+	}
+
+	// Check if image caching is enabled.
+	if ( ! Podloom_Image_Cache::is_enabled() ) {
+		wp_send_json_error( array( 'message' => 'Image caching is disabled' ) );
+		return;
+	}
+
+	// Get the queue.
+	$queue = Podloom_Image_Cache::get_queue();
+
+	if ( empty( $queue ) ) {
+		wp_send_json_success( array( 'processed' => 0 ) );
+		return;
+	}
+
+	// Process up to 5 images per request to avoid timeout.
+	$processed = 0;
+	$max_per_request = 5;
+	$results = array();
+
+	foreach ( $queue as $key => $item ) {
+		if ( $processed >= $max_per_request ) {
+			break;
+		}
+
+		$result = Podloom_Image_Cache::process_queued_image(
+			$item['url'],
+			$item['type'],
+			$item['feed_id']
+		);
+
+		$results[ $key ] = $result;
+
+		// Remove from queue regardless of success/failure.
+		unset( $queue[ $key ] );
+		++$processed;
+	}
+
+	// Update the queue (remove processed items).
+	if ( empty( $queue ) ) {
+		Podloom_Image_Cache::clear_queue();
+	} else {
+		set_transient( 'podloom_image_cache_queue', $queue, 5 * MINUTE_IN_SECONDS );
+	}
+
+	wp_send_json_success(
+		array(
+			'processed' => $processed,
+			'remaining' => count( $queue ),
+			'results'   => $results,
+		)
+	);
+}
+add_action( 'wp_ajax_podloom_process_image_cache', 'podloom_ajax_process_image_cache' );
+add_action( 'wp_ajax_nopriv_podloom_process_image_cache', 'podloom_ajax_process_image_cache' );

@@ -130,6 +130,57 @@
                     }
                 });
             });
+
+            // Border settings range sliders
+            this.bindRangeSlider('podloom_rss_border_width');
+            this.bindRangeSlider('podloom_rss_border_radius');
+
+            // Funding button range sliders
+            this.bindRangeSlider('podloom_rss_funding_font_size');
+            this.bindRangeSlider('podloom_rss_funding_border_radius');
+
+            // Bind border settings for preview
+            ['podloom_rss_border_color', 'podloom_rss_border_width_value', 'podloom_rss_border_style', 'podloom_rss_border_radius_value'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('input', () => this.updatePreview());
+                    input.addEventListener('change', () => this.updatePreview());
+                }
+            });
+
+            // Bind funding button settings for preview
+            ['podloom_rss_funding_font_family', 'podloom_rss_funding_font_size_value', 'podloom_rss_funding_background_color',
+             'podloom_rss_funding_text_color', 'podloom_rss_funding_border_radius_value'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('input', () => this.updatePreview());
+                    input.addEventListener('change', () => this.updatePreview());
+                }
+            });
+        },
+
+        /**
+         * Bind a range slider to sync with its corresponding number input
+         */
+        bindRangeSlider: function(baseName) {
+            const rangeInput = document.getElementById(baseName + '_range');
+            const valueInput = document.getElementById(baseName + '_value') || document.getElementById(baseName);
+
+            if (rangeInput && valueInput) {
+                // Sync range to value
+                rangeInput.addEventListener('input', () => {
+                    valueInput.value = rangeInput.value;
+                    this.updatePreview();
+                });
+
+                // Sync value to range
+                valueInput.addEventListener('input', () => {
+                    const val = parseFloat(valueInput.value) || 0;
+                    const min = parseFloat(rangeInput.min) || 0;
+                    const max = parseFloat(rangeInput.max) || 100;
+                    rangeInput.value = Math.min(max, Math.max(min, val));
+                });
+            }
         },
 
         bindDisplayToggles: function() {
@@ -169,48 +220,28 @@
             const minimalStylingCheckbox = document.getElementById('podloom_rss_minimal_styling');
             const typographyContainer = document.querySelector('.typography-settings-container');
             const colorPaletteSection = document.getElementById('color-palette-section');
-            const typographyWrapper = document.getElementById('typography-section-wrapper');
+            const minimalStylingNotice = document.getElementById('minimal-styling-notice');
 
             if (minimalStylingCheckbox && typographyContainer) {
                 if (minimalStylingCheckbox.checked) {
-                    // Hide typography settings
+                    // Hide typography settings and color palette
                     typographyContainer.style.display = 'none';
-                    // Hide color palette section
                     if (colorPaletteSection) {
                         colorPaletteSection.style.display = 'none';
                     }
-                    // Show notice
-                    let notice = document.getElementById('minimal-styling-notice');
-                    if (!notice) {
-                        notice = document.createElement('div');
-                        notice.id = 'minimal-styling-notice';
-                        notice.className = 'notice notice-info inline';
-                        notice.style.marginTop = '0';
-                        notice.style.marginBottom = '20px';
-                        notice.innerHTML = '<p><strong>Minimal Styling Mode is enabled.</strong> Typography settings are disabled. Add your own CSS using the following classes:</p>' +
-                            '<p><strong>Episode Elements:</strong> <code>.rss-episode-player</code>, <code>.rss-episode-title</code>, <code>.rss-episode-date</code>, <code>.rss-episode-duration</code>, <code>.rss-episode-description</code>, <code>.rss-episode-artwork</code>, <code>.rss-episode-audio</code></p>' +
-                            '<p><strong>Podcasting 2.0 Elements:</strong> <code>.podcast20-tabs</code>, <code>.podcast20-tab-button</code>, <code>.podcast20-tab-panel</code>, <code>.podcast20-funding-button</code>, <code>.podcast20-transcripts</code>, <code>.transcript-format-button</code>, <code>.transcript-viewer</code>, <code>.podcast20-people</code>, <code>.podcast20-person</code>, <code>.podcast20-person-name</code>, <code>.podcast20-chapters-list</code>, <code>.chapter-item</code>, <code>.chapter-title</code>, <code>.chapter-timestamp</code></p>';
-                        // Insert at the beginning of the typography wrapper (above the accordion)
-                        if (typographyWrapper) {
-                            typographyWrapper.insertBefore(notice, typographyWrapper.firstChild);
-                        } else {
-                            // Fallback if wrapper doesn't exist
-                            typographyContainer.parentNode.insertBefore(notice, typographyContainer);
-                        }
-                    } else {
-                        notice.style.display = 'block';
+                    // Show CSS classes notice
+                    if (minimalStylingNotice) {
+                        minimalStylingNotice.style.display = 'block';
                     }
                 } else {
-                    // Show typography settings
+                    // Show typography settings and color palette
                     typographyContainer.style.display = '';
-                    // Show color palette section
                     if (colorPaletteSection) {
                         colorPaletteSection.style.display = '';
                     }
-                    // Hide notice
-                    const notice = document.getElementById('minimal-styling-notice');
-                    if (notice) {
-                        notice.style.display = 'none';
+                    // Hide CSS classes notice
+                    if (minimalStylingNotice) {
+                        minimalStylingNotice.style.display = 'none';
                     }
                 }
             }
@@ -315,6 +346,33 @@
                 previewEl.style.color = color;
                 previewEl.style.fontWeight = fontWeight;
             });
+
+            // Update border styles
+            if (previewContainer) {
+                const borderColor = document.getElementById('podloom_rss_border_color')?.value || '#dddddd';
+                const borderWidth = (document.getElementById('podloom_rss_border_width_value')?.value || '1') + 'px';
+                const borderStyle = document.getElementById('podloom_rss_border_style')?.value || 'solid';
+                const borderRadius = (document.getElementById('podloom_rss_border_radius_value')?.value || '8') + 'px';
+
+                previewContainer.style.border = `${borderWidth} ${borderStyle} ${borderColor}`;
+                previewContainer.style.borderRadius = borderRadius;
+            }
+
+            // Update funding button styles in preview
+            const fundingBtn = document.getElementById('preview-funding-button');
+            if (fundingBtn) {
+                const fontFamily = document.getElementById('podloom_rss_funding_font_family')?.value || 'inherit';
+                const fontSize = (document.getElementById('podloom_rss_funding_font_size_value')?.value || '13') + 'px';
+                const bgColor = document.getElementById('podloom_rss_funding_background_color')?.value || '#2271b1';
+                const textColor = document.getElementById('podloom_rss_funding_text_color')?.value || '#ffffff';
+                const borderRadius = (document.getElementById('podloom_rss_funding_border_radius_value')?.value || '4') + 'px';
+
+                fundingBtn.style.fontFamily = fontFamily;
+                fundingBtn.style.fontSize = fontSize;
+                fundingBtn.style.backgroundColor = bgColor;
+                fundingBtn.style.color = textColor;
+                fundingBtn.style.borderRadius = borderRadius;
+            }
         }
     };
 

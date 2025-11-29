@@ -148,13 +148,6 @@ function podloom_render_rss_tab( $all_options ) {
 					</div>
 				</div>
 
-				<div class="podloom-toggle-row">
-					<input type="checkbox" id="podloom_rss_minimal_styling" name="podloom_rss_minimal_styling" value="1" <?php checked( $all_options['podloom_rss_minimal_styling'] ?? false, true ); ?> />
-					<div class="podloom-toggle-info">
-						<span class="podloom-toggle-label"><?php esc_html_e( 'Minimal Styling Mode', 'podloom-podcast-player' ); ?></span>
-						<span class="podloom-toggle-description"><?php esc_html_e( 'Use your theme\'s styles instead of plugin typography.', 'podloom-podcast-player' ); ?></span>
-					</div>
-				</div>
 			</div>
 
 			<!-- Podcasting 2.0 Features Card -->

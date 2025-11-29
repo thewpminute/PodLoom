@@ -175,3 +175,18 @@ function podloom_darken_color( $hex, $percent ) {
 
 	return sprintf( '#%02x%02x%02x', $r, $g, $b );
 }
+
+/**
+ * Adjust color brightness (positive to lighten, negative to darken)
+ *
+ * @param string $hex Hex color code
+ * @param int    $amount Amount to adjust (-100 to 100)
+ * @return string Adjusted hex color
+ */
+function podloom_adjust_color_brightness( $hex, $amount ) {
+	if ( $amount >= 0 ) {
+		return podloom_lighten_color( $hex, $amount );
+	} else {
+		return podloom_darken_color( $hex, abs( $amount ) );
+	}
+}

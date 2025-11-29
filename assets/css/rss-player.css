@@ -4,8 +4,7 @@
  */
 
 .wp-block-podloom-episode-player.rss-episode-player {
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    /* border and border-radius are now set dynamically */
     padding: 20px;
     margin: 20px 0;
 }
@@ -16,9 +15,14 @@
     align-items: flex-start;
 }
 
-.rss-episode-artwork {
+/* Artwork column contains artwork + funding button on desktop/tablet */
+.rss-episode-artwork-column {
     flex-shrink: 0;
     width: 200px;
+}
+
+.rss-episode-artwork {
+    width: 100%;
 }
 
 .rss-episode-artwork img {
@@ -26,6 +30,22 @@
     height: auto;
     border-radius: 4px;
     display: block;
+}
+
+/* Funding button positioning */
+.rss-funding-mobile {
+    display: none; /* Hidden on desktop/tablet */
+    margin-bottom: 15px;
+}
+
+.rss-funding-desktop {
+    margin-top: 12px;
+}
+
+.rss-funding-desktop .podcast20-funding-button {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
 }
 
 .rss-episode-content {
@@ -127,7 +147,24 @@
         gap: 15px;
     }
 
-    .rss-episode-artwork {
+    .rss-episode-artwork-column {
         width: 100px;
+    }
+}
+
+/* Mobile - Show full-width funding button at top */
+@media (max-width: 640px) {
+    .rss-funding-mobile {
+        display: block;
+    }
+
+    .rss-funding-mobile .podcast20-funding-button {
+        width: 100%;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .rss-funding-desktop {
+        display: none; /* Hide desktop version on mobile */
     }
 }

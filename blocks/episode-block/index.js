@@ -258,18 +258,30 @@ registerBlockType('podloom/episode-player', {
 
         // Set default show if available and no show is selected
         useEffect(() => {
-            if (transistorShows.length > 0 && !showId && !rssFeedId && podloomData.defaultShow) {
-                const defaultShow = transistorShows.find(show => show.id === podloomData.defaultShow);
-                if (defaultShow) {
+            if (!showId && !rssFeedId && podloomData.defaultShow) {
+                // Check if default is a Transistor show
+                const defaultTransistorShow = transistorShows.find(show => show.id === podloomData.defaultShow);
+                if (defaultTransistorShow) {
                     setAttributes({
                         sourceType: 'transistor',
-                        showId: defaultShow.id,
-                        showTitle: defaultShow.attributes.title,
-                        showSlug: defaultShow.attributes.slug
+                        showId: defaultTransistorShow.id,
+                        showTitle: defaultTransistorShow.attributes.title,
+                        showSlug: defaultTransistorShow.attributes.slug
+                    });
+                    return;
+                }
+
+                // Check if default is an RSS feed
+                const defaultRssFeed = rssFeeds.find(feed => feed.id === podloomData.defaultShow);
+                if (defaultRssFeed) {
+                    setAttributes({
+                        sourceType: 'rss',
+                        rssFeedId: defaultRssFeed.id,
+                        showTitle: defaultRssFeed.name
                     });
                 }
             }
-        }, [transistorShows, showId, rssFeedId]);
+        }, [transistorShows, rssFeeds, showId, rssFeedId]);
 
         // Validate selected RSS feed still exists
         useEffect(() => {

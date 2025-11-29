@@ -284,8 +284,35 @@
                 action: 'podloom_refresh_rss_feed',
                 nonce: podloomData.nonce,
                 feed_id: feedId
-            }, () => {
-                window.location.reload();
+            }, (response) => {
+                // Show appropriate message based on response
+                let message = '';
+                let type = 'success';
+
+                if (response.success) {
+                    if (response.data.not_modified) {
+                        // 304 - Feed hasn't changed
+                        message = podloomData.strings.feedUpToDate || 'Feed is up to date';
+                    } else {
+                        // 200 - Feed updated with new content
+                        const count = response.data.episode_count || 0;
+                        message = (podloomData.strings.feedRefreshed || 'Feed refreshed') + ' — ' + count + ' ' + (podloomData.strings.episodes || 'episodes');
+                    }
+                } else {
+                    type = 'error';
+                    if (response.data.cache_kept) {
+                        // Error but cache preserved
+                        message = (response.data.message || podloomData.strings.errorRefreshingFeed || 'Error refreshing feed') + ' — ' + (podloomData.strings.usingCachedData || 'using cached data');
+                    } else {
+                        message = response.data.message || podloomData.strings.errorRefreshingFeed || 'Error refreshing feed';
+                    }
+                }
+
+                // Show notice and reload after a moment so user sees the message
+                this.showNotice(message, type);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
             });
         },
 
@@ -359,25 +386,24 @@
             button.textContent = podloomData.strings.saving;
             button.disabled = true;
 
-            const data = {
-                podloom_rss_enabled: document.getElementById('podloom_rss_enabled').checked ? '1' : '0',
-                podloom_rss_display_artwork: document.getElementById('podloom_rss_display_artwork').checked ? '1' : '0',
-                podloom_rss_display_title: document.getElementById('podloom_rss_display_title').checked ? '1' : '0',
-                podloom_rss_display_date: document.getElementById('podloom_rss_display_date').checked ? '1' : '0',
-                podloom_rss_display_duration: document.getElementById('podloom_rss_display_duration').checked ? '1' : '0',
-                podloom_rss_display_description: document.getElementById('podloom_rss_display_description').checked ? '1' : '0',
-                podloom_rss_display_funding: document.getElementById('podloom_rss_display_funding').checked ? '1' : '0',
-                podloom_rss_display_transcripts: document.getElementById('podloom_rss_display_transcripts').checked ? '1' : '0',
-                podloom_rss_display_people_hosts: document.getElementById('podloom_rss_display_people_hosts').checked ? '1' : '0',
-                podloom_rss_display_people_guests: document.getElementById('podloom_rss_display_people_guests').checked ? '1' : '0',
-                podloom_rss_display_chapters: document.getElementById('podloom_rss_display_chapters').checked ? '1' : '0',
-                podloom_rss_minimal_styling: document.getElementById('podloom_rss_minimal_styling').checked ? '1' : '0',
-                podloom_rss_description_limit: document.getElementById('podloom_rss_description_limit')?.value || '0',
-                podloom_rss_player_height: document.getElementById('podloom_rss_player_height')?.value || '600'
-                // RSS Cache Duration removed - now uses General Settings → Cache Duration
-            };
+            // Dynamically collect all RSS settings from the DOM
+            // This ensures new options are automatically included without manual updates
+            const data = {};
+            const container = document.getElementById('rss-feeds-settings');
 
-            // Add typography settings
+            if (container) {
+                // Collect all inputs with name starting with 'podloom_rss_'
+                container.querySelectorAll('input[name^="podloom_rss_"], select[name^="podloom_rss_"]').forEach(input => {
+                    const name = input.name;
+                    if (input.type === 'checkbox') {
+                        data[name] = input.checked ? '1' : '0';
+                    } else {
+                        data[name] = input.value;
+                    }
+                });
+            }
+
+            // Add typography settings (these have different ID patterns)
             const elements = ['title', 'date', 'duration', 'description'];
 
             elements.forEach(element => {
@@ -413,17 +439,34 @@
                 }
             });
 
-            // Add background color
-            const bgColor = document.getElementById('podloom_rss_background_color');
-            if (bgColor) {
-                data['podloom_rss_background_color'] = bgColor.value;
-            }
+            // Border settings (add 'px' suffix to numeric values)
+            const borderColor = document.getElementById('podloom_rss_border_color');
+            if (borderColor) data['podloom_rss_border_color'] = borderColor.value;
 
-            // Add accent color
-            const accentColor = document.getElementById('podloom_rss_accent_color');
-            if (accentColor) {
-                data['podloom_rss_accent_color'] = accentColor.value;
-            }
+            const borderWidth = document.getElementById('podloom_rss_border_width_value');
+            if (borderWidth) data['podloom_rss_border_width'] = borderWidth.value + 'px';
+
+            const borderStyle = document.getElementById('podloom_rss_border_style');
+            if (borderStyle) data['podloom_rss_border_style'] = borderStyle.value;
+
+            const borderRadius = document.getElementById('podloom_rss_border_radius_value');
+            if (borderRadius) data['podloom_rss_border_radius'] = borderRadius.value + 'px';
+
+            // Funding button settings (add 'px' suffix to numeric values)
+            const fundingFontFamily = document.getElementById('podloom_rss_funding_font_family');
+            if (fundingFontFamily) data['podloom_rss_funding_font_family'] = fundingFontFamily.value;
+
+            const fundingFontSize = document.getElementById('podloom_rss_funding_font_size_value');
+            if (fundingFontSize) data['podloom_rss_funding_font_size'] = fundingFontSize.value + 'px';
+
+            const fundingBgColor = document.getElementById('podloom_rss_funding_background_color');
+            if (fundingBgColor) data['podloom_rss_funding_background_color'] = fundingBgColor.value;
+
+            const fundingTextColor = document.getElementById('podloom_rss_funding_text_color');
+            if (fundingTextColor) data['podloom_rss_funding_text_color'] = fundingTextColor.value;
+
+            const fundingBorderRadius = document.getElementById('podloom_rss_funding_border_radius_value');
+            if (fundingBorderRadius) data['podloom_rss_funding_border_radius'] = fundingBorderRadius.value + 'px';
 
             // Save all settings in a single request
             $.post(podloomData.ajaxUrl, {
