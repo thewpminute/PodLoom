@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.5.3
+Stable tag: 2.7.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -134,6 +134,14 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.7.1 =
+* **Player Border Styling**: Customize border color, width, style, and radius
+* **Funding Button Customization**: Style font, colors, and border radius for funding buttons
+* **Image Caching**: Cache podcast cover art locally in the media library for faster loading
+* **Conditional HTTP Requests**: Efficient RSS updates using ETag/Last-Modified headers
+* **Improved UI**: Minimal Styling Mode moved to Advanced Typography section with CSS class reference
+* **RSS Feeds in Default Show**: Select RSS feeds as your default show in General Settings
+
 = 2.5.3 =
 * Security hardening and WordPress coding standards improvements
 * Performance optimizations for cache clearing
@@ -172,6 +180,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.7.1 =
+New styling options for player borders and funding buttons, plus image caching and efficient RSS updates.
 
 = 2.5.3 =
 Security and performance improvements. Recommended update for all users.
