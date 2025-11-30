@@ -119,24 +119,32 @@ class Podloom_RSS {
 			);
 		}
 
-		// Generate cryptographically secure unique ID
-		$feed_id = 'rss_' . wp_generate_password( 32, false );
+		// Generate cryptographically secure unique ID (lowercase to avoid any case issues)
+		$feed_id = 'rss_' . strtolower( wp_generate_password( 32, false ) );
 
 		// Get feeds
 		$feeds = self::get_feeds();
 
-		// Add new feed - initially marked as unchecked
-		$feeds[ $feed_id ] = array(
+		// Create the new feed data
+		$new_feed = array(
 			'id'           => $feed_id,
 			'name'         => sanitize_text_field( $name ),
 			'url'          => esc_url_raw( $url ),
 			'created'      => time(),
 			'last_checked' => null,
-			'valid'        => false, // Mark as unvalidated until first refresh completes
+			'valid'        => false, // Will be set to true after successful refresh
 		);
+
+		// Add new feed
+		$feeds[ $feed_id ] = $new_feed;
 
 		// Save feeds
 		update_option( 'podloom_rss_feeds', $feeds );
+
+		// Clear WordPress object cache to ensure get_option returns fresh data
+		// This is critical because refresh_feed_with_data() calls get_feeds() internally
+		wp_cache_delete( 'podloom_rss_feeds', 'options' );
+		wp_cache_delete( 'alloptions', 'options' );
 
 		// Auto-enable RSS feeds if this is the first feed being added
 		$rss_enabled = get_option( 'podloom_rss_enabled', false );
@@ -144,15 +152,11 @@ class Podloom_RSS {
 			update_option( 'podloom_rss_enabled', true );
 		}
 
-		// Always do initial refresh synchronously to ensure feed is validated before use
-		// This prevents race condition where invalid feeds could be saved
-		$refresh_result = self::refresh_feed( $feed_id, true ); // Force full refresh for new feeds
+		// Refresh feed to cache episodes - pass feed data directly to avoid lookup issues
+		$refresh_result = self::refresh_feed_with_data( $feed_id, $new_feed, true );
 
-		// Clear option cache to ensure we get the freshly updated feed data
-		wp_cache_delete( 'podloom_rss_feeds', 'options' );
-
-		// Get the updated feed data (refresh_feed already sets valid status)
-		$feeds = self::get_feeds();
+		// Update the feed with refresh results
+		$feeds = get_option( 'podloom_rss_feeds', array() );
 
 		// For subsequent refreshes, use async if requested
 		if ( $async_refresh ) {
@@ -163,7 +167,7 @@ class Podloom_RSS {
 		return array(
 			'success' => ! empty( $refresh_result['success'] ),
 			'message' => ! empty( $refresh_result['success'] ) ? 'Feed added successfully' : ( $refresh_result['message'] ?? 'Feed validation failed' ),
-			'feed'    => $feeds[ $feed_id ] ?? null,
+			'feed'    => $feeds[ $feed_id ] ?? $new_feed,
 		);
 	}
 
@@ -298,6 +302,28 @@ class Podloom_RSS {
 			return array(
 				'success' => false,
 				'message' => 'Feed not found',
+			);
+		}
+
+		return self::refresh_feed_with_data( $feed_id, $feed_data, $force );
+	}
+
+	/**
+	 * Refresh a feed with provided feed data (internal use)
+	 *
+	 * This method accepts feed data directly to avoid lookup issues when
+	 * the feed was just added and may not be available via get_feed() yet.
+	 *
+	 * @param string $feed_id   Feed ID.
+	 * @param array  $feed_data Feed data array with 'url' key required.
+	 * @param bool   $force     Force full refresh, bypassing conditional headers. Default false.
+	 * @return array Result with success status, message, and status code.
+	 */
+	public static function refresh_feed_with_data( $feed_id, $feed_data, $force = false ) {
+		if ( empty( $feed_data['url'] ) ) {
+			return array(
+				'success' => false,
+				'message' => 'Feed URL not provided',
 			);
 		}
 
