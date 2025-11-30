@@ -2,6 +2,7 @@
  * PodLoom Subscribe Buttons Block
  *
  * Displays subscribe buttons for a selected podcast.
+ * Uses @wordpress/data store for shared state management.
  *
  * @package PodLoom
  * @since 2.10.0
@@ -20,9 +21,11 @@ import {
 	Button,
 	RangeControl,
 } from '@wordpress/components';
-import { useState, useEffect } from '@wordpress/element';
+import { useEffect } from '@wordpress/element';
+import { useSelect, useDispatch } from '@wordpress/data';
 import { __ } from '@wordpress/i18n';
 
+import { STORE_NAME } from '../store/constants';
 import metadata from './block.json';
 
 /**
@@ -41,88 +44,39 @@ function EditComponent( { attributes, setAttributes } ) {
 		labelFontFamily,
 	} = attributes;
 
-	const [ podcasts, setPodcasts ] = useState( [] );
-	const [ loading, setLoading ] = useState( true );
-	const [ previewData, setPreviewData ] = useState( null );
-	const [ previewLoading, setPreviewLoading ] = useState( false );
-
 	const blockProps = useBlockProps();
 
-	// Load podcasts on mount
-	useEffect( () => {
-		loadPodcasts();
-	}, [] );
+	// Get data from store
+	const { podcasts, isLoading, previewLinks } = useSelect(
+		( select ) => {
+			const store = select( STORE_NAME );
+			const podcastList = store.getSubscribePodcasts();
 
-	// Load preview data when source or color settings change
+			return {
+				podcasts: podcastList,
+				isLoading: podcastList.length === 0 && ! store.hasSubscribePodcasts(),
+				previewLinks: source
+					? store.getSubscribePreview( source, colorMode, customColor )
+					: null,
+			};
+		},
+		[ source, colorMode, customColor ]
+	);
+
+	// Get dispatch functions
+	const { fetchSubscribePreview } = useDispatch( STORE_NAME );
+
+	// Fetch preview data when source or color settings change
 	useEffect( () => {
 		if ( source ) {
-			loadPreviewData( source );
-		} else {
-			setPreviewData( null );
+			// Check if we need to fetch (preview not in cache or color changed)
+			const store = wp.data.select( STORE_NAME );
+			const cachedPreview = store.getSubscribePreview( source, colorMode, customColor );
+			if ( cachedPreview === null ) {
+				fetchSubscribePreview( source, colorMode, customColor );
+			}
 		}
 	}, [ source, colorMode, customColor ] );
-
-	/**
-	 * Load available podcasts
-	 */
-	const loadPodcasts = async () => {
-		setLoading( true );
-
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'podloom_get_subscribe_podcasts' );
-			formData.append( 'nonce', window.podloomData.nonce );
-
-			const response = await fetch( window.podloomData.ajaxUrl, {
-				method: 'POST',
-				body: formData,
-			} );
-			const result = await response.json();
-
-			if ( result.success ) {
-				setPodcasts( result.data.podcasts || [] );
-			}
-		} catch ( err ) {
-			console.error( 'Error loading podcasts:', err );
-		} finally {
-			setLoading( false );
-		}
-	};
-
-	/**
-	 * Load preview data for selected source
-	 */
-	const loadPreviewData = async ( sourceId ) => {
-		setPreviewLoading( true );
-
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'podloom_get_subscribe_preview' );
-			formData.append( 'nonce', window.podloomData.nonce );
-			formData.append( 'source_id', sourceId );
-			formData.append( 'color_mode', colorMode );
-			if ( colorMode === 'custom' ) {
-				formData.append( 'custom_color', customColor );
-			}
-
-			const response = await fetch( window.podloomData.ajaxUrl, {
-				method: 'POST',
-				body: formData,
-			} );
-			const result = await response.json();
-
-			if ( result.success ) {
-				setPreviewData( result.data.links || [] );
-			} else {
-				setPreviewData( [] );
-			}
-		} catch ( err ) {
-			console.error( 'Error loading preview:', err );
-			setPreviewData( [] );
-		} finally {
-			setPreviewLoading( false );
-		}
-	};
 
 	/**
 	 * Build podcast options for select
@@ -171,7 +125,10 @@ function EditComponent( { attributes, setAttributes } ) {
 	 */
 	const fontFamilyOptions = [
 		{ label: __( 'Inherit from theme', 'podloom-podcast-player' ), value: 'inherit' },
-		{ label: 'System UI', value: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+		{
+			label: 'System UI',
+			value: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+		},
 		{ label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
 		{ label: 'Georgia', value: 'Georgia, "Times New Roman", serif' },
 		{ label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
@@ -183,7 +140,7 @@ function EditComponent( { attributes, setAttributes } ) {
 	 * Render preview buttons
 	 */
 	const renderPreview = () => {
-		if ( ! previewData || previewData.length === 0 ) {
+		if ( ! previewLinks || previewLinks.length === 0 ) {
 			return (
 				<div style={ { padding: '20px', textAlign: 'center', color: '#666' } }>
 					{ __(
@@ -229,7 +186,7 @@ function EditComponent( { attributes, setAttributes } ) {
 				className={ `podloom-subscribe-buttons podloom-subscribe-buttons--${ layout }` }
 				style={ containerStyle }
 			>
-				{ previewData.map( ( link, index ) => (
+				{ previewLinks.map( ( link, index ) => (
 					<a
 						key={ index }
 						href={ link.url }
@@ -242,9 +199,7 @@ function EditComponent( { attributes, setAttributes } ) {
 							style={ iconStyle }
 							dangerouslySetInnerHTML={ { __html: link.svg || '' } }
 						/>
-						{ showLabels && (
-							<span style={ labelStyle }>{ link.name }</span>
-						) }
+						{ showLabels && <span style={ labelStyle }>{ link.name }</span> }
 					</a>
 				) ) }
 			</div>
@@ -252,7 +207,7 @@ function EditComponent( { attributes, setAttributes } ) {
 	};
 
 	// Loading state
-	if ( loading ) {
+	if ( isLoading ) {
 		return (
 			<div { ...blockProps }>
 				<Placeholder
@@ -283,10 +238,8 @@ function EditComponent( { attributes, setAttributes } ) {
 					<Button
 						variant="primary"
 						href={
-							window.podloomData.ajaxUrl.replace(
-								'/wp-admin/admin-ajax.php',
-								''
-							) + '/wp-admin/admin.php?page=podloom-settings'
+							window.podloomData.ajaxUrl.replace( '/wp-admin/admin-ajax.php', '' ) +
+							'/wp-admin/admin.php?page=podloom-settings'
 						}
 					>
 						{ __( 'Go to Settings', 'podloom-podcast-player' ) }
@@ -295,6 +248,9 @@ function EditComponent( { attributes, setAttributes } ) {
 			</div>
 		);
 	}
+
+	// Check if preview is loading
+	const isPreviewLoading = source && previewLinks === null;
 
 	return (
 		<>
@@ -356,9 +312,7 @@ function EditComponent( { attributes, setAttributes } ) {
 						<div style={ { marginTop: '12px' } }>
 							<ColorPicker
 								color={ customColor }
-								onChange={ ( value ) =>
-									setAttributes( { customColor: value } )
-								}
+								onChange={ ( value ) => setAttributes( { customColor: value } ) }
 								enableAlpha={ false }
 							/>
 						</div>
@@ -409,7 +363,9 @@ function EditComponent( { attributes, setAttributes } ) {
 								label={ __( 'Label Font Family', 'podloom-podcast-player' ) }
 								value={ labelFontFamily }
 								options={ fontFamilyOptions }
-								onChange={ ( value ) => setAttributes( { labelFontFamily: value } ) }
+								onChange={ ( value ) =>
+									setAttributes( { labelFontFamily: value } )
+								}
 							/>
 						</>
 					) }
@@ -429,15 +385,13 @@ function EditComponent( { attributes, setAttributes } ) {
 							) }
 						</p>
 					</Placeholder>
-				) : previewLoading ? (
+				) : isPreviewLoading ? (
 					<div style={ { padding: '20px', textAlign: 'center' } }>
 						<Spinner />
 						<p>{ __( 'Loading preview...', 'podloom-podcast-player' ) }</p>
 					</div>
 				) : (
-					<div className="wp-block-podloom-subscribe-buttons">
-						{ renderPreview() }
-					</div>
+					<div className="wp-block-podloom-subscribe-buttons">{ renderPreview() }</div>
 				) }
 			</div>
 		</>

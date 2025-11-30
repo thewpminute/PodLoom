@@ -8,6 +8,7 @@ const path = require( 'path' );
 module.exports = {
 	...defaultConfig,
 	entry: {
+		'store/index': path.resolve( __dirname, 'src/store/index.js' ),
 		'episode-block/index': path.resolve( __dirname, 'src/episode-block/index.js' ),
 		'subscribe-block/index': path.resolve( __dirname, 'src/subscribe-block/index.js' ),
 	},

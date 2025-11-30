@@ -313,38 +313,8 @@ function podloom_render_settings_page() {
 		update_option( 'podloom_cache_duration', $cache_duration );
 		update_option( 'podloom_cache_images', $cache_images );
 
-		// Only update RSS settings if NOT submitted from the General tab
-		// RSS settings are saved via AJAX from the RSS tab, so we don't want to overwrite them here
-		if ( 'general' !== $settings_tab ) {
-			// Save RSS Settings
-			$rss_enabled = isset( $_POST['podloom_rss_enabled'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_rss_enabled'] ) ) === '1';
-			update_option( 'podloom_rss_enabled', $rss_enabled );
-
-			// RSS Display Settings
-			$rss_display_settings = array(
-				'podloom_rss_display_artwork',
-				'podloom_rss_display_title',
-				'podloom_rss_display_date',
-				'podloom_rss_display_duration',
-				'podloom_rss_display_description',
-				'podloom_rss_display_skip_buttons',
-				'podloom_rss_display_funding',
-				'podloom_rss_display_transcripts',
-				'podloom_rss_display_people_hosts',
-				'podloom_rss_display_people_guests',
-				'podloom_rss_display_chapters',
-			);
-
-			foreach ( $rss_display_settings as $setting ) {
-				$value = isset( $_POST[ $setting ] ) && sanitize_text_field( wp_unslash( $_POST[ $setting ] ) ) === '1';
-				update_option( $setting, $value );
-			}
-
-			// RSS Color Settings
-			if ( isset( $_POST['podloom_rss_background_color'] ) ) {
-				update_option( 'podloom_rss_background_color', sanitize_hex_color( wp_unslash( $_POST['podloom_rss_background_color'] ) ) );
-			}
-		}
+		// Note: RSS settings are saved via AJAX from the RSS tab (see podloom_ajax_save_all_rss_settings).
+		// We intentionally do NOT save RSS settings here to avoid overwriting them when saving from other tabs.
 
 		// Clear cache when settings change
 		podloom_clear_all_cache();

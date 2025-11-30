@@ -2,6 +2,7 @@
  * PodLoom Episode Block
  *
  * Handles Transistor.fm episodes and RSS feed episodes with full Podcasting 2.0 support.
+ * Uses @wordpress/data store for shared state management.
  *
  * @package PodLoom
  * @since 2.10.0
@@ -17,12 +18,13 @@ import {
 	Button,
 	RadioControl,
 	ComboboxControl,
-	__experimentalNumberControl as NumberControl
+	__experimentalNumberControl as NumberControl,
 } from '@wordpress/components';
-import { useState, useEffect } from '@wordpress/element';
+import { useState, useEffect, useCallback } from '@wordpress/element';
+import { useSelect, useDispatch, dispatch, select } from '@wordpress/data';
 import { __ } from '@wordpress/i18n';
-import { dispatch, select } from '@wordpress/data';
 
+import { STORE_NAME } from '../store/constants';
 import metadata from './block.json';
 
 /**
@@ -150,57 +152,55 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		playlistOrder,
 	} = attributes;
 
-	const [ transistorShows, setTransistorShows ] = useState( [] );
-	const [ rssFeeds, setRssFeeds ] = useState( [] );
-	const [ episodes, setEpisodes ] = useState( [] );
-	const [ loading, setLoading ] = useState( false );
-	const [ loadingShows, setLoadingShows ] = useState( true );
+	// Local state for error display
 	const [ error, setError ] = useState( '' );
-	const [ currentPage, setCurrentPage ] = useState( 1 );
-	const [ hasMorePages, setHasMorePages ] = useState( false );
-	const [ isLoadingMore, setIsLoadingMore ] = useState( false );
-	const [ latestRssEpisode, setLatestRssEpisode ] = useState( null );
-	const [ rssTypography, setRssTypography ] = useState( null );
-	const [ renderedEpisodeHtml, setRenderedEpisodeHtml ] = useState( {} );
 
 	const blockProps = useBlockProps();
 
-	// Load initial data
-	useEffect( () => {
-		loadInitialData();
-	}, [] );
+	// Get data from store
+	const {
+		transistorShows,
+		rssFeeds,
+		isLoaded,
+		rssTypography,
+		episodes,
+		isEpisodesLoading,
+		hasMore,
+		renderedHtml,
+	} = useSelect(
+		( storeSelect ) => {
+			const store = storeSelect( STORE_NAME );
+			const sources = store.getAllSources();
+			const currentSourceId = sourceType === 'transistor' ? showId : rssFeedId;
 
-	// Load RSS typography if needed
-	useEffect( () => {
-		if ( sourceType === 'rss' && ! rssTypography ) {
-			loadRssTypography();
-		}
-	}, [ sourceType ] );
+			return {
+				transistorShows: sources.transistorShows,
+				rssFeeds: sources.rssFeeds,
+				isLoaded: sources.isLoaded,
+				rssTypography: store.getRssTypography(),
+				episodes: currentSourceId
+					? store.getEpisodes( sourceType, currentSourceId )
+					: [],
+				isEpisodesLoading: currentSourceId
+					? store.isEpisodesLoading( sourceType, currentSourceId )
+					: false,
+				hasMore: currentSourceId
+					? store.hasMoreEpisodes( sourceType, currentSourceId )
+					: false,
+				renderedHtml: rssEpisodeData
+					? store.getRenderedEpisodeHtml( rssEpisodeData.id || rssEpisodeData.title )
+					: null,
+			};
+		},
+		[ sourceType, showId, rssFeedId, rssEpisodeData ]
+	);
 
-	// Load latest RSS episode when in latest mode
-	useEffect( () => {
-		if ( sourceType === 'rss' && displayMode === 'latest' && rssFeedId ) {
-			loadLatestRssEpisode( rssFeedId );
-		}
-	}, [ sourceType, displayMode, rssFeedId ] );
+	// Get dispatch functions
+	const { fetchMoreEpisodes, fetchRenderedEpisodeHtml } = useDispatch( STORE_NAME );
 
-	// Fetch rendered HTML for selected RSS episode
+	// Set default show if available and no show is selected
 	useEffect( () => {
-		if ( sourceType === 'rss' && displayMode === 'specific' && rssEpisodeData ) {
-			fetchRenderedEpisodeHtml( rssEpisodeData );
-		}
-	}, [ sourceType, displayMode, rssEpisodeData ] );
-
-	// Fetch rendered HTML for latest RSS episode
-	useEffect( () => {
-		if ( sourceType === 'rss' && displayMode === 'latest' && latestRssEpisode ) {
-			fetchRenderedEpisodeHtml( latestRssEpisode );
-		}
-	}, [ sourceType, displayMode, latestRssEpisode ] );
-
-	// Set default show if available
-	useEffect( () => {
-		if ( ! showId && ! rssFeedId && window.podloomData?.defaultShow ) {
+		if ( ! showId && ! rssFeedId && window.podloomData?.defaultShow && isLoaded ) {
 			const defaultTransistorShow = transistorShows.find(
 				( show ) => show.id === window.podloomData.defaultShow
 			);
@@ -225,7 +225,7 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 				} );
 			}
 		}
-	}, [ transistorShows, rssFeeds, showId, rssFeedId ] );
+	}, [ transistorShows, rssFeeds, showId, rssFeedId, isLoaded ] );
 
 	// Validate selected RSS feed still exists
 	useEffect( () => {
@@ -251,248 +251,48 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		}
 	}, [ rssFeeds, rssFeedId, sourceType ] );
 
-	// Load episodes when source changes
+	// Fetch rendered HTML for selected RSS episode
 	useEffect( () => {
-		if ( displayMode === 'specific' ) {
-			if ( sourceType === 'transistor' && showId && ! episodeId ) {
-				setCurrentPage( 1 );
-				setEpisodes( [] );
-				loadTransistorEpisodes( showId, 1 );
-			} else if ( sourceType === 'rss' && rssFeedId && ! rssEpisodeData ) {
-				setCurrentPage( 1 );
-				setEpisodes( [] );
-				loadRssEpisodes( rssFeedId, 1 );
-			}
+		if ( sourceType === 'rss' && displayMode === 'specific' && rssEpisodeData && rssFeedId ) {
+			fetchRenderedEpisodeHtml( rssEpisodeData, rssFeedId );
 		}
-	}, [ showId, rssFeedId, sourceType, displayMode ] );
+	}, [ sourceType, displayMode, rssEpisodeData, rssFeedId ] );
 
-	const loadInitialData = async () => {
-		setLoadingShows( true );
-		setError( '' );
-
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'podloom_get_block_init_data' );
-			formData.append( 'nonce', window.podloomData.nonce );
-
-			const response = await fetch( window.podloomData.ajaxUrl, {
-				method: 'POST',
-				body: formData,
-			} );
-			const result = await response.json();
-
-			if ( result.success ) {
-				if ( result.data.podloom_shows?.data ) {
-					setTransistorShows( result.data.podloom_shows.data );
-				}
-
-				if ( result.data.rss_feeds ) {
-					const feedsArray = Object.values( result.data.rss_feeds ).filter(
-						( feed ) => feed.valid
-					);
-					setRssFeeds( feedsArray );
-				}
-
-				if ( result.data.rss_typography ) {
-					setRssTypography( result.data.rss_typography );
-				}
-			} else {
-				setError( __( 'Error loading block data.', 'podloom-podcast-player' ) );
-			}
-		} catch ( err ) {
-			setError( __( 'Error loading block data.', 'podloom-podcast-player' ) );
-		} finally {
-			setLoadingShows( false );
-		}
-	};
-
-	const loadTransistorEpisodes = async ( selectedShowId, page = 1, isLoadMore = false ) => {
-		if ( isLoadMore ) {
-			setIsLoadingMore( true );
-		} else {
-			setLoading( true );
-		}
-		setError( '' );
-
-		try {
-			const params = new URLSearchParams( {
-				action: 'podloom_get_episodes',
-				nonce: window.podloomData.nonce,
-				show_id: selectedShowId,
-				page: page.toString(),
-				per_page: '20',
-			} );
-
-			const response = await fetch(
-				`${ window.podloomData.ajaxUrl }?${ params.toString() }`
-			);
-			const result = await response.json();
-
-			if ( result.success ) {
-				const episodesData = result.data.data || [];
-				const meta = result.data.meta || {};
-
-				setEpisodes( ( prev ) => [ ...prev, ...episodesData ] );
-				setHasMorePages( meta.currentPage < meta.totalPages );
-				setCurrentPage( meta.currentPage );
-			} else {
-				setError(
-					result.data.message ||
-						__( 'Failed to load episodes', 'podloom-podcast-player' )
-				);
-			}
-		} catch ( err ) {
-			setError( __( 'Error loading episodes', 'podloom-podcast-player' ) );
-		} finally {
-			setLoading( false );
-			setIsLoadingMore( false );
-		}
-	};
-
-	const loadRssEpisodes = async ( feedId, page = 1, isLoadMore = false ) => {
-		if ( isLoadMore ) {
-			setIsLoadingMore( true );
-		} else {
-			setLoading( true );
-		}
-		setError( '' );
-
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'podloom_get_rss_episodes' );
-			formData.append( 'nonce', window.podloomData.nonce );
-			formData.append( 'feed_id', feedId );
-			formData.append( 'page', page.toString() );
-			formData.append( 'per_page', '20' );
-
-			const response = await fetch( window.podloomData.ajaxUrl, {
-				method: 'POST',
-				body: formData,
-			} );
-			const result = await response.json();
-
-			if ( result.success ) {
-				const episodesData = result.data.episodes || [];
-
-				const formattedEpisodes = episodesData.map( ( ep ) => ( {
-					id: ep.id,
-					type: 'rss_episode',
-					attributes: {
-						title: ep.title,
-						status: 'published',
-						audio_url: ep.audio_url,
-						image: ep.image,
-						description: ep.description,
-						content: ep.content,
-						date: ep.date,
-						duration: ep.duration,
+	// Fetch rendered HTML for latest RSS episode
+	useEffect( () => {
+		if ( sourceType === 'rss' && displayMode === 'latest' && rssFeedId && episodes.length > 0 ) {
+			const latestEpisode = episodes[ 0 ];
+			if ( latestEpisode?.attributes ) {
+				fetchRenderedEpisodeHtml(
+					{
+						id: latestEpisode.id,
+						title: latestEpisode.attributes.title,
+						audio_url: latestEpisode.attributes.audio_url,
+						image: latestEpisode.attributes.image,
+						description: latestEpisode.attributes.description,
+						date: latestEpisode.attributes.date,
+						duration: latestEpisode.attributes.duration,
+						podcast20: latestEpisode.attributes.podcast20 || null,
 					},
-				} ) );
-
-				setEpisodes( ( prev ) => [ ...prev, ...formattedEpisodes ] );
-				setHasMorePages( result.data.page < result.data.pages );
-				setCurrentPage( result.data.page );
-			} else {
-				setError(
-					result.data.message ||
-						__( 'Failed to load RSS episodes', 'podloom-podcast-player' )
+					rssFeedId
 				);
 			}
-		} catch ( err ) {
-			setError( __( 'Error loading RSS episodes', 'podloom-podcast-player' ) );
-		} finally {
-			setLoading( false );
-			setIsLoadingMore( false );
 		}
-	};
+	}, [ sourceType, displayMode, rssFeedId, episodes ] );
 
-	const loadMoreEpisodes = () => {
-		const nextPage = currentPage + 1;
-		if ( sourceType === 'transistor' ) {
-			loadTransistorEpisodes( showId, nextPage, true );
-		} else {
-			loadRssEpisodes( rssFeedId, nextPage, true );
+	/**
+	 * Load more episodes
+	 */
+	const loadMoreEpisodes = useCallback( () => {
+		const sourceId = sourceType === 'transistor' ? showId : rssFeedId;
+		if ( sourceId ) {
+			fetchMoreEpisodes( sourceType, sourceId );
 		}
-	};
+	}, [ sourceType, showId, rssFeedId, fetchMoreEpisodes ] );
 
-	const loadRssTypography = async () => {
-		if ( rssTypography ) return;
-
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'podloom_get_rss_typography' );
-			formData.append( 'nonce', window.podloomData.nonce );
-
-			const response = await fetch( window.podloomData.ajaxUrl, {
-				method: 'POST',
-				body: formData,
-			} );
-			const result = await response.json();
-
-			if ( result.success ) {
-				setRssTypography( result.data );
-			}
-		} catch ( err ) {
-			// Silently fail
-		}
-	};
-
-	const loadLatestRssEpisode = async ( feedId ) => {
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'podloom_get_rss_episodes' );
-			formData.append( 'nonce', window.podloomData.nonce );
-			formData.append( 'feed_id', feedId );
-			formData.append( 'page', '1' );
-			formData.append( 'per_page', '1' );
-
-			const response = await fetch( window.podloomData.ajaxUrl, {
-				method: 'POST',
-				body: formData,
-			} );
-			const result = await response.json();
-
-			if ( result.success && result.data.episodes?.length > 0 ) {
-				setLatestRssEpisode( result.data.episodes[ 0 ] );
-			}
-		} catch ( err ) {
-			// Silently fail
-		}
-	};
-
-	const fetchRenderedEpisodeHtml = async ( episode ) => {
-		if ( ! episode ) return;
-
-		const episodeKey = episode.id || episode.title;
-
-		if ( renderedEpisodeHtml[ episodeKey ] ) {
-			return;
-		}
-
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'podloom_render_rss_episode' );
-			formData.append( 'nonce', window.podloomData.nonce );
-			formData.append( 'episode_data', JSON.stringify( episode ) );
-			formData.append( 'feed_id', rssFeedId );
-
-			const response = await fetch( window.podloomData.ajaxUrl, {
-				method: 'POST',
-				body: formData,
-			} );
-			const result = await response.json();
-
-			if ( result.success && result.data.html ) {
-				setRenderedEpisodeHtml( ( prev ) => ( {
-					...prev,
-					[ episodeKey ]: result.data.html,
-				} ) );
-			}
-		} catch ( err ) {
-			// Silently fail
-		}
-	};
-
+	/**
+	 * Render RSS episode with typography (fallback)
+	 */
 	const renderRssEpisode = ( episode, typo ) => {
 		if ( ! episode || ! typo ) return null;
 
@@ -578,6 +378,9 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		);
 	};
 
+	/**
+	 * Handle episode selection
+	 */
 	const selectEpisode = ( episode ) => {
 		if ( sourceType === 'transistor' ) {
 			const html =
@@ -610,6 +413,9 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		}
 	};
 
+	/**
+	 * Handle source selection
+	 */
 	const handleSourceChange = ( value ) => {
 		const [ type, id ] = value.split( ':' );
 
@@ -643,9 +449,12 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 			} );
 		}
 
-		setEpisodes( [] );
+		setError( '' );
 	};
 
+	/**
+	 * Handle theme change
+	 */
 	const handleThemeChange = ( newTheme ) => {
 		setAttributes( { theme: newTheme } );
 
@@ -661,6 +470,9 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		}
 	};
 
+	/**
+	 * Handle paste description
+	 */
 	const handlePasteDescription = () => {
 		let description = '';
 
@@ -689,6 +501,9 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		dispatch( 'core/block-editor' ).insertBlocks( blocks, blockIndex + 1, rootClientId );
 	};
 
+	/**
+	 * Get current source value for select
+	 */
 	const getCurrentSourceValue = () => {
 		if ( sourceType === 'transistor' && showId ) {
 			return `transistor:${ showId }`;
@@ -698,6 +513,9 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		return '';
 	};
 
+	/**
+	 * Build source options
+	 */
 	const buildSourceOptions = () => {
 		const options = [
 			{ label: __( '-- Select a source --', 'podloom-podcast-player' ), value: '' },
@@ -734,8 +552,27 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		return options;
 	};
 
+	/**
+	 * Get latest episode data for RSS
+	 */
+	const getLatestRssEpisodeData = () => {
+		if ( episodes.length === 0 ) return null;
+		const latest = episodes[ 0 ];
+		if ( ! latest?.attributes ) return null;
+		return {
+			id: latest.id,
+			title: latest.attributes.title,
+			audio_url: latest.attributes.audio_url,
+			image: latest.attributes.image,
+			description: latest.attributes.description,
+			date: latest.attributes.date,
+			duration: latest.attributes.duration,
+			podcast20: latest.attributes.podcast20 || null,
+		};
+	};
+
 	// Loading state
-	if ( loadingShows ) {
+	if ( ! isLoaded ) {
 		return (
 			<div { ...blockProps }>
 				<Placeholder
@@ -786,6 +623,12 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 	const supportsLatest =
 		( sourceType === 'transistor' && showSlug ) || ( sourceType === 'rss' && rssFeedId );
 
+	// Get latest RSS episode for preview
+	const latestRssEpisode = getLatestRssEpisodeData();
+	const latestEpisodeKey = latestRssEpisode
+		? latestRssEpisode.id || latestRssEpisode.title
+		: null;
+
 	// Render block content based on display mode
 	const renderBlockContent = () => {
 		// Transistor Latest Mode
@@ -831,15 +674,10 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		// Latest Episode Mode - RSS
 		if ( displayMode === 'latest' && sourceType === 'rss' && rssFeedId ) {
 			if ( latestRssEpisode && rssTypography ) {
-				const episodeKey = latestRssEpisode.id || latestRssEpisode.title;
-				if ( renderedEpisodeHtml[ episodeKey ] ) {
-					return (
-						<div
-							dangerouslySetInnerHTML={ {
-								__html: renderedEpisodeHtml[ episodeKey ],
-							} }
-						/>
-					);
+				// Check for server-rendered HTML in store
+				const cachedHtml = select( STORE_NAME ).getRenderedEpisodeHtml( latestEpisodeKey );
+				if ( cachedHtml ) {
+					return <div dangerouslySetInnerHTML={ { __html: cachedHtml } } />;
 				}
 				return renderRssEpisode( latestRssEpisode, rssTypography );
 			}
@@ -884,15 +722,8 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 			rssEpisodeData
 		) {
 			if ( rssTypography ) {
-				const episodeKey = rssEpisodeData.id || rssEpisodeData.title;
-				if ( renderedEpisodeHtml[ episodeKey ] ) {
-					return (
-						<div
-							dangerouslySetInnerHTML={ {
-								__html: renderedEpisodeHtml[ episodeKey ],
-							} }
-						/>
-					);
+				if ( renderedHtml ) {
+					return <div dangerouslySetInnerHTML={ { __html: renderedHtml } } />;
 				}
 				return renderRssEpisode( rssEpisodeData, rssTypography );
 			}
@@ -1021,7 +852,7 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 
 					{ ( showId || rssFeedId ) && displayMode === 'specific' && (
 						<div style={ { marginTop: '16px', marginBottom: '16px' } }>
-							{ loading && episodes.length === 0 ? (
+							{ isEpisodesLoading && episodes.length === 0 ? (
 								<div style={ { marginTop: '8px' } }>
 									<Spinner />
 									<p>
@@ -1072,10 +903,10 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 												value: episode.id,
 											};
 										} ),
-										...( hasMorePages
+										...( hasMore
 											? [
 													{
-														label: isLoadingMore
+														label: isEpisodesLoading
 															? __(
 																	'Loading more episodes...',
 																	'podloom-podcast-player'
