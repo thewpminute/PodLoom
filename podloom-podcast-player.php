@@ -3,7 +3,7 @@
  * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
  * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks or Elementor. Supports RSS feeds from any podcast platform.
- * Version: 2.11.2
+ * Version: 2.12.1
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'PODLOOM_PLUGIN_VERSION', '2.11.2' );
+define( 'PODLOOM_PLUGIN_VERSION', '2.12.1' );
 define( 'PODLOOM_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'PODLOOM_PLUGIN_FILE', __FILE__ );
@@ -35,7 +35,7 @@ define( 'PODLOOM_SCRIPT_SUFFIX', defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ? '' 
  * Uses add_option() which only creates the option if it doesn't exist,
  * preserving any existing user settings.
  *
- * @since 2.11.2
+ * @since 2.12.1
  */
 function podloom_activate() {
 	// RSS display settings default to true (show all elements).
@@ -446,6 +446,147 @@ function podloom_render_subscribe_block( $attributes ) {
  */
 
 /**
+ * Render custom audio player HTML
+ *
+ * Creates a custom player UI with play/pause, timeline, skip buttons, speed control, and time display.
+ * The native audio element is hidden and controlled via JavaScript.
+ *
+ * @param string $audio_url   URL of the audio file.
+ * @param string $audio_type  MIME type of the audio file.
+ * @param string $extra_class Additional classes for the audio element.
+ * @param bool   $is_playlist Whether this is a playlist player (adds playlist-specific classes).
+ * @param array  $colors      Theme colors array from podloom_calculate_theme_colors().
+ * @return string HTML output.
+ */
+function podloom_render_custom_player( $audio_url, $audio_type = 'audio/mpeg', $extra_class = '', $is_playlist = false, $colors = array() ) {
+	$audio_class = 'podloom-audio-element' . ( $is_playlist ? ' podloom-playlist-audio' : '' ) . ( $extra_class ? ' ' . $extra_class : '' );
+
+	// Build CSS custom properties from colors array
+	// Note: Colors come from podloom_calculate_theme_colors() which uses sanitize_hex_color()
+	// and our own color manipulation functions, so values are safe CSS color values.
+	$css_vars = array();
+	$color_keys = array(
+		'player_btn',
+		'player_btn_bg',
+		'player_btn_icon',
+		'player_timeline',
+		'player_progress',
+		'player_control',
+		'player_control_hover_bg',
+		'player_time',
+		'player_speed_bg',
+		'player_speed_border',
+		'player_speed_hover_bg',
+		'player_speed_hover_border',
+		'player_speed_active_bg',
+		'player_text',
+	);
+
+	foreach ( $color_keys as $key ) {
+		if ( ! empty( $colors[ $key ] ) ) {
+			// Convert underscores to hyphens for CSS variable names
+			$css_var_name = '--podloom-' . str_replace( '_', '-', $key );
+			$css_vars[]   = $css_var_name . ': ' . $colors[ $key ];
+		}
+	}
+
+	$container_style = ! empty( $css_vars ) ? esc_attr( implode( '; ', $css_vars ) ) : '';
+
+	$output = '<div class="podloom-player-container"' . ( $container_style ? ' style="' . $container_style . '"' : '' ) . '>';
+
+	// Hidden audio element (the engine)
+	$output .= sprintf(
+		'<audio class="%s" preload="metadata"><source src="%s" type="%s">%s</audio>',
+		esc_attr( $audio_class ),
+		esc_url( $audio_url ),
+		esc_attr( $audio_type ),
+		esc_html__( 'Your browser does not support the audio player.', 'podloom-podcast-player' )
+	);
+
+	$output .= '<div class="podloom-player-main">';
+
+	// Play/Pause button
+	// Circle uses currentColor (set via CSS), icon fill is controlled by CSS variable
+	$output .= sprintf(
+		'<button type="button" class="podloom-play-toggle" aria-label="%s">
+			<svg class="podloom-icon-play" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+				<circle cx="24" cy="24" r="24" fill="currentColor"/>
+				<path d="M32 24L18 33V15L32 24Z"/>
+			</svg>
+			<svg class="podloom-icon-pause" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+				<circle cx="24" cy="24" r="24" fill="currentColor"/>
+				<rect x="17" y="14" width="5" height="20" rx="1"/>
+				<rect x="26" y="14" width="5" height="20" rx="1"/>
+			</svg>
+		</button>',
+		esc_attr__( 'Play', 'podloom-podcast-player' )
+	);
+
+	$output .= '<div class="podloom-player-content">';
+
+	// Timeline
+	$output .= '<div class="podloom-timeline-container">';
+	$output .= '<div class="podloom-timeline-progress"></div>';
+	$output .= sprintf(
+		'<input type="range" class="podloom-timeline-slider" min="0" max="100" value="0" step="0.1" aria-label="%s">',
+		esc_attr__( 'Seek', 'podloom-podcast-player' )
+	);
+	$output .= '</div>';
+
+	// Controls row
+	$output .= '<div class="podloom-controls-row">';
+
+	// Secondary controls (skip buttons + speed)
+	$output .= '<div class="podloom-secondary-controls">';
+
+	// Skip back 10s
+	$output .= sprintf(
+		'<button type="button" class="podloom-control-btn podloom-skip-btn" data-skip="-10" aria-label="%s">
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+				<path d="M3 3v5h5"/>
+			</svg>
+			<span class="podloom-skip-label">10</span>
+		</button>',
+		esc_attr__( 'Rewind 10 seconds', 'podloom-podcast-player' )
+	);
+
+	// Speed toggle
+	$output .= sprintf(
+		'<button type="button" class="podloom-speed-btn" aria-label="%s">1x</button>',
+		esc_attr__( 'Playback speed', 'podloom-podcast-player' )
+	);
+
+	// Skip forward 30s
+	$output .= sprintf(
+		'<button type="button" class="podloom-control-btn podloom-skip-btn" data-skip="30" aria-label="%s">
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+				<path d="M21 3v5h-5"/>
+			</svg>
+			<span class="podloom-skip-label">30</span>
+		</button>',
+		esc_attr__( 'Forward 30 seconds', 'podloom-podcast-player' )
+	);
+
+	$output .= '</div>'; // .podloom-secondary-controls
+
+	// Time display
+	$output .= '<div class="podloom-time-display">';
+	$output .= '<span class="podloom-current-time">0:00</span>';
+	$output .= '<span class="podloom-time-separator">/</span>';
+	$output .= '<span class="podloom-duration">0:00</span>';
+	$output .= '</div>';
+
+	$output .= '</div>'; // .podloom-controls-row
+	$output .= '</div>'; // .podloom-player-content
+	$output .= '</div>'; // .podloom-player-main
+	$output .= '</div>'; // .podloom-player-container
+
+	return $output;
+}
+
+/**
  * Render RSS playlist player
  *
  * Displays a player with the first episode and an Episodes tab listing all episodes.
@@ -561,39 +702,15 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 		$output .= '</div>';
 	}
 
-	// Audio player
+	// Custom audio player
 	if ( ! empty( $current_episode['audio_url'] ) ) {
-		$output .= sprintf(
-			'<audio class="rss-episode-audio podloom-playlist-audio" controls preload="metadata"><source src="%s" type="%s">%s</audio>',
-			esc_url( $current_episode['audio_url'] ),
-			esc_attr( ! empty( $current_episode['audio_type'] ) ? $current_episode['audio_type'] : 'audio/mpeg' ),
-			esc_html__( 'Your browser does not support the audio player.', 'podloom-podcast-player' )
+		$output .= podloom_render_custom_player(
+			$current_episode['audio_url'],
+			! empty( $current_episode['audio_type'] ) ? $current_episode['audio_type'] : 'audio/mpeg',
+			'rss-episode-audio',
+			true, // is_playlist
+			$colors
 		);
-
-		// Skip buttons
-		if ( $show_skip_buttons ) {
-			$output .= '<div class="podloom-skip-buttons">';
-			$output .= sprintf(
-				'<button type="button" class="podloom-skip-btn" data-skip="-10" aria-label="%s">
-					<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-						<polygon points="10,0 10,12 1,6"/>
-					</svg>
-					<span>10s</span>
-				</button>',
-				esc_attr__( 'Skip back 10 seconds', 'podloom-podcast-player' )
-			);
-			$output .= sprintf(
-				'<button type="button" class="podloom-skip-btn" data-skip="30" aria-label="%s">
-					<svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor">
-						<polygon points="0,0 0,12 7,6"/>
-						<polygon points="7,0 7,12 14,6"/>
-					</svg>
-					<span>30s</span>
-				</button>',
-				esc_attr__( 'Skip forward 30 seconds', 'podloom-podcast-player' )
-			);
-			$output .= '</div>';
-		}
 	}
 
 	$output .= '</div>'; // .rss-episode-content
@@ -735,8 +852,9 @@ function podloom_render_rss_episode( $attributes ) {
 	// Get typography styles
 	$typo = podloom_get_rss_typography_styles();
 
-	// Get background color
+	// Get background color and calculate theme colors
 	$bg_color = get_option( 'podloom_rss_background_color', '#f9f9f9' );
+	$colors   = podloom_calculate_theme_colors( $bg_color );
 
 	// Start building the output
 	$output = '<div class="wp-block-podloom-episode-player rss-episode-player">';
@@ -812,45 +930,19 @@ function podloom_render_rss_episode( $attributes ) {
 		$output .= '</div>';
 	}
 
-	// Audio player (always shown) - uses native HTML5 audio controls
+	// Custom audio player
 	if ( ! empty( $episode['audio_url'] ) ) {
 		// Add class if description is hidden to remove bottom margin
-		// Check for either content or description
 		$has_description = ! empty( $episode['content'] ) || ! empty( $episode['description'] );
-		$audio_class     = ( $show_description && $has_description ) ? 'rss-episode-audio' : 'rss-episode-audio rss-audio-last';
+		$extra_class     = ( $show_description && $has_description ) ? 'rss-episode-audio' : 'rss-episode-audio rss-audio-last';
 
-		$output .= sprintf(
-			'<audio class="%s" controls preload="metadata"><source src="%s" type="%s">%s</audio>',
-			esc_attr( $audio_class ),
-			esc_url( $episode['audio_url'] ),
-			esc_attr( ! empty( $episode['audio_type'] ) ? $episode['audio_type'] : 'audio/mpeg' ),
-			esc_html__( 'Your browser does not support the audio player.', 'podloom-podcast-player' )
+		$output .= podloom_render_custom_player(
+			$episode['audio_url'],
+			! empty( $episode['audio_type'] ) ? $episode['audio_type'] : 'audio/mpeg',
+			$extra_class,
+			false, // not a playlist
+			$colors
 		);
-
-		// Skip buttons for audio navigation
-		if ( $show_skip_buttons ) {
-			$output .= '<div class="podloom-skip-buttons">';
-			$output .= sprintf(
-				'<button type="button" class="podloom-skip-btn" data-skip="-10" aria-label="%s">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                        <polygon points="10,0 10,12 1,6"/>
-                    </svg>
-                    <span>10s</span>
-                </button>',
-				esc_attr__( 'Skip back 10 seconds', 'podloom-podcast-player' )
-			);
-			$output .= sprintf(
-				'<button type="button" class="podloom-skip-btn" data-skip="30" aria-label="%s">
-                    <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor">
-                        <polygon points="0,0 0,12 7,6"/>
-                        <polygon points="7,0 7,12 14,6"/>
-                    </svg>
-                    <span>30s</span>
-                </button>',
-				esc_attr__( 'Skip forward 30 seconds', 'podloom-podcast-player' )
-			);
-			$output .= '</div>';
-		}
 	}
 
 	$output .= '</div>'; // .rss-episode-content

@@ -273,7 +273,7 @@ registerBlockType( 'podloom/episode-player', {
 
 		// Set default show if available and no show is selected
 		useEffect( () => {
-			if ( ! showId && ! rssFeedId && window.podloomData.defaultShow && isLoaded ) {
+			if ( ! showId && ! rssFeedId && window.podloomData?.defaultShow && isLoaded ) {
 				// Check if default is a Transistor show
 				const defaultTransistorShow = transistorShows.find( ( show ) => show.id === window.podloomData.defaultShow );
 				if ( defaultTransistorShow ) {

@@ -16,14 +16,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Calculate theme-aware colors for tabs and P2.0 elements
  *
+ * Uses static caching to avoid recalculating colors for the same background
+ * color within a single request.
+ *
  * @param string $bg_color Background color in hex format
  * @return array Array of calculated colors
  */
 function podloom_calculate_theme_colors( $bg_color ) {
+	static $cache = array();
+
 	// Validate and sanitize input color.
 	$bg_color = sanitize_hex_color( $bg_color );
 	if ( empty( $bg_color ) ) {
 		$bg_color = '#f9f9f9'; // Default fallback.
+	}
+
+	// Return cached result if available
+	if ( isset( $cache[ $bg_color ] ) ) {
+		return $cache[ $bg_color ];
 	}
 
 	// Convert hex to RGB
@@ -36,7 +46,7 @@ function podloom_calculate_theme_colors( $bg_color ) {
 	// Generate colors based on background
 	if ( $is_dark ) {
 		// Dark theme colors
-		return array(
+		$colors = array(
 			// Tab colors
 			'tab_text'          => podloom_lighten_color( $bg_color, 50 ),
 			'tab_text_hover'    => podloom_lighten_color( $bg_color, 70 ),
@@ -74,10 +84,25 @@ function podloom_calculate_theme_colors( $bg_color ) {
 			'warning_bg'        => podloom_lighten_color( $bg_color, 12 ),
 			'warning_border'    => podloom_lighten_color( $bg_color, 25 ),
 			'warning_text'      => podloom_lighten_color( $bg_color, 70 ),
+			// Audio player colors
+			'player_btn_bg'           => podloom_lighten_color( $bg_color, 60 ),
+			'player_btn_icon'         => podloom_lighten_color( $bg_color, 95 ),
+			'player_btn'              => podloom_lighten_color( $bg_color, 60 ), // Legacy, same as btn_bg
+			'player_timeline'         => podloom_lighten_color( $bg_color, 25 ),
+			'player_progress'         => podloom_lighten_color( $bg_color, 60 ),
+			'player_control'          => podloom_lighten_color( $bg_color, 50 ),
+			'player_control_hover_bg' => 'rgba(255, 255, 255, 0.1)',
+			'player_time'             => podloom_lighten_color( $bg_color, 45 ),
+			'player_speed_bg'         => podloom_lighten_color( $bg_color, 15 ),
+			'player_speed_border'     => podloom_lighten_color( $bg_color, 30 ),
+			'player_speed_hover_bg'   => podloom_lighten_color( $bg_color, 20 ),
+			'player_speed_hover_border' => podloom_lighten_color( $bg_color, 40 ),
+			'player_speed_active_bg'  => podloom_lighten_color( $bg_color, 25 ),
+			'player_text'             => podloom_lighten_color( $bg_color, 70 ),
 		);
 	} else {
 		// Light theme colors
-		return array(
+		$colors = array(
 			// Tab colors
 			'tab_text'          => podloom_darken_color( $bg_color, 40 ),
 			'tab_text_hover'    => podloom_darken_color( $bg_color, 60 ),
@@ -115,8 +140,27 @@ function podloom_calculate_theme_colors( $bg_color ) {
 			'warning_bg'        => '#fff3cd',
 			'warning_border'    => '#ffc107',
 			'warning_text'      => '#856404',
+			// Audio player colors
+			'player_btn_bg'           => podloom_darken_color( $bg_color, 75 ),
+			'player_btn_icon'         => '#ffffff',
+			'player_btn'              => podloom_darken_color( $bg_color, 75 ), // Legacy, same as btn_bg
+			'player_timeline'         => podloom_darken_color( $bg_color, 10 ),
+			'player_progress'         => podloom_darken_color( $bg_color, 75 ),
+			'player_control'          => podloom_darken_color( $bg_color, 50 ),
+			'player_control_hover_bg' => 'rgba(0, 0, 0, 0.05)',
+			'player_time'             => podloom_darken_color( $bg_color, 40 ),
+			'player_speed_bg'         => '#ffffff',
+			'player_speed_border'     => podloom_darken_color( $bg_color, 20 ),
+			'player_speed_hover_bg'   => podloom_darken_color( $bg_color, 2 ),
+			'player_speed_hover_border' => podloom_darken_color( $bg_color, 35 ),
+			'player_speed_active_bg'  => podloom_darken_color( $bg_color, 5 ),
+			'player_text'             => podloom_darken_color( $bg_color, 70 ),
 		);
 	}
+
+	// Cache and return
+	$cache[ $bg_color ] = $colors;
+	return $colors;
 }
 
 /**

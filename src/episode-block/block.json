@@ -8,6 +8,7 @@
   "description": "Embed a Transistor.fm podcast episode player with PodLoom",
   "keywords": ["podcast", "audio", "podloom", "transistor", "episode"],
   "textdomain": "podloom-podcast-player",
+  "editorScript": "podloom-episode-block-editor",
   "supports": {
     "html": false
   },

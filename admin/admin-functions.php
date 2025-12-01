@@ -33,6 +33,14 @@ function podloom_enqueue_admin_scripts( $hook ) {
 		PODLOOM_PLUGIN_VERSION
 	);
 
+	// Enqueue RSS player styles for live preview in typography settings
+	wp_enqueue_style(
+		'podloom-rss-player',
+		PODLOOM_PLUGIN_URL . 'assets/css/rss-player' . PODLOOM_SCRIPT_SUFFIX . '.css',
+		array(),
+		PODLOOM_PLUGIN_VERSION
+	);
+
 	// Enqueue settings page general script
 	wp_enqueue_script(
 		'podloom-settings-page',

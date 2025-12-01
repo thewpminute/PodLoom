@@ -411,10 +411,12 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 		// Check if source is selected.
 		if ( empty( $settings['source'] ) ) {
 			if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
-				echo '<div class="podloom-elementor-placeholder" style="padding: 40px; background: #f5f5f5; border: 2px dashed #ddd; border-radius: 8px; text-align: center;">';
-				echo '<span class="dashicons dashicons-microphone" style="font-size: 48px; color: #999; display: block; margin-bottom: 10px;"></span>';
-				echo '<p style="margin: 0; color: #666; font-size: 14px;">' . esc_html__( 'Select a podcast source from the widget settings.', 'podloom-podcast-player' ) . '</p>';
-				echo '</div>';
+				$this->render_editor_placeholder(
+					esc_html__( 'Select a podcast source from the widget settings.', 'podloom-podcast-player' ),
+					'#f5f5f5',
+					'#ddd',
+					'#999'
+				);
 			}
 			return;
 		}
@@ -435,6 +437,12 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 		}
 		if ( ! in_array( $display_mode, array( 'specific', 'latest', 'playlist' ), true ) ) {
 			$display_mode = 'specific';
+		}
+
+		// Show placeholder in Elementor editor instead of rendering the full player.
+		if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
+			$this->render_editor_preview_placeholder( $settings, $source_type, $display_mode );
+			return;
 		}
 
 		// Build attributes array to pass to the existing render function.
@@ -513,24 +521,83 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 		// Use the existing block render function.
 		$output = podloom_render_block( $attributes );
 
-		if ( empty( $output ) && \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
-			// Show placeholder in editor if no content.
-			if ( 'specific' === $display_mode && empty( $settings['episode_id'] ) ) {
-				echo '<div class="podloom-elementor-placeholder" style="padding: 40px; background: #fff3cd; border: 2px dashed #ffc107; border-radius: 8px; text-align: center;">';
-				echo '<span class="dashicons dashicons-microphone" style="font-size: 48px; color: #856404; display: block; margin-bottom: 10px;"></span>';
-				echo '<p style="margin: 0; color: #856404; font-size: 14px;">' . esc_html__( 'Please select an episode from the widget settings.', 'podloom-podcast-player' ) . '</p>';
-				echo '</div>';
-			} else {
-				echo '<div class="podloom-elementor-placeholder" style="padding: 40px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; text-align: center;">';
-				echo '<span class="dashicons dashicons-microphone" style="font-size: 48px; color: #6c757d; display: block; margin-bottom: 10px;"></span>';
-				echo '<p style="margin: 0; color: #6c757d; font-size: 14px;">' . esc_html__( 'Loading podcast episode...', 'podloom-podcast-player' ) . '</p>';
-				echo '</div>';
-			}
-			return;
-		}
-
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Output is escaped in podloom_render_block
 		echo $output;
+	}
+
+	/**
+	 * Render a placeholder for the Elementor editor preview.
+	 *
+	 * @param array  $settings     Widget settings.
+	 * @param string $source_type  Source type (transistor or rss).
+	 * @param string $display_mode Display mode (specific, latest, playlist).
+	 */
+	private function render_editor_preview_placeholder( $settings, $source_type, $display_mode ) {
+		// Determine the description based on settings.
+		$source_label = 'transistor' === $source_type ? 'Transistor' : 'RSS';
+
+		if ( 'specific' === $display_mode ) {
+			if ( empty( $settings['episode_id'] ) ) {
+				$description = esc_html__( 'Select an episode from the widget settings.', 'podloom-podcast-player' );
+				$status      = 'warning';
+			} else {
+				$description = sprintf(
+					/* translators: %s: source type (Transistor or RSS) */
+					esc_html__( '%s episode player will appear here when you preview or publish.', 'podloom-podcast-player' ),
+					$source_label
+				);
+				$status = 'ready';
+			}
+		} elseif ( 'latest' === $display_mode ) {
+			$description = sprintf(
+				/* translators: %s: source type (Transistor or RSS) */
+				esc_html__( 'Latest %s episode will appear here when you preview or publish.', 'podloom-podcast-player' ),
+				$source_label
+			);
+			$status = 'ready';
+		} else { // playlist.
+			$description = sprintf(
+				/* translators: %s: source type (Transistor or RSS) */
+				esc_html__( '%s playlist player will appear here when you preview or publish.', 'podloom-podcast-player' ),
+				$source_label
+			);
+			$status = 'ready';
+		}
+
+		// Set colors based on status.
+		if ( 'warning' === $status ) {
+			$bg_color     = '#fff3cd';
+			$border_color = '#ffc107';
+			$text_color   = '#856404';
+		} else {
+			$bg_color     = '#e7f3ff';
+			$border_color = '#2271b1';
+			$text_color   = '#2271b1';
+		}
+
+		$this->render_editor_placeholder( $description, $bg_color, $border_color, $text_color );
+	}
+
+	/**
+	 * Render a styled placeholder for the Elementor editor.
+	 *
+	 * @param string $message      Message to display.
+	 * @param string $bg_color     Background color.
+	 * @param string $border_color Border color.
+	 * @param string $text_color   Text/icon color.
+	 */
+	private function render_editor_placeholder( $message, $bg_color, $border_color, $text_color ) {
+		printf(
+			'<div class="podloom-elementor-placeholder" style="padding: 40px; background: %s; border: 2px dashed %s; border-radius: 8px; text-align: center;">
+				<span class="dashicons dashicons-microphone" style="font-size: 48px; color: %s; display: block; margin-bottom: 10px;"></span>
+				<p style="margin: 0; color: %s; font-size: 14px;">%s</p>
+			</div>',
+			esc_attr( $bg_color ),
+			esc_attr( $border_color ),
+			esc_attr( $text_color ),
+			esc_attr( $text_color ),
+			esc_html( $message )
+		);
 	}
 
 	/**

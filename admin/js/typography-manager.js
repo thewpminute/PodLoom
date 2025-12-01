@@ -291,15 +291,30 @@
                 }
             }
 
-            // Handle audio player margin based on description visibility
+            // Handle player container margin based on description visibility
             const descriptionCheckbox = document.getElementById('podloom_rss_display_description');
-            const audioPlayer = document.querySelector('.rss-episode-audio');
-            if (descriptionCheckbox && audioPlayer) {
+            const playerContainer = document.querySelector('.podloom-player-container');
+            if (descriptionCheckbox && playerContainer) {
                 if (descriptionCheckbox.checked) {
-                    audioPlayer.style.marginBottom = '15px';
+                    playerContainer.style.marginBottom = '15px';
                 } else {
-                    audioPlayer.style.marginBottom = '0';
+                    playerContainer.style.marginBottom = '0';
                 }
+            }
+
+            // Update custom player colors based on background
+            if (playerContainer && bgColor) {
+                const colors = this.calculatePlayerColors(bgColor);
+                playerContainer.style.setProperty('--podloom-player-btn-bg', colors.btnBg);
+                playerContainer.style.setProperty('--podloom-player-btn-icon', colors.btnIcon);
+                playerContainer.style.setProperty('--podloom-player-btn', colors.btnBg);
+                playerContainer.style.setProperty('--podloom-player-timeline', colors.timeline);
+                playerContainer.style.setProperty('--podloom-player-progress', colors.progress);
+                playerContainer.style.setProperty('--podloom-player-control', colors.control);
+                playerContainer.style.setProperty('--podloom-player-time', colors.time);
+                playerContainer.style.setProperty('--podloom-player-speed-bg', colors.speedBg);
+                playerContainer.style.setProperty('--podloom-player-speed-border', colors.speedBorder);
+                playerContainer.style.setProperty('--podloom-player-text', colors.text);
             }
 
             elements.forEach(element => {
@@ -372,6 +387,80 @@
                 fundingBtn.style.backgroundColor = bgColor;
                 fundingBtn.style.color = textColor;
                 fundingBtn.style.borderRadius = borderRadius;
+            }
+        },
+
+        /**
+         * Calculate player colors based on background color
+         * Mirrors PHP podloom_calculate_theme_colors() for live preview
+         */
+        calculatePlayerColors: function(bgColor) {
+            // Convert hex to RGB
+            const hexToRgb = (hex) => {
+                hex = hex.replace('#', '');
+                return {
+                    r: parseInt(hex.substring(0, 2), 16),
+                    g: parseInt(hex.substring(2, 4), 16),
+                    b: parseInt(hex.substring(4, 6), 16)
+                };
+            };
+
+            // Calculate luminance
+            const getLuminance = (rgb) => {
+                const r = rgb.r / 255;
+                const g = rgb.g / 255;
+                const b = rgb.b / 255;
+                return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            };
+
+            // Lighten a color by percentage
+            const lightenColor = (hex, percent) => {
+                const rgb = hexToRgb(hex);
+                const r = Math.min(255, Math.round(rgb.r + (255 - rgb.r) * (percent / 100)));
+                const g = Math.min(255, Math.round(rgb.g + (255 - rgb.g) * (percent / 100)));
+                const b = Math.min(255, Math.round(rgb.b + (255 - rgb.b) * (percent / 100)));
+                return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+            };
+
+            // Darken a color by percentage
+            const darkenColor = (hex, percent) => {
+                const rgb = hexToRgb(hex);
+                const r = Math.max(0, Math.round(rgb.r - (rgb.r * (percent / 100))));
+                const g = Math.max(0, Math.round(rgb.g - (rgb.g * (percent / 100))));
+                const b = Math.max(0, Math.round(rgb.b - (rgb.b * (percent / 100))));
+                return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+            };
+
+            const rgb = hexToRgb(bgColor);
+            const luminance = getLuminance(rgb);
+            const isDark = luminance < 0.5;
+
+            if (isDark) {
+                // Dark theme colors
+                return {
+                    btnBg: lightenColor(bgColor, 60),
+                    btnIcon: lightenColor(bgColor, 95),
+                    timeline: lightenColor(bgColor, 25),
+                    progress: lightenColor(bgColor, 60),
+                    control: lightenColor(bgColor, 50),
+                    time: lightenColor(bgColor, 45),
+                    speedBg: lightenColor(bgColor, 15),
+                    speedBorder: lightenColor(bgColor, 30),
+                    text: lightenColor(bgColor, 70)
+                };
+            } else {
+                // Light theme colors
+                return {
+                    btnBg: darkenColor(bgColor, 75),
+                    btnIcon: '#ffffff',
+                    timeline: darkenColor(bgColor, 10),
+                    progress: darkenColor(bgColor, 75),
+                    control: darkenColor(bgColor, 50),
+                    time: darkenColor(bgColor, 40),
+                    speedBg: '#ffffff',
+                    speedBorder: darkenColor(bgColor, 20),
+                    text: darkenColor(bgColor, 70)
+                };
             }
         }
     };

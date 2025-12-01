@@ -257,10 +257,24 @@ class Podloom_Elementor_Subscribe_Widget extends \Elementor\Widget_Base {
 
 		if ( empty( $source_id ) ) {
 			if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
-				echo '<div class="podloom-elementor-placeholder">';
-				echo '<p>' . esc_html__( 'Select a podcast to display subscribe buttons.', 'podloom-podcast-player' ) . '</p>';
-				echo '</div>';
+				$this->render_editor_placeholder(
+					esc_html__( 'Select a podcast to display subscribe buttons.', 'podloom-podcast-player' ),
+					'#f5f5f5',
+					'#ddd',
+					'#999'
+				);
 			}
+			return;
+		}
+
+		// Show placeholder in Elementor editor instead of rendering the actual buttons.
+		if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
+			$this->render_editor_placeholder(
+				esc_html__( 'Subscribe buttons will appear here when you preview or publish.', 'podloom-podcast-player' ),
+				'#e7f3ff',
+				'#2271b1',
+				'#2271b1'
+			);
 			return;
 		}
 
@@ -275,11 +289,6 @@ class Podloom_Elementor_Subscribe_Widget extends \Elementor\Widget_Base {
 		$output = Podloom_Subscribe_Render::render( $source_id, $options );
 
 		if ( empty( $output ) ) {
-			if ( \Elementor\Plugin::$instance->editor->is_edit_mode() ) {
-				echo '<div class="podloom-elementor-placeholder">';
-				echo '<p>' . esc_html__( 'No subscribe links configured for this podcast.', 'podloom-podcast-player' ) . '</p>';
-				echo '</div>';
-			}
 			return;
 		}
 
@@ -287,25 +296,48 @@ class Podloom_Elementor_Subscribe_Widget extends \Elementor\Widget_Base {
 	}
 
 	/**
+	 * Render a styled placeholder for the Elementor editor.
+	 *
+	 * @param string $message      Message to display.
+	 * @param string $bg_color     Background color.
+	 * @param string $border_color Border color.
+	 * @param string $text_color   Text/icon color.
+	 */
+	private function render_editor_placeholder( $message, $bg_color, $border_color, $text_color ) {
+		printf(
+			'<div class="podloom-elementor-placeholder" style="padding: 30px; background: %s; border: 2px dashed %s; border-radius: 8px; text-align: center;">
+				<span class="dashicons dashicons-share" style="font-size: 36px; color: %s; display: block; margin-bottom: 8px;"></span>
+				<p style="margin: 0; color: %s; font-size: 14px;">%s</p>
+			</div>',
+			esc_attr( $bg_color ),
+			esc_attr( $border_color ),
+			esc_attr( $text_color ),
+			esc_attr( $text_color ),
+			esc_html( $message )
+		);
+	}
+
+	/**
 	 * Render widget output in the editor.
 	 *
 	 * Note: Subscribe buttons require server-side rendering because the SVG icons
-	 * and link data are stored in PHP. The content_template only shows a placeholder
-	 * message when no podcast is selected.
+	 * and link data are stored in PHP. The content_template only shows a placeholder.
 	 */
 	protected function content_template() {
 		?>
 		<#
 		if ( ! settings.source ) {
 			#>
-			<div class="podloom-elementor-placeholder">
-				<p><?php esc_html_e( 'Select a podcast to display subscribe buttons.', 'podloom-podcast-player' ); ?></p>
+			<div class="podloom-elementor-placeholder" style="padding: 30px; background: #f5f5f5; border: 2px dashed #ddd; border-radius: 8px; text-align: center;">
+				<span class="dashicons dashicons-share" style="font-size: 36px; color: #999; display: block; margin-bottom: 8px;"></span>
+				<p style="margin: 0; color: #999; font-size: 14px;"><?php esc_html_e( 'Select a podcast to display subscribe buttons.', 'podloom-podcast-player' ); ?></p>
 			</div>
 			<#
 		} else {
 			#>
-			<div class="podloom-elementor-placeholder podloom-elementor-placeholder--loading">
-				<p><?php esc_html_e( 'Loading subscribe buttons...', 'podloom-podcast-player' ); ?></p>
+			<div class="podloom-elementor-placeholder" style="padding: 30px; background: #e7f3ff; border: 2px dashed #2271b1; border-radius: 8px; text-align: center;">
+				<span class="dashicons dashicons-share" style="font-size: 36px; color: #2271b1; display: block; margin-bottom: 8px;"></span>
+				<p style="margin: 0; color: #2271b1; font-size: 14px;"><?php esc_html_e( 'Subscribe buttons will appear here when you preview or publish.', 'podloom-podcast-player' ); ?></p>
 			</div>
 			<#
 		}

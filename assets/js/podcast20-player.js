@@ -1370,6 +1370,137 @@
     }
 
     /**
+     * Initialize custom audio player controls
+     * Replaces native HTML5 audio controls with custom UI
+     */
+    function initCustomPlayer() {
+        var players = document.querySelectorAll('.podloom-player-container');
+
+        players.forEach(function (container) {
+            // Skip if already initialized
+            if (container.hasAttribute('data-player-initialized')) return;
+            container.setAttribute('data-player-initialized', 'true');
+
+            var audio = container.querySelector('.podloom-audio-element');
+            if (!audio) return;
+
+            var playToggle = container.querySelector('.podloom-play-toggle');
+            var timelineContainer = container.querySelector('.podloom-timeline-container');
+            var timelineProgress = container.querySelector('.podloom-timeline-progress');
+            var timelineSlider = container.querySelector('.podloom-timeline-slider');
+            var currentTimeEl = container.querySelector('.podloom-current-time');
+            var durationEl = container.querySelector('.podloom-duration');
+            var speedBtn = container.querySelector('.podloom-speed-btn');
+
+            var speeds = [1, 1.25, 1.5, 2];
+            var currentSpeedIndex = 0;
+
+            // Play/Pause toggle
+            if (playToggle) {
+                playToggle.addEventListener('click', function () {
+                    if (audio.paused) {
+                        audio.play().catch(function (err) {
+                            console.warn('PodLoom: Could not play audio', err);
+                        });
+                    } else {
+                        audio.pause();
+                    }
+                });
+            }
+
+            // Update play/pause icon on audio events
+            audio.addEventListener('play', function () {
+                container.classList.add('is-playing');
+            });
+
+            audio.addEventListener('pause', function () {
+                container.classList.remove('is-playing');
+            });
+
+            audio.addEventListener('ended', function () {
+                container.classList.remove('is-playing');
+            });
+
+            // Update timeline and time display on timeupdate
+            audio.addEventListener('timeupdate', function () {
+                var current = audio.currentTime;
+                var duration = audio.duration || 0;
+
+                // Update current time display
+                if (currentTimeEl) {
+                    currentTimeEl.textContent = formatTime(current);
+                }
+
+                // Update timeline progress
+                if (duration > 0 && timelineProgress) {
+                    var percent = (current / duration) * 100;
+                    timelineProgress.style.width = percent + '%';
+                }
+
+                // Update slider value
+                if (duration > 0 && timelineSlider) {
+                    timelineSlider.value = current;
+                }
+            });
+
+            // Update duration display when metadata loads
+            audio.addEventListener('loadedmetadata', function () {
+                if (durationEl) {
+                    durationEl.textContent = formatTime(audio.duration);
+                }
+                if (timelineSlider) {
+                    timelineSlider.max = audio.duration;
+                }
+            });
+
+            // Handle duration update (for streams or when duration becomes available)
+            audio.addEventListener('durationchange', function () {
+                if (durationEl && audio.duration && isFinite(audio.duration)) {
+                    durationEl.textContent = formatTime(audio.duration);
+                }
+                if (timelineSlider && audio.duration && isFinite(audio.duration)) {
+                    timelineSlider.max = audio.duration;
+                }
+            });
+
+            // Seek via timeline slider
+            if (timelineSlider) {
+                timelineSlider.addEventListener('input', function () {
+                    var seekTime = parseFloat(timelineSlider.value);
+                    if (!isNaN(seekTime)) {
+                        audio.currentTime = seekTime;
+                    }
+                });
+            }
+
+            // Click on timeline container to seek
+            if (timelineContainer) {
+                timelineContainer.addEventListener('click', function (e) {
+                    var rect = timelineContainer.getBoundingClientRect();
+                    var clickX = e.clientX - rect.left;
+                    var percent = clickX / rect.width;
+                    var seekTime = percent * (audio.duration || 0);
+                    if (!isNaN(seekTime) && isFinite(seekTime)) {
+                        audio.currentTime = seekTime;
+                    }
+                });
+            }
+
+            // Speed toggle
+            if (speedBtn) {
+                speedBtn.addEventListener('click', function () {
+                    currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+                    var newSpeed = speeds[currentSpeedIndex];
+                    audio.playbackRate = newSpeed;
+                    speedBtn.textContent = newSpeed + 'x';
+                });
+            }
+
+            // Note: Skip buttons are handled by initSkipButtons() which uses .podloom-skip-btn[data-skip]
+        });
+    }
+
+    /**
      * Initialize all features when DOM is ready
      */
     /**
@@ -1410,6 +1541,7 @@
         initTranscriptLoaders();
         initSkipButtons();
         initPlaylistPlayer();
+        initCustomPlayer();
 
         // Process image cache queue after a short delay (let page render first)
         setTimeout(processImageCacheQueue, 500);
@@ -1431,10 +1563,12 @@
                         if (node.nodeType === 1 &&
                             (node.classList && (node.classList.contains('podcast20-tabs') ||
                                 node.classList.contains('podcast20-chapters-list') ||
-                                node.classList.contains('rss-playlist-player')) ||
+                                node.classList.contains('rss-playlist-player') ||
+                                node.classList.contains('podloom-player-container')) ||
                                 node.querySelector && (node.querySelector('.podcast20-tabs') ||
                                     node.querySelector('.podcast20-chapters-list') ||
-                                    node.querySelector('.rss-playlist-player')))) {
+                                    node.querySelector('.rss-playlist-player') ||
+                                    node.querySelector('.podloom-player-container')))) {
                             init();
                         }
                     });

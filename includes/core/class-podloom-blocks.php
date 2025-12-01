@@ -90,10 +90,11 @@ class Podloom_Blocks {
 		);
 
 		// Register the episode block type.
+		// Note: editorScript is defined in block.json and references the
+		// 'podloom-episode-block-editor' handle registered above.
 		register_block_type(
 			PODLOOM_PLUGIN_DIR . 'build/episode-block',
 			array(
-				'editor_script'   => 'podloom-episode-block-editor',
 				'render_callback' => 'podloom_render_block',
 			)
 		);

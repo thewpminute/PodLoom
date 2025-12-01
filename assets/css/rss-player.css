@@ -68,53 +68,211 @@
     margin-left: 15px;
 }
 
-.rss-episode-audio {
-    width: 100%;
+/* ==========================================================================
+   Custom Audio Player
+   ========================================================================== */
+
+/* Hide the native audio element */
+.podloom-audio-element {
+    display: none;
+}
+
+/* Player Container */
+.podloom-player-container {
     margin-bottom: 10px;
 }
 
-.rss-episode-audio.rss-audio-last {
+.podloom-player-container.rss-audio-last {
     margin-bottom: 0;
 }
 
-/* Skip Buttons */
-.podloom-skip-buttons {
+/* Main player layout */
+.podloom-player-main {
     display: flex;
-    gap: 8px;
-    margin-bottom: 15px;
+    gap: 16px;
+    align-items: flex-start;
 }
 
-.podloom-skip-btn {
+/* Play/Pause Button */
+.podloom-play-toggle {
+    flex-shrink: 0;
+    position: relative;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    --btn-bg: var(--podloom-player-btn-bg, var(--podloom-player-btn, #374151));
+    --btn-icon: var(--podloom-player-btn-icon, #ffffff);
+    color: var(--btn-bg);
+    transition: transform 0.1s ease, color 0.15s ease;
+}
+
+.podloom-play-toggle .podloom-icon-play path,
+.podloom-play-toggle .podloom-icon-pause rect {
+    fill: var(--btn-icon);
+}
+
+.podloom-play-toggle:hover {
+    transform: scale(1.05);
+}
+
+.podloom-play-toggle:active {
+    transform: scale(0.95);
+}
+
+.podloom-play-toggle svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 48px;
+    height: 48px;
+}
+
+/* Show/hide play/pause icons */
+.podloom-icon-pause {
+    display: none;
+}
+
+.podloom-player-container.is-playing .podloom-icon-play {
+    display: none;
+}
+
+.podloom-player-container.is-playing .podloom-icon-pause {
+    display: block;
+}
+
+/* Player Content (timeline + controls) */
+.podloom-player-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+/* Timeline */
+.podloom-timeline-container {
+    position: relative;
+    height: 6px;
+    background: var(--podloom-player-timeline, #E5E7EB);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.podloom-timeline-progress {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: var(--podloom-player-progress, #374151);
+    border-radius: 3px;
+    pointer-events: none;
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+.podloom-timeline-slider {
+    position: absolute;
+    left: 0;
+    top: -5px;
+    width: 100%;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* Controls Row */
+.podloom-controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Secondary Controls (skip buttons + speed) */
+.podloom-secondary-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Control Buttons (skip) */
+.podloom-control-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 6px 10px;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px;
     background: transparent;
-    border: 1px solid currentColor;
+    border: none;
     border-radius: 4px;
-    font-size: 12px;
-    font-weight: 500;
-    color: inherit;
-    opacity: 0.6;
+    color: var(--podloom-player-control, #6B7280);
     cursor: pointer;
-    transition: opacity 0.15s ease, background 0.15s ease;
+    transition: color 0.15s ease, background 0.15s ease;
 }
 
-.podloom-skip-btn:hover {
-    opacity: 1;
-    background: rgba(128, 128, 128, 0.1);
+.podloom-control-btn:hover {
+    color: var(--podloom-player-btn, #374151);
+    background: var(--podloom-player-control-hover-bg, rgba(0, 0, 0, 0.05));
 }
 
-.podloom-skip-btn:active {
-    transform: scale(0.97);
+.podloom-control-btn:active {
+    transform: scale(0.95);
 }
 
-.podloom-skip-btn svg {
+.podloom-control-btn svg {
     flex-shrink: 0;
 }
 
-.podloom-skip-btn span {
+.podloom-skip-label {
+    font-size: 10px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+}
+
+/* Speed Button */
+.podloom-speed-btn {
+    padding: 3px 8px;
+    background: var(--podloom-player-speed-bg, #fff);
+    border: 1px solid var(--podloom-player-speed-border, #D1D5DB);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--podloom-player-text, #374151);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    font-variant-numeric: tabular-nums;
+}
+
+.podloom-speed-btn:hover {
+    background: var(--podloom-player-speed-hover-bg, #F9FAFB);
+    border-color: var(--podloom-player-speed-hover-border, #9CA3AF);
+}
+
+.podloom-speed-btn:active {
+    background: var(--podloom-player-speed-active-bg, #F3F4F6);
+}
+
+/* Time Display */
+.podloom-time-display {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--podloom-player-time, #6B7280);
+    font-variant-numeric: tabular-nums;
+}
+
+.podloom-time-separator {
+    opacity: 0.5;
 }
 
 /* Description fallback styles (used when minimal styling is enabled) */
@@ -166,5 +324,111 @@
 
     .rss-funding-desktop {
         display: none; /* Hide desktop version on mobile */
+    }
+}
+
+/* Small Mobile - Compact layout for phones */
+@media (max-width: 480px) {
+    /* Tighter container padding */
+    .wp-block-podloom-episode-player.rss-episode-player {
+        padding: 15px;
+    }
+
+    /* Smaller artwork */
+    .rss-episode-artwork-column {
+        width: 70px;
+    }
+
+    /* Tighter wrapper gap */
+    .rss-episode-wrapper {
+        gap: 12px;
+    }
+
+    /* Smaller, clamped title */
+    .rss-episode-title {
+        font-size: 16px !important;
+        line-height: 1.3 !important;
+        margin-bottom: 6px;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* Tighter meta spacing */
+    .rss-episode-meta {
+        margin-bottom: 12px;
+        font-size: 13px;
+        gap: 8px;
+    }
+
+    .rss-episode-meta span:not(:last-child)::after {
+        margin-left: 8px;
+    }
+
+    /* Custom player mobile adjustments */
+    .podloom-player-main {
+        gap: 12px;
+    }
+
+    .podloom-play-toggle {
+        width: 40px;
+        height: 40px;
+    }
+
+    .podloom-play-toggle svg {
+        width: 40px;
+        height: 40px;
+    }
+
+    .podloom-player-content {
+        gap: 6px;
+        padding-top: 2px;
+    }
+
+    .podloom-controls-row {
+        gap: 8px;
+    }
+
+    .podloom-secondary-controls {
+        gap: 4px;
+    }
+
+    .podloom-control-btn {
+        padding: 2px;
+    }
+
+    .podloom-control-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .podloom-skip-label {
+        display: none; /* Hide skip labels on mobile to save space */
+    }
+
+    .podloom-speed-btn {
+        padding: 2px 6px;
+        font-size: 11px;
+    }
+
+    .podloom-time-display {
+        font-size: 11px;
+    }
+
+    /* Prevent controls row overflow */
+    .podloom-controls-row {
+        flex-wrap: nowrap;
+        min-width: 0;
+    }
+
+    .podloom-secondary-controls {
+        flex-shrink: 0;
+    }
+
+    .podloom-time-display {
+        flex-shrink: 1;
+        min-width: 0;
+        overflow: hidden;
     }
 }

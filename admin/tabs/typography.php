@@ -327,9 +327,55 @@ function podloom_render_typography_settings( $all_options ) {
 							<span id="preview-date" class="rss-episode-date">January 1, 2024</span>
 							<span id="preview-duration" class="rss-episode-duration">45:30</span>
 						</div>
-						<audio class="rss-episode-audio" controls style="width: 100%; margin-bottom: 15px;">
-							<source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
-						</audio>
+						<!-- Custom Audio Player Preview -->
+						<div class="podloom-player-container" style="margin-bottom: 15px;">
+							<audio class="podloom-audio-element" preload="metadata">
+								<source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
+							</audio>
+							<div class="podloom-player-main">
+								<button type="button" class="podloom-play-toggle" aria-label="<?php esc_attr_e( 'Play', 'podloom-podcast-player' ); ?>">
+									<svg class="podloom-icon-play" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+										<circle cx="24" cy="24" r="24" fill="currentColor"/>
+										<path d="M32 24L18 33V15L32 24Z"/>
+									</svg>
+									<svg class="podloom-icon-pause" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+										<circle cx="24" cy="24" r="24" fill="currentColor"/>
+										<rect x="17" y="14" width="5" height="20" rx="1"/>
+										<rect x="26" y="14" width="5" height="20" rx="1"/>
+									</svg>
+								</button>
+								<div class="podloom-player-content">
+									<div class="podloom-timeline-container">
+										<div class="podloom-timeline-progress" style="width: 35%;"></div>
+										<input type="range" class="podloom-timeline-slider" min="0" max="100" value="35" step="0.1" aria-label="<?php esc_attr_e( 'Seek', 'podloom-podcast-player' ); ?>">
+									</div>
+									<div class="podloom-controls-row">
+										<div class="podloom-secondary-controls">
+											<button type="button" class="podloom-control-btn podloom-skip-btn" data-skip="-10" aria-label="<?php esc_attr_e( 'Rewind 10 seconds', 'podloom-podcast-player' ); ?>">
+												<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+													<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+													<path d="M3 3v5h5"/>
+												</svg>
+												<span class="podloom-skip-label">10</span>
+											</button>
+											<button type="button" class="podloom-speed-btn" aria-label="<?php esc_attr_e( 'Playback speed', 'podloom-podcast-player' ); ?>">1x</button>
+											<button type="button" class="podloom-control-btn podloom-skip-btn" data-skip="30" aria-label="<?php esc_attr_e( 'Forward 30 seconds', 'podloom-podcast-player' ); ?>">
+												<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+													<path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+													<path d="M21 3v5h-5"/>
+												</svg>
+												<span class="podloom-skip-label">30</span>
+											</button>
+										</div>
+										<div class="podloom-time-display">
+											<span class="podloom-current-time">15:54</span>
+											<span class="podloom-time-separator">/</span>
+											<span class="podloom-duration">45:30</span>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
 						<div id="preview-description" class="rss-episode-description">
 							<p>This is a sample episode description. It gives listeners an overview of what the episode is about and what they can expect to learn.</p>
 						</div>
