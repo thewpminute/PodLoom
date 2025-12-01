@@ -41,10 +41,11 @@ function podloom_render_general_tab( $all_options, $shows ) {
 		<!-- Default Show Card -->
 		<div class="podloom-settings-card">
 			<h3 class="podloom-card-title"><?php esc_html_e( 'Default Show', 'podloom-podcast-player' ); ?></h3>
-			<p class="description">
+			<p class="description" id="default_show_desc">
 				<?php esc_html_e( 'Select the default show to use in the episode block.', 'podloom-podcast-player' ); ?>
 			</p>
-			<select id="podloom_default_show" name="podloom_default_show" class="regular-text">
+			<label for="podloom_default_show" class="screen-reader-text"><?php esc_html_e( 'Default Show', 'podloom-podcast-player' ); ?></label>
+			<select id="podloom_default_show" name="podloom_default_show" class="regular-text" aria-describedby="default_show_desc">
 				<option value="">
 					<?php esc_html_e( '-- Select a default show --', 'podloom-podcast-player' ); ?>
 				</option>
@@ -75,22 +76,22 @@ function podloom_render_general_tab( $all_options, $shows ) {
 		<!-- Cache Settings Card -->
 		<div class="podloom-settings-card">
 			<h3 class="podloom-card-title"><?php esc_html_e( 'Cache Settings', 'podloom-podcast-player' ); ?></h3>
-			<p class="description">
+			<p class="description" id="cache_settings_desc">
 				<?php esc_html_e( 'Controls how often PodLoom checks for new episodes. Uses conditional HTTP requests (ETag/Last-Modified) so shorter durations are safe — feeds are only re-downloaded when content has changed.', 'podloom-podcast-player' ); ?>
 			</p>
 
 			<div class="podloom-toggle-row" style="border-top: none; margin-top: 0; padding-top: 0;">
-				<input type="checkbox" id="podloom_enable_cache" name="podloom_enable_cache" value="1" <?php checked( $enable_cache, true ); ?> />
+				<input type="checkbox" id="podloom_enable_cache" name="podloom_enable_cache" value="1" <?php checked( $enable_cache, true ); ?> aria-describedby="enable_cache_desc" />
 				<div class="podloom-toggle-info">
-					<span class="podloom-toggle-label"><?php esc_html_e( 'Enable Caching', 'podloom-podcast-player' ); ?></span>
-					<span class="podloom-toggle-description"><?php esc_html_e( 'Cache API responses to reduce API calls. Recommended.', 'podloom-podcast-player' ); ?></span>
+					<label for="podloom_enable_cache" class="podloom-toggle-label"><?php esc_html_e( 'Enable Caching', 'podloom-podcast-player' ); ?></label>
+					<span class="podloom-toggle-description" id="enable_cache_desc"><?php esc_html_e( 'Cache API responses to reduce API calls. Recommended.', 'podloom-podcast-player' ); ?></span>
 				</div>
 			</div>
 
 			<div class="podloom-inline-inputs" style="margin-top: 16px; padding-top: 16px;">
 				<div class="podloom-input-group">
 					<label for="podloom_cache_duration"><?php esc_html_e( 'Cache Duration', 'podloom-podcast-player' ); ?></label>
-					<select id="podloom_cache_duration" name="podloom_cache_duration" style="width: 180px;">
+					<select id="podloom_cache_duration" name="podloom_cache_duration" style="width: 180px;" aria-describedby="cache_settings_desc">
 						<option value="1800" <?php selected( $cache_duration, 1800 ); ?>><?php esc_html_e( '30 minutes', 'podloom-podcast-player' ); ?></option>
 						<option value="3600" <?php selected( $cache_duration, 3600 ); ?>><?php esc_html_e( '1 hour', 'podloom-podcast-player' ); ?></option>
 						<option value="7200" <?php selected( $cache_duration, 7200 ); ?>><?php esc_html_e( '2 hours', 'podloom-podcast-player' ); ?></option>
@@ -102,10 +103,10 @@ function podloom_render_general_tab( $all_options, $shows ) {
 			</div>
 
 			<div class="podloom-toggle-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
-				<input type="checkbox" id="podloom_cache_images" name="podloom_cache_images" value="1" <?php checked( $cache_images, true ); ?> />
+				<input type="checkbox" id="podloom_cache_images" name="podloom_cache_images" value="1" <?php checked( $cache_images, true ); ?> aria-describedby="cache_images_desc" />
 				<div class="podloom-toggle-info">
-					<span class="podloom-toggle-label"><?php esc_html_e( 'Cache Images Locally', 'podloom-podcast-player' ); ?></span>
-					<span class="podloom-toggle-description"><?php esc_html_e( 'Store podcast cover art in your media library for faster loading.', 'podloom-podcast-player' ); ?></span>
+					<label for="podloom_cache_images" class="podloom-toggle-label"><?php esc_html_e( 'Cache Images Locally', 'podloom-podcast-player' ); ?></label>
+					<span class="podloom-toggle-description" id="cache_images_desc"><?php esc_html_e( 'Store podcast cover art in your media library for faster loading.', 'podloom-podcast-player' ); ?></span>
 				</div>
 			</div>
 			<?php if ( $image_stats['total_count'] > 0 ) : ?>
@@ -144,16 +145,16 @@ function podloom_render_general_tab( $all_options, $shows ) {
 
 	<!-- Danger Zone Section -->
 	<div class="danger-zone-container">
-		<div class="danger-zone-header" id="danger-zone-toggle">
-			<span class="dashicons dashicons-warning" style="color: #dc3232;"></span>
+		<button type="button" class="danger-zone-header" id="danger-zone-toggle" aria-expanded="false" aria-controls="danger-zone-content">
+			<span class="dashicons dashicons-warning" style="color: #dc3232;" aria-hidden="true"></span>
 			<strong style="color: #dc3232;"><?php esc_html_e( 'Danger Zone!', 'podloom-podcast-player' ); ?></strong>
 			<span class="description" style="margin-left: 10px;">
 				<?php esc_html_e( 'Click to expand destructive actions', 'podloom-podcast-player' ); ?>
 			</span>
-			<span class="dashicons dashicons-arrow-down-alt2 danger-zone-arrow" style="float: right;"></span>
-		</div>
+			<span class="dashicons dashicons-arrow-down-alt2 danger-zone-arrow" style="float: right;" aria-hidden="true"></span>
+		</button>
 
-		<div class="danger-zone-content" id="danger-zone-content" style="display: none;">
+		<div class="danger-zone-content" id="danger-zone-content" style="display: none;" aria-hidden="true">
 
 			<?php if ( $image_stats['total_count'] > 0 ) : ?>
 			<!-- Delete Cached Images -->
@@ -216,8 +217,9 @@ function podloom_render_general_tab( $all_options, $shows ) {
 								class="regular-text"
 								placeholder="RESET"
 								autocomplete="off"
+								aria-describedby="reset_confirmation_desc"
 							/>
-							<p class="description">
+							<p class="description" id="reset_confirmation_desc">
 								<?php esc_html_e( 'This field is case-sensitive. You must type exactly: RESET', 'podloom-podcast-player' ); ?>
 							</p>
 						</td>

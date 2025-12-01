@@ -122,6 +122,12 @@
     transform: scale(0.95);
 }
 
+.podloom-play-toggle:focus-visible {
+    outline: 2px solid var(--podloom-player-progress, #374151);
+    outline-offset: 2px;
+    border-radius: 50%;
+}
+
 .podloom-play-toggle svg {
     position: absolute;
     top: 0;
@@ -227,6 +233,11 @@
     transform: scale(0.95);
 }
 
+.podloom-control-btn:focus-visible {
+    outline: 2px solid var(--podloom-player-progress, #374151);
+    outline-offset: 1px;
+}
+
 .podloom-control-btn svg {
     flex-shrink: 0;
 }
@@ -258,6 +269,11 @@
 
 .podloom-speed-btn:active {
     background: var(--podloom-player-speed-active-bg, #F3F4F6);
+}
+
+.podloom-speed-btn:focus-visible {
+    outline: 2px solid var(--podloom-player-progress, #374151);
+    outline-offset: 1px;
 }
 
 /* Time Display */

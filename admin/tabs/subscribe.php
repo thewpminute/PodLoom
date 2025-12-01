@@ -41,10 +41,11 @@ function podloom_render_subscribe_tab( $all_options ) {
 					$links     = Podloom_Subscribe::get_links( $source_id );
 					$is_transistor = 'transistor' === $podcast['type'];
 					?>
+					<?php $content_id = 'podloom-subscribe-content-' . esc_attr( $source_id ); ?>
 					<div class="podloom-subscribe-podcast" data-source-id="<?php echo esc_attr( $source_id ); ?>">
 						<div class="podloom-subscribe-podcast__header">
-							<button type="button" class="podloom-subscribe-podcast__toggle" aria-expanded="false">
-								<span class="podloom-subscribe-podcast__icon dashicons dashicons-arrow-right-alt2"></span>
+							<button type="button" class="podloom-subscribe-podcast__toggle" aria-expanded="false" aria-controls="<?php echo esc_attr( $content_id ); ?>">
+								<span class="podloom-subscribe-podcast__icon dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
 								<span class="podloom-subscribe-podcast__title">
 									<?php echo esc_html( $podcast['name'] ); ?>
 								</span>
@@ -63,14 +64,14 @@ function podloom_render_subscribe_tab( $all_options ) {
 								</span>
 							</button>
 						</div>
-						<div class="podloom-subscribe-podcast__content" style="display: none;">
+						<div id="<?php echo esc_attr( $content_id ); ?>" class="podloom-subscribe-podcast__content" style="display: none;" aria-hidden="true">
 							<?php if ( $is_transistor ) : ?>
 								<div class="podloom-subscribe-podcast__actions">
 									<button type="button" class="button podloom-sync-transistor" data-show-id="<?php echo esc_attr( str_replace( 'transistor:', '', $source_id ) ); ?>">
-										<span class="dashicons dashicons-update"></span>
+										<span class="dashicons dashicons-update" aria-hidden="true"></span>
 										<?php esc_html_e( 'Sync from Transistor', 'podloom-podcast-player' ); ?>
 									</button>
-									<span class="podloom-sync-status"></span>
+									<span class="podloom-sync-status" role="status" aria-live="polite"></span>
 								</div>
 							<?php endif; ?>
 
@@ -100,7 +101,7 @@ function podloom_render_subscribe_tab( $all_options ) {
 								<button type="button" class="button button-primary podloom-save-subscribe-links">
 									<?php esc_html_e( 'Save Links', 'podloom-podcast-player' ); ?>
 								</button>
-								<span class="podloom-save-status"></span>
+								<span class="podloom-save-status" role="status" aria-live="polite"></span>
 							</div>
 						</div>
 					</div>

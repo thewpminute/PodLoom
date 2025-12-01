@@ -75,12 +75,12 @@ function podloom_render_transistor_tab( $api_key, $default_show, $enable_cache, 
 			<?php esc_html_e( 'Shows available from your Transistor account.', 'podloom-podcast-player' ); ?>
 		</p>
 
-		<table class="wp-list-table widefat fixed striped" style="margin-top: 12px;">
+		<table class="wp-list-table widefat fixed striped" style="margin-top: 12px;" aria-label="<?php esc_attr_e( 'Transistor Shows', 'podloom-podcast-player' ); ?>">
 			<thead>
 				<tr>
-					<th><?php esc_html_e( 'Show Title', 'podloom-podcast-player' ); ?></th>
-					<th><?php esc_html_e( 'Show ID', 'podloom-podcast-player' ); ?></th>
-					<th><?php esc_html_e( 'Website', 'podloom-podcast-player' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Show Title', 'podloom-podcast-player' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Show ID', 'podloom-podcast-player' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Website', 'podloom-podcast-player' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>

@@ -30,7 +30,13 @@
 				this.setAttribute('aria-expanded', !expanded);
 
 				if (content) {
-					content.style.display = expanded ? 'none' : 'block';
+					if (expanded) {
+						content.style.display = 'none';
+						content.setAttribute('aria-hidden', 'true');
+					} else {
+						content.style.display = 'block';
+						content.setAttribute('aria-hidden', 'false');
+					}
 				}
 			});
 		});

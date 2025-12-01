@@ -159,9 +159,11 @@
             // Remove selected state from all palettes
             document.querySelectorAll('.podloom-palette-btn').forEach(btn => {
                 btn.classList.remove('selected');
+                btn.setAttribute('aria-pressed', 'false');
             });
             // Add selected state to clicked palette
             button.classList.add('selected');
+            button.setAttribute('aria-pressed', 'true');
         },
 
         editFeed: function (feedId, feedName) {
@@ -537,6 +539,8 @@
             const notice = document.createElement('div');
             notice.className = `rss-notice ${type}`;
             notice.textContent = message;
+            notice.setAttribute('role', 'status');
+            notice.setAttribute('aria-live', 'polite');
             container.insertBefore(notice, container.firstChild);
 
             setTimeout(() => {

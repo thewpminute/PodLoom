@@ -897,13 +897,13 @@ registerBlockType( 'podloom/episode-player', {
 				// Transistor Latest Mode
 				displayMode === 'latest' && sourceType === 'transistor' && showId && showSlug ? wp.element.createElement( 'div', {
 					dangerouslySetInnerHTML: {
-						__html: '<iframe width="100%" height="180" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/' + encodeURIComponent( showSlug ) + '/' + ( theme === 'dark' ? 'latest/dark' : 'latest' ) + '"></iframe>'
+						__html: '<iframe width="100%" height="180" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/' + encodeURIComponent( showSlug ) + '/' + ( theme === 'dark' ? 'latest/dark' : 'latest' ) + '" title="' + ( showTitle ? showTitle.replace( /"/g, '&quot;' ) + ' - ' : '' ) + 'Latest Episode Player"></iframe>'
 					}
 				} ) :
 				// Transistor Playlist Mode
 				displayMode === 'playlist' && sourceType === 'transistor' && showId && showSlug ? wp.element.createElement( 'div', {
 					dangerouslySetInnerHTML: {
-						__html: '<iframe width="100%" height="' + parseInt( playlistHeight || 390 ) + '" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/' + encodeURIComponent( showSlug ) + '/' + ( theme === 'dark' ? 'playlist/dark' : 'playlist' ) + '"></iframe>'
+						__html: '<iframe width="100%" height="' + parseInt( playlistHeight || 390 ) + '" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/' + encodeURIComponent( showSlug ) + '/' + ( theme === 'dark' ? 'playlist/dark' : 'playlist' ) + '" title="' + ( showTitle ? showTitle.replace( /"/g, '&quot;' ) + ' - ' : '' ) + 'Podcast Playlist Player"></iframe>'
 					}
 				} ) :
 				// Specific Episode Mode - Transistor

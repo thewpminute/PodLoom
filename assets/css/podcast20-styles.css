@@ -78,6 +78,11 @@
     font-weight: 600;
 }
 
+.podcast20-tab-button:focus-visible {
+    outline: 2px solid #2271b1;
+    outline-offset: -2px;
+}
+
 .podcast20-tab-panel {
     display: none;
     padding: 20px 0;
@@ -126,6 +131,11 @@
 .transcript-format-button.loading {
     opacity: 0.6;
     cursor: wait;
+}
+
+.transcript-format-button:focus-visible {
+    outline: 2px solid #c49a2e;
+    outline-offset: 2px;
 }
 
 .transcript-format-button svg {
@@ -195,6 +205,11 @@
     background: #c49a2e;
 }
 
+.transcript-timestamp:focus-visible {
+    outline: 2px solid #c49a2e;
+    outline-offset: 2px;
+}
+
 .transcript-close {
     padding: 6px 12px;
     background: #f0f0f0;
@@ -209,6 +224,11 @@
 .transcript-close:hover {
     background: #e0e0e0;
     border-color: #ccc;
+}
+
+.transcript-close:focus-visible {
+    outline: 2px solid #666;
+    outline-offset: 2px;
 }
 
 .transcript-error {
@@ -357,6 +377,11 @@ a.podcast20-person-name:hover {
     background: #f9fdf9;
 }
 
+.chapter-item:focus-visible {
+    outline: 2px solid #2e7d32;
+    outline-offset: -2px;
+}
+
 .chapter-img,
 .chapter-img-placeholder {
     width: 48px;
@@ -467,6 +492,11 @@ a.podcast20-person-name:hover {
 .podloom-episode-item:hover {
     background: #f9f9f9;
     border-color: #e0e0e0;
+}
+
+.podloom-episode-item:focus-visible {
+    outline: 2px solid #1565c0;
+    outline-offset: -2px;
 }
 
 .podloom-episode-item.podloom-episode-current {
@@ -604,24 +634,40 @@ a.podcast20-person-name:hover {
 
 /* Responsive - Mobile Breakpoint for iPhones */
 @media screen and (max-width: 640px) {
-    /* Tabs - Stack vertically on mobile */
+    /* Tabs - Horizontal scrolling instead of stacking */
     .podcast20-tab-nav {
-        flex-direction: column;
-        border-bottom: none;
-        gap: 2px;
-        padding: 4px;
-        background: rgba(0, 0, 0, 0.02);
-        border-radius: 6px;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        min-height: 44px;
+        align-items: stretch;
     }
 
-    .podcast20-tab-button {
-        padding: 12px 16px;
-        text-align: left;
-        border-radius: 4px;
+    .podcast20-tab-nav::-webkit-scrollbar {
+        display: none;
     }
 
-    .podcast20-tab-button.active {
-        background: rgba(0, 0, 0, 0.1);
+    .podcast20-tab-button,
+    .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button,
+    .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button:hover,
+    .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button.active {
+        flex-shrink: 0;
+        background: transparent !important;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        margin-bottom: -1px;
+    }
+
+    .podcast20-tab-button.active,
+    .wp-block-podloom-episode-player.rss-episode-player .podcast20-tab-button.active {
+        border-bottom-color: currentColor;
     }
 
     .podcast20-tab-panel {

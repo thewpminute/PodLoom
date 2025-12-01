@@ -64,13 +64,13 @@ function podloom_render_rss_tab( $all_options ) {
 				if ( empty( $feeds ) ) {
 					echo '<p class="description">' . esc_html__( 'No RSS feeds added yet. Click "Add New RSS Feed" to get started.', 'podloom-podcast-player' ) . '</p>';
 				} else {
-					echo '<table class="wp-list-table widefat fixed striped">';
+					echo '<table class="wp-list-table widefat fixed striped" aria-label="' . esc_attr__( 'RSS Feeds', 'podloom-podcast-player' ) . '">';
 					echo '<thead><tr>';
-					echo '<th>' . esc_html__( 'Feed Name', 'podloom-podcast-player' ) . '</th>';
-					echo '<th>' . esc_html__( 'Feed URL', 'podloom-podcast-player' ) . '</th>';
-					echo '<th>' . esc_html__( 'Status', 'podloom-podcast-player' ) . '</th>';
-					echo '<th>' . esc_html__( 'Last Checked', 'podloom-podcast-player' ) . '</th>';
-					echo '<th>' . esc_html__( 'Actions', 'podloom-podcast-player' ) . '</th>';
+					echo '<th scope="col">' . esc_html__( 'Feed Name', 'podloom-podcast-player' ) . '</th>';
+					echo '<th scope="col">' . esc_html__( 'Feed URL', 'podloom-podcast-player' ) . '</th>';
+					echo '<th scope="col">' . esc_html__( 'Status', 'podloom-podcast-player' ) . '</th>';
+					echo '<th scope="col">' . esc_html__( 'Last Checked', 'podloom-podcast-player' ) . '</th>';
+					echo '<th scope="col">' . esc_html__( 'Actions', 'podloom-podcast-player' ) . '</th>';
 					echo '</tr></thead><tbody>';
 
 					foreach ( $feeds as $feed ) {
@@ -268,8 +268,10 @@ function podloom_render_rss_tab( $all_options ) {
 							data-title="<?php echo esc_attr( $palette['title'] ); ?>"
 							data-text="<?php echo esc_attr( $palette['text'] ); ?>"
 							data-accent="<?php echo esc_attr( $palette['accent'] ); ?>"
+							aria-pressed="false"
+							aria-label="<?php echo esc_attr( $palette['name'] ); ?>"
 						>
-							<span class="palette-check dashicons dashicons-yes"></span>
+							<span class="palette-check dashicons dashicons-yes" aria-hidden="true"></span>
 							<div class="palette-preview" style="background-color: <?php echo esc_attr( $palette['bg'] ); ?>;">
 								<div style="width: 60%; height: 8px; background-color: <?php echo esc_attr( $palette['title'] ); ?>; border-radius: 4px; margin-bottom: 4px;"></div>
 								<div style="width: 40%; height: 6px; background-color: <?php echo esc_attr( $palette['text'] ); ?>; border-radius: 3px; position: absolute; bottom: 15px; left: 20%;"></div>

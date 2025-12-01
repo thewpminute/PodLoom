@@ -18,15 +18,17 @@
                     apiKeyInput.type = 'text';
                     icon.classList.remove('dashicons-visibility');
                     icon.classList.add('dashicons-hidden');
+                    toggleButton.setAttribute('aria-label', toggleButton.getAttribute('aria-label').replace('Toggle', 'Hide'));
                 } else {
                     apiKeyInput.type = 'password';
                     icon.classList.remove('dashicons-hidden');
                     icon.classList.add('dashicons-visibility');
+                    toggleButton.setAttribute('aria-label', toggleButton.getAttribute('aria-label').replace('Hide', 'Toggle'));
                 }
             });
         }
 
-        // Generic Accordion Toggle Handler
+        // Generic Accordion Toggle Handler with ARIA support
         function initAccordion(toggleId, contentId, arrowSelector) {
             const toggle = document.getElementById(toggleId);
             if (toggle) {
@@ -34,12 +36,20 @@
                 const arrow = toggle.querySelector(arrowSelector);
 
                 toggle.addEventListener('click', function() {
-                    if (content.style.display === 'none') {
-                        content.style.display = 'block';
-                        arrow.classList.add('rotated');
-                    } else {
+                    const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+
+                    if (isExpanded) {
+                        // Collapse
                         content.style.display = 'none';
+                        content.setAttribute('aria-hidden', 'true');
+                        toggle.setAttribute('aria-expanded', 'false');
                         arrow.classList.remove('rotated');
+                    } else {
+                        // Expand
+                        content.style.display = 'block';
+                        content.setAttribute('aria-hidden', 'false');
+                        toggle.setAttribute('aria-expanded', 'true');
+                        arrow.classList.add('rotated');
                     }
                 });
             }

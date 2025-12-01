@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.12.1
+Stable tag: 2.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,13 @@ PodLoom is a lightweight, high-performance WordPress plugin for embedding podcas
 * Zero external dependencies (no React, Vue, or jQuery required)
 * Sub-second load times on mobile
 * Better Core Web Vitals and SEO scores
+
+**Accessible by Design**
+
+* **WCAG 2.1 AA compliant** player controls and navigation
+* Full keyboard navigation for all interactive elements
+* Screen reader support with live announcements
+* Visible focus indicators throughout
 
 **Full Podcasting 2.0 Support**
 
@@ -166,6 +173,25 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.14.0 =
+* **Mobile Tab Navigation**: Horizontal scrolling tabs on mobile instead of vertical stacking
+* **Touch-Friendly Design**: 44px minimum touch targets meeting Apple accessibility guidelines
+* **Active Tab Indicator**: Underline indicator using `currentColor` for theme compatibility
+* **Smooth Scrolling**: Momentum scrolling on iOS with hidden scrollbar for native feel
+* **Documentation**: Updated styling guide with mobile tab navigation details
+
+= 2.13.0 =
+* **Accessibility Improvements**: Comprehensive WCAG 2.1 AA compliance enhancements across admin and frontend
+* **Keyboard Navigation**: Full keyboard support for chapters, playlist episodes, transcript timestamps, and tabs
+* **Screen Reader Support**: Live announcements for episode changes, chapter navigation, and playback state
+* **ARIA Enhancements**: Proper roles, states, and labels for all interactive elements
+* **Focus Indicators**: Visible focus styles for all buttons, tabs, chapters, and playlist items
+* **Admin Accessibility**: Improved form labels, accordion accessibility, table headers, and AJAX feedback
+* **Dynamic State Updates**: Play/pause button labels update based on playback state
+* **Tab Panel Improvements**: Arrow key navigation, proper aria-hidden on inactive panels
+* **Transcript Loading States**: aria-busy and aria-expanded states during transcript loading
+* **Iframe Accessibility**: Descriptive titles added to Transistor.fm embedded players
+
 = 2.11.1 =
 * **Subscribe Buttons Block**: New Gutenberg block to display podcast subscribe/follow buttons
 * **Subscribe Buttons Widget**: Elementor widget for subscribe buttons with full customization
@@ -247,6 +273,12 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.14.0 =
+Mobile tab navigation now uses horizontal scrolling for better usability. Includes touch-friendly 44px targets and theme-aware active indicators.
+
+= 2.13.0 =
+Major accessibility update! Full keyboard navigation, screen reader support, and WCAG 2.1 AA compliance improvements. Recommended for all users.
 
 = 2.11.1 =
 New Subscribe Buttons feature! Display platform icons (Spotify, Apple Podcasts, etc.) with auto-sync from Transistor.fm. Includes security fixes and bug fixes for RSS feed validation.

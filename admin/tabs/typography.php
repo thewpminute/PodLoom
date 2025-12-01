@@ -93,15 +93,15 @@ function podloom_render_typography_settings( $all_options ) {
 	?>
 
 	<div class="podloom-accordion-container">
-		<div class="podloom-accordion-header" id="typography-accordion-toggle">
-			<span class="dashicons dashicons-admin-customizer" style="color: #2271b1; margin-right: 8px;"></span>
+		<button type="button" class="podloom-accordion-header" id="typography-accordion-toggle" aria-expanded="false" aria-controls="typography-accordion-content">
+			<span class="dashicons dashicons-admin-customizer" style="color: #2271b1; margin-right: 8px;" aria-hidden="true"></span>
 			<strong><?php esc_html_e( 'Advanced Typography & Player Style Settings', 'podloom-podcast-player' ); ?></strong>
 			<span class="description" style="margin-left: 10px;">
 				<?php esc_html_e( 'Click to customize fonts, sizes, and colors', 'podloom-podcast-player' ); ?>
 			</span>
-			<span class="dashicons dashicons-arrow-down-alt2 podloom-accordion-arrow"></span>
-		</div>
-		<div class="podloom-accordion-content" id="typography-accordion-content" style="display: none;">
+			<span class="dashicons dashicons-arrow-down-alt2 podloom-accordion-arrow" aria-hidden="true"></span>
+		</button>
+		<div class="podloom-accordion-content" id="typography-accordion-content" style="display: none;" aria-hidden="true">
 			<!-- Minimal Styling Mode Toggle -->
 			<div class="podloom-toggle-row" id="minimal-styling-toggle" style="border-top: none; margin-top: 0; padding: 20px 0;">
 				<input type="checkbox" id="podloom_rss_minimal_styling" name="podloom_rss_minimal_styling" value="1" <?php checked( $all_options['podloom_rss_minimal_styling'] ?? false, true ); ?> />
@@ -125,10 +125,10 @@ function podloom_render_typography_settings( $all_options ) {
 					<h4><?php esc_html_e( 'Block Background Color', 'podloom-podcast-player' ); ?></h4>
 					<table class="form-table">
 						<tr>
-							<th><label><?php esc_html_e( 'Background', 'podloom-podcast-player' ); ?></label></th>
+							<th><label for="rss_background_color"><?php esc_html_e( 'Background', 'podloom-podcast-player' ); ?></label></th>
 							<td>
-								<input type="color" id="rss_background_color" value="<?php echo esc_attr( $all_options['podloom_rss_background_color'] ?? '#f9f9f9' ); ?>" class="typo-control color-picker" data-element="background" data-property="background-color">
-								<p class="description"><?php esc_html_e( 'Choose a background color for the entire RSS episode block.', 'podloom-podcast-player' ); ?></p>
+								<input type="color" id="rss_background_color" value="<?php echo esc_attr( $all_options['podloom_rss_background_color'] ?? '#f9f9f9' ); ?>" class="typo-control color-picker" data-element="background" data-property="background-color" aria-describedby="rss_background_color_desc">
+								<p class="description" id="rss_background_color_desc"><?php esc_html_e( 'Choose a background color for the entire RSS episode block.', 'podloom-podcast-player' ); ?></p>
 							</td>
 						</tr>
 					</table>
@@ -143,7 +143,7 @@ function podloom_render_typography_settings( $all_options ) {
 
 				<table class="form-table">
 					<tr>
-						<th><label><?php esc_html_e( 'Font Family', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="<?php echo esc_attr( $element ); ?>_font_family"><?php esc_html_e( 'Font Family', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<select id="<?php echo esc_attr( $element ); ?>_font_family" class="regular-text typo-control" data-element="<?php echo esc_attr( $element ); ?>" data-property="font-family">
 								<option value="inherit" <?php selected( $typo[ $element ]['font_family'], 'inherit' ); ?>>Inherit</option>
@@ -157,12 +157,13 @@ function podloom_render_typography_settings( $all_options ) {
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Font Size', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="<?php echo esc_attr( $element ); ?>_font_size_value"><?php esc_html_e( 'Font Size', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<input type="hidden" id="<?php echo esc_attr( $element ); ?>_font_size" value="<?php echo esc_attr( $typo[ $element ]['font_size'] ); ?>">
 							<div style="display: flex; align-items: center; gap: 10px;">
-								<input type="range" id="<?php echo esc_attr( $element ); ?>_font_size_range" min="8" max="72" step="1" value="16" class="typo-range" data-element="<?php echo esc_attr( $element ); ?>" style="flex: 1;">
+								<input type="range" id="<?php echo esc_attr( $element ); ?>_font_size_range" min="8" max="72" step="1" value="16" class="typo-range" data-element="<?php echo esc_attr( $element ); ?>" style="flex: 1;" aria-label="<?php esc_attr_e( 'Font size slider', 'podloom-podcast-player' ); ?>">
 								<input type="number" id="<?php echo esc_attr( $element ); ?>_font_size_value" min="0" max="200" step="0.1" value="16" class="small-text typo-control typo-size-value" data-element="<?php echo esc_attr( $element ); ?>" data-property="font-size" style="width: 70px;">
+								<label for="<?php echo esc_attr( $element ); ?>_font_size_unit" class="screen-reader-text"><?php esc_html_e( 'Font size unit', 'podloom-podcast-player' ); ?></label>
 								<select id="<?php echo esc_attr( $element ); ?>_font_size_unit" class="typo-control typo-size-unit" data-element="<?php echo esc_attr( $element ); ?>" data-property="font-size" style="width: 70px;">
 									<option value="px">px</option>
 									<option value="em">em</option>
@@ -173,24 +174,24 @@ function podloom_render_typography_settings( $all_options ) {
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Line Height', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="<?php echo esc_attr( $element ); ?>_line_height_value"><?php esc_html_e( 'Line Height', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<input type="hidden" id="<?php echo esc_attr( $element ); ?>_line_height" value="<?php echo esc_attr( $typo[ $element ]['line_height'] ); ?>">
 							<div style="display: flex; align-items: center; gap: 10px;">
-								<input type="range" id="<?php echo esc_attr( $element ); ?>_line_height_range" min="0.5" max="3" step="0.1" value="1.5" class="typo-range" data-element="<?php echo esc_attr( $element ); ?>" style="flex: 1;">
+								<input type="range" id="<?php echo esc_attr( $element ); ?>_line_height_range" min="0.5" max="3" step="0.1" value="1.5" class="typo-range" data-element="<?php echo esc_attr( $element ); ?>" style="flex: 1;" aria-label="<?php esc_attr_e( 'Line height slider', 'podloom-podcast-player' ); ?>">
 								<input type="number" id="<?php echo esc_attr( $element ); ?>_line_height_value" min="0" max="10" step="0.1" value="1.5" class="small-text typo-control typo-lineheight-value" data-element="<?php echo esc_attr( $element ); ?>" data-property="line-height" style="width: 70px;">
 								<span style="width: 70px; text-align: center; color: #666;">(unitless)</span>
 							</div>
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Text Color', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="<?php echo esc_attr( $element ); ?>_color"><?php esc_html_e( 'Text Color', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<input type="color" id="<?php echo esc_attr( $element ); ?>_color" value="<?php echo esc_attr( $typo[ $element ]['color'] ); ?>" class="typo-control color-picker" data-element="<?php echo esc_attr( $element ); ?>" data-property="color">
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Font Weight', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="<?php echo esc_attr( $element ); ?>_font_weight"><?php esc_html_e( 'Font Weight', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<select id="<?php echo esc_attr( $element ); ?>_font_weight" class="regular-text typo-control" data-element="<?php echo esc_attr( $element ); ?>" data-property="font-weight">
 								<option value="normal" <?php selected( $typo[ $element ]['font_weight'], 'normal' ); ?>>Normal</option>
@@ -209,23 +210,23 @@ function podloom_render_typography_settings( $all_options ) {
 				<h4><?php esc_html_e( 'Player Border', 'podloom-podcast-player' ); ?></h4>
 				<table class="form-table">
 					<tr>
-						<th><label><?php esc_html_e( 'Border Color', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_border_color"><?php esc_html_e( 'Border Color', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<input type="color" id="podloom_rss_border_color" name="podloom_rss_border_color" value="<?php echo esc_attr( $border['color'] ); ?>" class="typo-control color-picker">
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Border Width', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_border_width_value"><?php esc_html_e( 'Border Width', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<div style="display: flex; align-items: center; gap: 10px;">
-								<input type="range" id="podloom_rss_border_width_range" min="0" max="10" step="1" value="<?php echo esc_attr( (int) $border['width'] ); ?>" style="flex: 1;">
+								<input type="range" id="podloom_rss_border_width_range" min="0" max="10" step="1" value="<?php echo esc_attr( (int) $border['width'] ); ?>" style="flex: 1;" aria-label="<?php esc_attr_e( 'Border width slider', 'podloom-podcast-player' ); ?>">
 								<input type="number" id="podloom_rss_border_width_value" name="podloom_rss_border_width" min="0" max="20" step="1" value="<?php echo esc_attr( (int) $border['width'] ); ?>" class="small-text" style="width: 70px;">
 								<span style="width: 30px;">px</span>
 							</div>
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Border Style', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_border_style"><?php esc_html_e( 'Border Style', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<select id="podloom_rss_border_style" name="podloom_rss_border_style" class="regular-text">
 								<option value="solid" <?php selected( $border['style'], 'solid' ); ?>><?php esc_html_e( 'Solid', 'podloom-podcast-player' ); ?></option>
@@ -237,10 +238,10 @@ function podloom_render_typography_settings( $all_options ) {
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Border Radius', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_border_radius_value"><?php esc_html_e( 'Border Radius', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<div style="display: flex; align-items: center; gap: 10px;">
-								<input type="range" id="podloom_rss_border_radius_range" min="0" max="30" step="1" value="<?php echo esc_attr( (int) $border['radius'] ); ?>" style="flex: 1;">
+								<input type="range" id="podloom_rss_border_radius_range" min="0" max="30" step="1" value="<?php echo esc_attr( (int) $border['radius'] ); ?>" style="flex: 1;" aria-label="<?php esc_attr_e( 'Border radius slider', 'podloom-podcast-player' ); ?>">
 								<input type="number" id="podloom_rss_border_radius_value" name="podloom_rss_border_radius" min="0" max="50" step="1" value="<?php echo esc_attr( (int) $border['radius'] ); ?>" class="small-text" style="width: 70px;">
 								<span style="width: 30px;">px</span>
 							</div>
@@ -254,7 +255,7 @@ function podloom_render_typography_settings( $all_options ) {
 				<h4><?php esc_html_e( 'Funding Button', 'podloom-podcast-player' ); ?></h4>
 				<table class="form-table">
 					<tr>
-						<th><label><?php esc_html_e( 'Font Family', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_funding_font_family"><?php esc_html_e( 'Font Family', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<select id="podloom_rss_funding_font_family" name="podloom_rss_funding_font_family" class="regular-text">
 								<option value="inherit" <?php selected( $funding['font_family'], 'inherit' ); ?>><?php esc_html_e( 'Inherit', 'podloom-podcast-player' ); ?></option>
@@ -268,32 +269,32 @@ function podloom_render_typography_settings( $all_options ) {
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Font Size', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_funding_font_size_value"><?php esc_html_e( 'Font Size', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<div style="display: flex; align-items: center; gap: 10px;">
-								<input type="range" id="podloom_rss_funding_font_size_range" min="10" max="24" step="1" value="<?php echo esc_attr( (int) $funding['font_size'] ); ?>" style="flex: 1;">
+								<input type="range" id="podloom_rss_funding_font_size_range" min="10" max="24" step="1" value="<?php echo esc_attr( (int) $funding['font_size'] ); ?>" style="flex: 1;" aria-label="<?php esc_attr_e( 'Funding button font size slider', 'podloom-podcast-player' ); ?>">
 								<input type="number" id="podloom_rss_funding_font_size_value" name="podloom_rss_funding_font_size" min="8" max="32" step="1" value="<?php echo esc_attr( (int) $funding['font_size'] ); ?>" class="small-text" style="width: 70px;">
 								<span style="width: 30px;">px</span>
 							</div>
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Background Color', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_funding_background_color"><?php esc_html_e( 'Background Color', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<input type="color" id="podloom_rss_funding_background_color" name="podloom_rss_funding_background_color" value="<?php echo esc_attr( $funding['background_color'] ); ?>" class="typo-control color-picker">
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Text Color', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_funding_text_color"><?php esc_html_e( 'Text Color', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<input type="color" id="podloom_rss_funding_text_color" name="podloom_rss_funding_text_color" value="<?php echo esc_attr( $funding['text_color'] ); ?>" class="typo-control color-picker">
 						</td>
 					</tr>
 					<tr>
-						<th><label><?php esc_html_e( 'Border Radius', 'podloom-podcast-player' ); ?></label></th>
+						<th><label for="podloom_rss_funding_border_radius_value"><?php esc_html_e( 'Border Radius', 'podloom-podcast-player' ); ?></label></th>
 						<td>
 							<div style="display: flex; align-items: center; gap: 10px;">
-								<input type="range" id="podloom_rss_funding_border_radius_range" min="0" max="30" step="1" value="<?php echo esc_attr( (int) $funding['border_radius'] ); ?>" style="flex: 1;">
+								<input type="range" id="podloom_rss_funding_border_radius_range" min="0" max="30" step="1" value="<?php echo esc_attr( (int) $funding['border_radius'] ); ?>" style="flex: 1;" aria-label="<?php esc_attr_e( 'Funding button border radius slider', 'podloom-podcast-player' ); ?>">
 								<input type="number" id="podloom_rss_funding_border_radius_value" name="podloom_rss_funding_border_radius" min="0" max="50" step="1" value="<?php echo esc_attr( (int) $funding['border_radius'] ); ?>" class="small-text" style="width: 70px;">
 								<span style="width: 30px;">px</span>
 							</div>

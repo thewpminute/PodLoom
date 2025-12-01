@@ -3,7 +3,7 @@
  * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
  * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks or Elementor. Supports RSS feeds from any podcast platform.
- * Version: 2.12.1
+ * Version: 2.14.0
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
@@ -325,11 +325,15 @@ function podloom_render_block( $attributes ) {
 		$theme      = isset( $attributes['theme'] ) && $attributes['theme'] === 'dark' ? 'dark' : 'light';
 		$theme_path = $theme === 'dark' ? 'latest/dark' : 'latest';
 
+		// Get show title for accessible iframe title
+		$show_title = isset( $attributes['showTitle'] ) ? $attributes['showTitle'] : '';
+
 		// Construct iframe for latest episode
 		$iframe = sprintf(
-			'<iframe width="100%%" height="180" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/%s/%s"></iframe>',
+			'<iframe width="100%%" height="180" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/%s/%s" title="%s"></iframe>',
 			esc_attr( $show_slug ),
-			esc_attr( $theme_path )
+			esc_attr( $theme_path ),
+			esc_attr( $show_title ? $show_title . ' - ' . __( 'Latest Episode Player', 'podloom-podcast-player' ) : __( 'Latest Episode Player', 'podloom-podcast-player' ) )
 		);
 
 		return '<div class="wp-block-podloom-episode-player">' . $iframe . '</div>';
@@ -354,12 +358,16 @@ function podloom_render_block( $attributes ) {
 			$playlist_height = 1000;
 		}
 
+		// Get show title for accessible iframe title
+		$show_title = isset( $attributes['showTitle'] ) ? $attributes['showTitle'] : '';
+
 		// Construct iframe for playlist
 		$iframe = sprintf(
-			'<iframe width="100%%" height="%d" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/%s/%s"></iframe>',
+			'<iframe width="100%%" height="%d" frameborder="no" scrolling="no" seamless src="https://share.transistor.fm/e/%s/%s" title="%s"></iframe>',
 			$playlist_height,
 			esc_attr( $show_slug ),
-			esc_attr( $theme_path )
+			esc_attr( $theme_path ),
+			esc_attr( $show_title ? $show_title . ' - ' . __( 'Podcast Playlist Player', 'podloom-podcast-player' ) : __( 'Podcast Playlist Player', 'podloom-podcast-player' ) )
 		);
 
 		return '<div class="wp-block-podloom-episode-player">' . $iframe . '</div>';
@@ -508,18 +516,20 @@ function podloom_render_custom_player( $audio_url, $audio_type = 'audio/mpeg', $
 	// Play/Pause button
 	// Circle uses currentColor (set via CSS), icon fill is controlled by CSS variable
 	$output .= sprintf(
-		'<button type="button" class="podloom-play-toggle" aria-label="%s">
-			<svg class="podloom-icon-play" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+		'<button type="button" class="podloom-play-toggle" aria-label="%s" data-play-label="%s" data-pause-label="%s">
+			<svg class="podloom-icon-play" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<circle cx="24" cy="24" r="24" fill="currentColor"/>
 				<path d="M32 24L18 33V15L32 24Z"/>
 			</svg>
-			<svg class="podloom-icon-pause" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+			<svg class="podloom-icon-pause" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<circle cx="24" cy="24" r="24" fill="currentColor"/>
 				<rect x="17" y="14" width="5" height="20" rx="1"/>
 				<rect x="26" y="14" width="5" height="20" rx="1"/>
 			</svg>
 		</button>',
-		esc_attr__( 'Play', 'podloom-podcast-player' )
+		esc_attr__( 'Play', 'podloom-podcast-player' ),
+		esc_attr__( 'Play', 'podloom-podcast-player' ),
+		esc_attr__( 'Pause', 'podloom-podcast-player' )
 	);
 
 	$output .= '<div class="podloom-player-content">';

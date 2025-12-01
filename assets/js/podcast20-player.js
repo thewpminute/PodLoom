@@ -7,6 +7,35 @@
     'use strict';
 
     /**
+     * Screen reader live region for announcements
+     * Creates a visually hidden element that screen readers will announce
+     */
+    var liveRegion = null;
+
+    function ensureLiveRegion() {
+        if (!liveRegion) {
+            liveRegion = document.createElement('div');
+            liveRegion.setAttribute('role', 'status');
+            liveRegion.setAttribute('aria-live', 'polite');
+            liveRegion.setAttribute('aria-atomic', 'true');
+            liveRegion.className = 'podloom-sr-announcer';
+            // Visually hidden but accessible to screen readers
+            liveRegion.style.cssText = 'position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;';
+            document.body.appendChild(liveRegion);
+        }
+        return liveRegion;
+    }
+
+    function announceToScreenReader(message) {
+        var region = ensureLiveRegion();
+        // Clear and set after a brief delay to ensure announcement
+        region.textContent = '';
+        setTimeout(function () {
+            region.textContent = message;
+        }, 50);
+    }
+
+    /**
      * Initialize tab switching
      */
     function initTabSwitching() {
@@ -17,32 +46,79 @@
             const tabButtons = container.querySelectorAll('.podcast20-tab-button');
             const tabPanels = container.querySelectorAll('.podcast20-tab-panel');
 
-            tabButtons.forEach(function (button) {
+            // Set initial aria-hidden on non-active panels
+            tabPanels.forEach(function (panel) {
+                if (!panel.classList.contains('active')) {
+                    panel.setAttribute('aria-hidden', 'true');
+                } else {
+                    panel.setAttribute('aria-hidden', 'false');
+                }
+            });
+
+            // Set tabindex on buttons for arrow key navigation
+            tabButtons.forEach(function (button, index) {
+                button.setAttribute('tabindex', button.classList.contains('active') ? '0' : '-1');
+            });
+
+            tabButtons.forEach(function (button, index) {
                 button.addEventListener('click', function () {
-                    const targetTab = button.getAttribute('data-tab');
+                    activateTab(button, tabButtons, tabPanels, container);
+                });
 
-                    // Remove active class from all buttons and panels
-                    tabButtons.forEach(function (btn) {
-                        btn.classList.remove('active');
-                        btn.setAttribute('aria-selected', 'false');
-                    });
+                // Keyboard navigation for tabs
+                button.addEventListener('keydown', function (e) {
+                    let targetIndex = -1;
+                    const currentIndex = index;
 
-                    tabPanels.forEach(function (panel) {
-                        panel.classList.remove('active');
-                    });
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        targetIndex = (currentIndex + 1) % tabButtons.length;
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        targetIndex = (currentIndex - 1 + tabButtons.length) % tabButtons.length;
+                    } else if (e.key === 'Home') {
+                        e.preventDefault();
+                        targetIndex = 0;
+                    } else if (e.key === 'End') {
+                        e.preventDefault();
+                        targetIndex = tabButtons.length - 1;
+                    }
 
-                    // Add active class to clicked button
-                    button.classList.add('active');
-                    button.setAttribute('aria-selected', 'true');
-
-                    // Show corresponding panel
-                    const targetPanel = container.querySelector('#tab-panel-' + targetTab);
-                    if (targetPanel) {
-                        targetPanel.classList.add('active');
+                    if (targetIndex >= 0) {
+                        tabButtons[targetIndex].focus();
+                        activateTab(tabButtons[targetIndex], tabButtons, tabPanels, container);
                     }
                 });
             });
         });
+
+        function activateTab(button, tabButtons, tabPanels, container) {
+            const targetTab = button.getAttribute('data-tab');
+
+            // Remove active class from all buttons and panels
+            tabButtons.forEach(function (btn) {
+                btn.classList.remove('active');
+                btn.setAttribute('aria-selected', 'false');
+                btn.setAttribute('tabindex', '-1');
+            });
+
+            tabPanels.forEach(function (panel) {
+                panel.classList.remove('active');
+                panel.setAttribute('aria-hidden', 'true');
+            });
+
+            // Add active class to clicked button
+            button.classList.add('active');
+            button.setAttribute('aria-selected', 'true');
+            button.setAttribute('tabindex', '0');
+
+            // Show corresponding panel
+            const targetPanel = container.querySelector('#tab-panel-' + targetTab);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+                targetPanel.setAttribute('aria-hidden', 'false');
+            }
+        }
     }
 
     /**
@@ -83,10 +159,13 @@
 
             // Add click event to each chapter item
             chapterItems.forEach(function (item) {
-                // Make the entire chapter item clickable
+                // Make the entire chapter item clickable and accessible
                 item.style.cursor = 'pointer';
+                item.setAttribute('role', 'button');
+                item.setAttribute('tabindex', '0');
 
-                item.addEventListener('click', function (e) {
+                // Handler for activating a chapter
+                function activateChapter(e) {
                     // Don't trigger if clicking on the external link icon or its SVG
                     if (e.target.tagName === 'A' && e.target.classList.contains('chapter-external-link')) {
                         return;
@@ -113,6 +192,19 @@
 
                         // Update active state
                         updateActiveChapter(chapterList, startTime);
+
+                        // Announce chapter change to screen readers
+                        announceToScreenReader('Playing chapter: ' + (item.querySelector('.chapter-title')?.textContent || ''));
+                    }
+                }
+
+                item.addEventListener('click', activateChapter);
+
+                // Keyboard support: Enter and Space to activate
+                item.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        activateChapter(e);
                     }
                 });
             });
@@ -144,14 +236,16 @@
             }
         });
 
-        // Remove active class from all chapters
+        // Remove active class and aria-current from all chapters
         chapterItems.forEach(function (item) {
             item.classList.remove('active');
+            item.removeAttribute('aria-current');
         });
 
-        // Add active class to current chapter
+        // Add active class and aria-current to current chapter
         if (activeChapter) {
             activeChapter.classList.add('active');
+            activeChapter.setAttribute('aria-current', 'true');
         }
 
         // Update artwork if chapter has image
@@ -187,9 +281,14 @@
      * Try to load transcripts with fallback support
      */
     function tryLoadTranscript(transcripts, index, button, content) {
+        var viewer = content.closest('.transcript-viewer');
+
         if (index >= transcripts.length) {
             // All transcripts failed
             button.classList.remove('loading');
+            button.removeAttribute('aria-busy');
+            if (viewer) viewer.removeAttribute('aria-busy');
+
             const firstUrl = transcripts[0].url;
 
             // Safely escape URL to prevent XSS
@@ -200,7 +299,7 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
 
-            content.innerHTML = '<div class="transcript-error">Could not load transcript. <a href="' + escapedUrl + '" target="_blank" rel="noopener noreferrer">Open in new tab</a></div>';
+            content.innerHTML = '<div class="transcript-error" role="alert">Could not load transcript. <a href="' + escapedUrl + '" target="_blank" rel="noopener noreferrer">Open in new tab</a></div>';
             return;
         }
 
@@ -232,12 +331,18 @@
                     const parsed = parseTranscript(data.data.content, type);
                     content.innerHTML = parsed;
 
-                    // Activate button
+                    // Activate button and remove loading state
                     button.classList.remove('loading');
                     button.classList.add('active');
+                    button.removeAttribute('aria-busy');
+                    button.setAttribute('aria-expanded', 'true');
+                    if (viewer) viewer.removeAttribute('aria-busy');
 
                     // Attach timestamp click handlers
                     attachTimestampHandlers(content);
+
+                    // Announce to screen readers
+                    announceToScreenReader('Transcript loaded');
                 } else {
                     throw new Error(data.data ? data.data.message : 'Failed to load transcript');
                 }
@@ -256,6 +361,9 @@
         const transcriptButtons = document.querySelectorAll('.transcript-format-button');
 
         transcriptButtons.forEach(function (button) {
+            // Set initial aria-expanded state
+            button.setAttribute('aria-expanded', 'false');
+
             button.addEventListener('click', function () {
                 const viewer = button.closest('.podcast20-transcripts').querySelector('.transcript-viewer');
                 const content = viewer.querySelector('.transcript-content');
@@ -263,6 +371,7 @@
                 // Toggle if already active
                 if (button.classList.contains('active')) {
                     button.classList.remove('active');
+                    button.setAttribute('aria-expanded', 'false');
                     viewer.style.display = 'none';
                     content.innerHTML = '';
                     return;
@@ -281,10 +390,12 @@
                     }];
                 }
 
-                // Show loading state
+                // Show loading state with aria-busy
                 button.classList.add('loading');
+                button.setAttribute('aria-busy', 'true');
                 viewer.style.display = 'block';
-                content.innerHTML = '<div class="transcript-loading">Loading transcript...</div>';
+                viewer.setAttribute('aria-busy', 'true');
+                content.innerHTML = '<div class="transcript-loading" role="status">Loading transcript...</div>';
 
                 // Try loading transcripts with fallback
                 tryLoadTranscript(transcripts, 0, button, content);
@@ -301,8 +412,12 @@
                 const content = viewer.querySelector('.transcript-content');
 
                 button.classList.remove('active');
+                button.setAttribute('aria-expanded', 'false');
                 viewer.style.display = 'none';
                 content.innerHTML = '';
+
+                // Return focus to the transcript button
+                button.focus();
             });
         });
     }
@@ -690,7 +805,11 @@
         if (!audioPlayer) return;
 
         timestamps.forEach(function (timestamp) {
-            timestamp.addEventListener('click', function () {
+            // Make timestamps accessible
+            timestamp.setAttribute('role', 'button');
+            timestamp.setAttribute('tabindex', '0');
+
+            function seekToTimestamp() {
                 var time = parseFloat(timestamp.getAttribute('data-time'));
                 if (!isNaN(time)) {
                     audioPlayer.currentTime = time;
@@ -700,6 +819,19 @@
                             console.warn('Could not auto-play audio:', error);
                         });
                     }
+
+                    // Announce to screen readers
+                    announceToScreenReader('Seeking to ' + timestamp.textContent);
+                }
+            }
+
+            timestamp.addEventListener('click', seekToTimestamp);
+
+            // Keyboard support
+            timestamp.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    seekToTimestamp();
                 }
             });
         });
@@ -824,8 +956,9 @@
 
                     if (idx === newIndex) {
                         item.classList.add('podloom-episode-current');
+                        item.setAttribute('aria-current', 'true');
                         // Replace play icon with now-playing animation
-                        overlay.innerHTML = '<span class="podloom-now-playing-icon" title="Now Playing">' +
+                        overlay.innerHTML = '<span class="podloom-now-playing-icon" aria-hidden="true">' +
                             '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
                             '<rect x="4" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite"/></rect>' +
                             '<rect x="10" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="8;16;8" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="8;4;8" dur="0.8s" repeatCount="indefinite"/></rect>' +
@@ -833,8 +966,9 @@
                             '</svg></span>';
                     } else {
                         item.classList.remove('podloom-episode-current');
+                        item.removeAttribute('aria-current');
                         // Replace with play icon
-                        overlay.innerHTML = '<span class="podloom-play-icon" title="Play">' +
+                        overlay.innerHTML = '<span class="podloom-play-icon" aria-hidden="true">' +
                             '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
                             '<polygon points="5,3 19,12 5,21"/>' +
                             '</svg></span>';
@@ -1283,6 +1417,9 @@
                 if (currentItem) {
                     currentItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
+
+                // Announce episode change to screen readers
+                announceToScreenReader('Now playing: ' + (episode.title || 'Episode ' + (index + 1)));
             }
 
             /**
@@ -1297,9 +1434,17 @@
 
             // Click handler for episode items
             var episodeItems = episodesList.querySelectorAll('.podloom-episode-item');
-            episodeItems.forEach(function (item) {
+            episodeItems.forEach(function (item, idx) {
                 item.style.cursor = 'pointer';
-                item.addEventListener('click', function () {
+                item.setAttribute('role', 'button');
+                item.setAttribute('tabindex', '0');
+
+                // Set initial aria-current for first episode
+                if (idx === 0) {
+                    item.setAttribute('aria-current', 'true');
+                }
+
+                function activateEpisode() {
                     var index = parseInt(item.getAttribute('data-episode-index'), 10);
                     if (!isNaN(index) && index !== currentIndex) {
                         switchToEpisode(index);
@@ -1308,6 +1453,16 @@
                         audioPlayer.play().catch(function (err) {
                             console.warn('PodLoom: Could not play', err);
                         });
+                    }
+                }
+
+                item.addEventListener('click', activateEpisode);
+
+                // Keyboard support: Enter and Space to activate
+                item.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        activateEpisode();
                     }
                 });
             });
@@ -1408,17 +1563,26 @@
                 });
             }
 
-            // Update play/pause icon on audio events
+            // Update play/pause icon and aria-label on audio events
             audio.addEventListener('play', function () {
                 container.classList.add('is-playing');
+                if (playToggle) {
+                    playToggle.setAttribute('aria-label', playToggle.getAttribute('data-pause-label') || 'Pause');
+                }
             });
 
             audio.addEventListener('pause', function () {
                 container.classList.remove('is-playing');
+                if (playToggle) {
+                    playToggle.setAttribute('aria-label', playToggle.getAttribute('data-play-label') || 'Play');
+                }
             });
 
             audio.addEventListener('ended', function () {
                 container.classList.remove('is-playing');
+                if (playToggle) {
+                    playToggle.setAttribute('aria-label', playToggle.getAttribute('data-play-label') || 'Play');
+                }
             });
 
             // Update timeline and time display on timeupdate
