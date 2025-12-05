@@ -3,7 +3,7 @@
  * Plugin Name:  PodLoom - Podcast Player for Transistor.fm & RSS Feeds
  * Plugin URI: https://thewpminute.com/podloom/
  * Description: Connect to your Transistor.fm account and embed podcast episodes using Gutenberg blocks or Elementor. Supports RSS feeds from any podcast platform.
- * Version: 2.14.0
+ * Version: 2.14.1
  * Author: WP Minute
  * Author URI: https://thewpminute.com/
  * License: GPL v2 or later
@@ -667,10 +667,13 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 
 	// Artwork column
 	if ( $show_artwork && ! empty( $current_episode['image'] ) ) {
+		// Get local URL if image caching is enabled (returns original URL as fallback).
+		$current_artwork_url = Podloom_Image_Cache::get_local_url( $current_episode['image'], 'cover', $feed_id );
+
 		$output .= '<div class="rss-episode-artwork-column">';
 		$output .= sprintf(
 			'<div class="rss-episode-artwork"><img src="%s" alt="%s" class="podloom-playlist-artwork" /></div>',
-			esc_url( $current_episode['image'] ),
+			esc_url( $current_artwork_url ),
 			esc_attr( $current_episode['title'] )
 		);
 
@@ -758,11 +761,14 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 		$sanitized_description = ! empty( $ep['description'] ) ? wp_kses( $ep['description'], $allowed_html ) : '';
 		$sanitized_content     = ! empty( $ep['content'] ) ? wp_kses( $ep['content'], $allowed_html ) : '';
 
+		// Get local URL if image caching is enabled (returns original URL as fallback).
+		$ep_image_url = ! empty( $ep['image'] ) ? Podloom_Image_Cache::get_local_url( $ep['image'], 'cover', $feed_id ) : '';
+
 		$episodes_json[] = array(
 			'id'          => $ep['id'] ?? $index,
 			'title'       => sanitize_text_field( $ep['title'] ?? '' ),
 			'audio_url'   => esc_url_raw( $ep['audio_url'] ?? '' ),
-			'image'       => esc_url_raw( $ep['image'] ?? '' ),
+			'image'       => esc_url_raw( $ep_image_url ),
 			'date'        => $ep['date'] ?? 0,
 			'duration'    => $ep['duration'] ?? 0,
 			'description' => $sanitized_description,
@@ -887,10 +893,13 @@ function podloom_render_rss_episode( $attributes ) {
 
 	// Episode artwork column (includes artwork + funding button on desktop/tablet)
 	if ( $show_artwork && ! empty( $episode['image'] ) ) {
+		// Get local URL if image caching is enabled (returns original URL as fallback).
+		$artwork_url = Podloom_Image_Cache::get_local_url( $episode['image'], 'cover', $feed_id );
+
 		$output .= '<div class="rss-episode-artwork-column">';
 		$output .= sprintf(
 			'<div class="rss-episode-artwork"><img src="%s" alt="%s" /></div>',
-			esc_url( $episode['image'] ),
+			esc_url( $artwork_url ),
 			esc_attr( $episode['title'] )
 		);
 

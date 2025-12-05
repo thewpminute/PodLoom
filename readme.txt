@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.14.0
+Stable tag: 2.14.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -173,6 +173,12 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.14.1 =
+* **Image Caching Improvement**: Image caching now happens at render time instead of during feed parsing
+* **Instant Toggle**: Enabling/disabling "Cache Images Locally" takes effect immediately without needing to clear cache
+* **Better Architecture**: Feed cache now stores canonical remote URLs; local URL resolution happens at render time
+* **Documentation**: Updated caching guide with new render-time caching details
+
 = 2.14.0 =
 * **Mobile Tab Navigation**: Horizontal scrolling tabs on mobile instead of vertical stacking
 * **Touch-Friendly Design**: 44px minimum touch targets meeting Apple accessibility guidelines
@@ -273,6 +279,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.14.1 =
+Image caching now takes effect immediately when toggled. No need to clear cache or refresh feeds.
 
 = 2.14.0 =
 Mobile tab navigation now uses horizontal scrolling for better usability. Includes touch-friendly 44px targets and theme-aware active indicators.

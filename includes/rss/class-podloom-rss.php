@@ -449,11 +449,9 @@ class Podloom_RSS {
 		// Parse channel-level P2.0 data (applies to all episodes)
 		$channel_p20_data = $p20_parser->parse_from_simplepie_channel( $feed );
 
-		// Get the podcast cover image (channel-level) and cache it if image caching is enabled.
+		// Get the podcast cover image (channel-level).
+		// Note: Local caching is handled at render time, not here. This keeps cached data canonical (remote URLs).
 		$podcast_cover_url = $feed->get_image_url() ? $feed->get_image_url() : '';
-		if ( ! empty( $podcast_cover_url ) && Podloom_Image_Cache::is_enabled() ) {
-			$podcast_cover_url = Podloom_Image_Cache::get_local_url( $podcast_cover_url, 'cover', $feed_id );
-		}
 
 		foreach ( $items as $item ) {
 			$enclosure = $item->get_enclosure();
@@ -465,16 +463,13 @@ class Podloom_RSS {
 			$p20_data = $p20_parser->merge_data( $item_p20_data, $channel_p20_data );
 
 			// Get episode image (item thumbnail or fallback to podcast cover).
+			// Note: Local caching is handled at render time, not here.
 			$episode_image_url = '';
 			$thumbnail         = $item->get_thumbnail();
 			if ( $thumbnail && ! empty( $thumbnail['url'] ) ) {
 				$episode_image_url = $thumbnail['url'];
-				// Cache episode-specific artwork if different from podcast cover.
-				if ( Podloom_Image_Cache::is_enabled() ) {
-					$episode_image_url = Podloom_Image_Cache::get_local_url( $episode_image_url, 'cover', $feed_id );
-				}
 			} else {
-				// Use podcast cover (already cached above).
+				// Use podcast cover as fallback.
 				$episode_image_url = $podcast_cover_url;
 			}
 
