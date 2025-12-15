@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create plugin zip
+        run: |
+          # Create a clean directory for the release
+          mkdir -p dist/podloom-podcast-player
+
+          # Copy plugin files (excluding dev files)
+          rsync -av --exclude-from='.distignore' ./ dist/podloom-podcast-player/
+
+          # Create the zip
+          cd dist
+          zip -r podloom-podcast-player-${{ steps.get_version.outputs.VERSION }}.zip podloom-podcast-player
+
+          # Move zip to root for upload
+          mv podloom-podcast-player-${{ steps.get_version.outputs.VERSION }}.zip ../
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: podloom-podcast-player-${{ steps.get_version.outputs.VERSION }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

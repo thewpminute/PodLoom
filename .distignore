@@ -1,0 +1,61 @@
+# Development files - exclude from distribution
+.git
+.github
+.gitignore
+.distignore
+.DS_Store
+
+# Node.js
+node_modules
+package.json
+package-lock.json
+
+# Build tools and config
+webpack.config.js
+babel.config.js
+.eslintrc
+.eslintrc.js
+.prettierrc
+.editorconfig
+.nvmrc
+
+# Source files (keep only built versions)
+src
+
+# Documentation (dev only)
+docs
+BUILD.md
+CLAUDE.md
+FEATURES.md
+FEATURES-TRANSISTOR.md
+*.md
+!readme.txt
+
+# Testing
+tests
+phpunit.xml
+phpunit.xml.dist
+phpcs.xml
+phpcs.xml.dist
+.phpcs.xml.dist
+
+# CI/CD
+.travis.yml
+bitbucket-pipelines.yml
+Gruntfile.js
+Gulpfile.js
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Misc
+*.log
+*.cache
+dist
+build
+*.zip
+Thumbs.db
