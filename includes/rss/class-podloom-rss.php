@@ -555,6 +555,7 @@ class Podloom_RSS {
 			'message'       => 'Feed refreshed successfully',
 			'status_code'   => 200,
 			'episode_count' => count( $episodes ),
+			'episodes'      => $episodes, // Return parsed episodes for direct use if cache fails
 		);
 	}
 
@@ -618,7 +619,25 @@ class Podloom_RSS {
 					'error'    => 'fetch_failed',
 				);
 			}
+
+			// Try cache first, but use fresh data from refresh_feed() as fallback
 			$episodes = podloom_cache_get( 'rss_episodes_' . $feed_id );
+
+			// Cache retrieval failed - use the episodes returned directly from refresh_feed()
+			if ( $episodes === false && ! empty( $result['episodes'] ) ) {
+				$episodes = $result['episodes'];
+			}
+		}
+
+		// Final safety check - ensure $episodes is an array before counting
+		if ( ! is_array( $episodes ) ) {
+			return array(
+				'episodes' => array(),
+				'total'    => 0,
+				'page'     => $page,
+				'pages'    => 0,
+				'error'    => 'invalid_cache_data',
+			);
 		}
 
 		// Note: Character limit for descriptions is applied at render time (not here)

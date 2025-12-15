@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.14.1
+Stable tag: 2.14.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -173,6 +173,11 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.14.2 =
+* **Cache Fallback**: Playlist mode now uses freshly-parsed feed data as fallback when cache operations fail
+* **Error Prevention**: Fixed potential fatal error when cache retrieval returns unexpected data types
+* **Improved Reliability**: RSS playlist player renders successfully even during temporary caching issues
+
 = 2.14.1 =
 * **Image Caching Improvement**: Image caching now happens at render time instead of during feed parsing
 * **Instant Toggle**: Enabling/disabling "Cache Images Locally" takes effect immediately without needing to clear cache
@@ -279,6 +284,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.14.2 =
+Fixes a potential fatal error in RSS playlist mode when cache operations fail. Recommended update for all users.
 
 = 2.14.1 =
 Image caching now takes effect immediately when toggled. No need to clear cache or refresh feeds.
