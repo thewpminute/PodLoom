@@ -21,6 +21,7 @@ babel.config.js
 
 # Source files (keep only built versions)
 src
+blocks
 
 # Documentation (dev only)
 docs
@@ -56,6 +57,5 @@ Gulpfile.js
 *.log
 *.cache
 dist
-build
 *.zip
 Thumbs.db
