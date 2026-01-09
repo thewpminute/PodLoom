@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.14.2
+Stable tag: 2.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -173,6 +173,11 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.15.0 =
+* **Configurable Episode Limit**: New "Max Episodes" setting in General tab to control how many episodes are parsed from RSS feeds (default: 50)
+* **Removed Playlist Cap**: Playlist mode no longer limited to 100 episodes in both Gutenberg block and Elementor widget
+* **Flexible Feed Parsing**: Parse as many episodes as your feed contains for podcasts with large back catalogs
+
 = 2.14.2 =
 * **Cache Fallback**: Playlist mode now uses freshly-parsed feed data as fallback when cache operations fail
 * **Error Prevention**: Fixed potential fatal error when cache retrieval returns unexpected data types
@@ -284,6 +289,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.15.0 =
+New configurable episode limit! Control how many episodes are parsed from RSS feeds via Settings > General. Playlist mode cap of 100 episodes has been removed.
 
 = 2.14.2 =
 Fixes a potential fatal error in RSS playlist mode when cache operations fail. Recommended update for all users.
