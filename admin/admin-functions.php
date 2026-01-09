@@ -314,12 +314,14 @@ function podloom_render_settings_page() {
 		$enable_cache   = isset( $_POST['podloom_enable_cache'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_enable_cache'] ) ) === '1';
 		$cache_duration = isset( $_POST['podloom_cache_duration'] ) ? absint( wp_unslash( $_POST['podloom_cache_duration'] ) ) : 21600;
 		$cache_images   = isset( $_POST['podloom_cache_images'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_cache_images'] ) ) === '1';
+		$max_episodes   = isset( $_POST['podloom_max_episodes'] ) ? max( 1, absint( wp_unslash( $_POST['podloom_max_episodes'] ) ) ) : 50;
 
 		update_option( 'podloom_api_key', $api_key );
 		update_option( 'podloom_default_show', $default_show );
 		update_option( 'podloom_enable_cache', $enable_cache );
 		update_option( 'podloom_cache_duration', $cache_duration );
 		update_option( 'podloom_cache_images', $cache_images );
+		update_option( 'podloom_max_episodes', $max_episodes );
 
 		// Note: RSS settings are saved via AJAX from the RSS tab (see podloom_ajax_save_all_rss_settings).
 		// We intentionally do NOT save RSS settings here to avoid overwriting them when saving from other tabs.

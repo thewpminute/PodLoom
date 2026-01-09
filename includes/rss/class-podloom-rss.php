@@ -40,9 +40,10 @@ class Podloom_RSS {
 	}
 
 	/**
-	 * Maximum number of episodes to cache per feed
+	 * Default maximum number of episodes to cache per feed.
+	 * Can be overridden via the podloom_max_episodes option in settings.
 	 */
-	const MAX_EPISODES = 50;
+	const DEFAULT_MAX_EPISODES = 50;
 
 	/**
 	 * Get all RSS feeds
@@ -144,7 +145,6 @@ class Podloom_RSS {
 		// Clear WordPress object cache to ensure get_option returns fresh data
 		// This is critical because refresh_feed_with_data() calls get_feeds() internally
 		wp_cache_delete( 'podloom_rss_feeds', 'options' );
-		wp_cache_delete( 'alloptions', 'options' );
 
 		// Auto-enable RSS feeds if this is the first feed being added
 		$rss_enabled = get_option( 'podloom_rss_enabled', false );
@@ -439,8 +439,9 @@ class Podloom_RSS {
 			);
 		}
 
-		// Get up to MAX_EPISODES most recent episodes
-		$items    = $feed->get_items( 0, self::MAX_EPISODES );
+		// Get episodes up to the configured maximum
+		$max_episodes = (int) get_option( 'podloom_max_episodes', self::DEFAULT_MAX_EPISODES );
+		$items        = $feed->get_items( 0, $max_episodes );
 		$episodes = array();
 
 		// Initialize P2.0 parser

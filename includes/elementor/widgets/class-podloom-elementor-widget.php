@@ -310,10 +310,9 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 				'label'       => esc_html__( 'Max Episodes', 'podloom-podcast-player' ),
 				'type'        => \Elementor\Controls_Manager::NUMBER,
 				'min'         => 5,
-				'max'         => 100,
 				'step'        => 5,
 				'default'     => 25,
-				'description' => esc_html__( 'Maximum number of episodes to display in the playlist (5-100).', 'podloom-podcast-player' ),
+				'description' => esc_html__( 'Maximum number of episodes to display in the playlist.', 'podloom-podcast-player' ),
 				'condition'   => array(
 					'display_mode' => 'playlist',
 					'source!'      => $this->get_transistor_source_conditions(),
@@ -510,7 +509,7 @@ class Podloom_Elementor_Widget extends \Elementor\Widget_Base {
 			} elseif ( 'playlist' === $display_mode ) {
 				// RSS playlist mode - pass max episodes and order.
 				$max_episodes = isset( $settings['playlist_max_episodes'] ) ? absint( $settings['playlist_max_episodes'] ) : 25;
-				$max_episodes = max( 5, min( 100, $max_episodes ) );
+				$max_episodes = max( 5, $max_episodes );
 				$attributes['playlistMaxEpisodes'] = $max_episodes;
 
 				$playlist_order = isset( $settings['playlist_order'] ) ? sanitize_text_field( $settings['playlist_order'] ) : 'episodic';

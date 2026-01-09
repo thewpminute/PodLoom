@@ -22,6 +22,7 @@ function podloom_render_general_tab( $all_options, $shows ) {
 	$enable_cache   = $all_options['podloom_enable_cache'] ?? true;
 	$cache_duration = $all_options['podloom_cache_duration'] ?? 21600;
 	$cache_images   = $all_options['podloom_cache_images'] ?? false;
+	$max_episodes   = $all_options['podloom_max_episodes'] ?? 50;
 
 	// Get RSS feeds
 	$rss_feeds = Podloom_RSS::get_feeds();
@@ -99,6 +100,13 @@ function podloom_render_general_tab( $all_options, $shows ) {
 						<option value="43200" <?php selected( $cache_duration, 43200 ); ?>><?php esc_html_e( '12 hours', 'podloom-podcast-player' ); ?></option>
 						<option value="86400" <?php selected( $cache_duration, 86400 ); ?>><?php esc_html_e( '24 hours', 'podloom-podcast-player' ); ?></option>
 					</select>
+				</div>
+				<div class="podloom-input-group">
+					<label for="podloom_max_episodes"><?php esc_html_e( 'Max Episodes', 'podloom-podcast-player' ); ?></label>
+					<input type="number" id="podloom_max_episodes" name="podloom_max_episodes" value="<?php echo esc_attr( $max_episodes ); ?>" min="1" style="width: 80px;" aria-describedby="max_episodes_desc" />
+					<p class="description" id="max_episodes_desc" style="margin-top: 4px;">
+						<?php esc_html_e( 'Maximum episodes to parse from RSS feeds. Higher values increase memory usage.', 'podloom-podcast-player' ); ?>
+					</p>
 				</div>
 			</div>
 

@@ -987,7 +987,6 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 								setAttributes( { playlistMaxEpisodes: parseInt( value ) || 25 } )
 							}
 							min={ 5 }
-							max={ 100 }
 							step={ 5 }
 						/>
 					) }
