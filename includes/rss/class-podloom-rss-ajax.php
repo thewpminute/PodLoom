@@ -176,6 +176,7 @@ add_action( 'wp_ajax_podloom_refresh_rss_feed', 'podloom_ajax_refresh_rss_feed' 
 
 /**
  * AJAX Handler: Get RSS Episodes
+ * Supports both page/per_page and offset/limit pagination.
  */
 function podloom_ajax_get_rss_episodes() {
 	check_ajax_referer( 'podloom_nonce', 'nonce' );
@@ -191,20 +192,69 @@ function podloom_ajax_get_rss_episodes() {
 		return;
 	}
 
-	$feed_id  = isset( $_POST['feed_id'] ) ? sanitize_text_field( wp_unslash( $_POST['feed_id'] ) ) : '';
-	$page     = isset( $_POST['page'] ) ? absint( wp_unslash( $_POST['page'] ) ) : 1;
-	$per_page = isset( $_POST['per_page'] ) ? absint( wp_unslash( $_POST['per_page'] ) ) : 20;
+	$feed_id = isset( $_POST['feed_id'] ) ? sanitize_text_field( wp_unslash( $_POST['feed_id'] ) ) : '';
 
 	if ( empty( $feed_id ) ) {
 		wp_send_json_error( array( 'message' => 'Feed ID is required' ) );
 		return;
 	}
 
-	$result = Podloom_RSS::get_episodes( $feed_id, $page, $per_page );
+	// Support both offset/limit and page/per_page parameters.
+	// If offset is provided, use offset/limit mode for prefetch-friendly pagination.
+	if ( isset( $_POST['offset'] ) ) {
+		$offset = absint( wp_unslash( $_POST['offset'] ) );
+		$limit  = isset( $_POST['limit'] ) ? min( absint( wp_unslash( $_POST['limit'] ) ), 50 ) : 20; // Cap at 50.
+		$page   = floor( $offset / $limit ) + 1;
+	} else {
+		$page     = isset( $_POST['page'] ) ? absint( wp_unslash( $_POST['page'] ) ) : 1;
+		$per_page = isset( $_POST['per_page'] ) ? absint( wp_unslash( $_POST['per_page'] ) ) : 20;
+		$limit    = $per_page;
+	}
+
+	$result = Podloom_RSS::get_episodes( $feed_id, $page, $limit );
 
 	wp_send_json_success( $result );
 }
 add_action( 'wp_ajax_podloom_get_rss_episodes', 'podloom_ajax_get_rss_episodes' );
+
+/**
+ * AJAX Handler: Get RSS Episodes (Public/Frontend)
+ *
+ * Public endpoint for frontend playlist prefetching.
+ * Returns episode data without requiring login.
+ */
+function podloom_ajax_get_rss_episodes_public() {
+	// Verify nonce - uses playlist nonce for frontend.
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'podloom_playlist_nonce' ) ) {
+		wp_send_json_error( array( 'message' => 'Invalid security token' ), 403 );
+		return;
+	}
+
+	// Rate limiting: 60 requests per minute per IP.
+	if ( ! Podloom_RSS::check_rate_limit( 'get_episodes_public', 60, 60 ) ) {
+		wp_send_json_error( array( 'message' => 'Rate limit exceeded. Please try again later.' ), 429 );
+		return;
+	}
+
+	$feed_id = isset( $_POST['feed_id'] ) ? sanitize_text_field( wp_unslash( $_POST['feed_id'] ) ) : '';
+
+	if ( empty( $feed_id ) ) {
+		wp_send_json_error( array( 'message' => 'Feed ID is required' ) );
+		return;
+	}
+
+	// Support offset/limit for prefetching.
+	$offset = isset( $_POST['offset'] ) ? absint( wp_unslash( $_POST['offset'] ) ) : 0;
+	$limit  = isset( $_POST['limit'] ) ? min( absint( wp_unslash( $_POST['limit'] ) ), 50 ) : 20; // Cap at 50.
+	$page   = floor( $offset / $limit ) + 1;
+
+	// Get episodes (disallow remote fetch to prevent blocking).
+	$result = Podloom_RSS::get_episodes( $feed_id, $page, $limit, false );
+
+	wp_send_json_success( $result );
+}
+add_action( 'wp_ajax_podloom_get_rss_episodes_public', 'podloom_ajax_get_rss_episodes_public' );
+add_action( 'wp_ajax_nopriv_podloom_get_rss_episodes_public', 'podloom_ajax_get_rss_episodes_public' );
 
 /**
  * AJAX Handler: Get Raw RSS Feed

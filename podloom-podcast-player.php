@@ -86,6 +86,18 @@ require_once PODLOOM_PLUGIN_DIR . 'includes/transistor/class-podloom-transistor-
 require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss-cron.php';
 require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss-ajax.php';
+require_once PODLOOM_PLUGIN_DIR . 'includes/rss/class-podloom-rss-storage.php';
+
+// Create persistent storage table if needed (handles fresh installs and upgrades).
+add_action(
+	'admin_init',
+	function () {
+		$db_version = get_option( 'podloom_db_version', '0' );
+		if ( version_compare( $db_version, Podloom_RSS_Storage::DB_VERSION, '<' ) ) {
+			Podloom_RSS_Storage::create_table();
+		}
+	}
+);
 
 // Include Elementor integration (loads conditionally when Elementor is active).
 require_once PODLOOM_PLUGIN_DIR . 'includes/elementor/class-podloom-elementor.php';
@@ -648,8 +660,11 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 	// Generate unique player ID for this playlist instance
 	$player_id = 'podloom-playlist-' . wp_unique_id();
 
+	// Get total episode count for prefetching
+	$total_episodes = isset( $episodes_data['total'] ) ? intval( $episodes_data['total'] ) : count( $episodes );
+
 	// Start building output
-	$output = '<div id="' . esc_attr( $player_id ) . '" class="wp-block-podloom-episode-player rss-episode-player rss-playlist-player" data-feed-id="' . esc_attr( $feed_id ) . '">';
+	$output = '<div id="' . esc_attr( $player_id ) . '" class="wp-block-podloom-episode-player rss-episode-player rss-playlist-player" data-feed-id="' . esc_attr( $feed_id ) . '" data-total-episodes="' . esc_attr( $total_episodes ) . '">';
 
 	// Get funding button HTML (if available)
 	$funding_button = '';
@@ -667,15 +682,17 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 
 	// Artwork column
 	if ( $show_artwork && ! empty( $current_episode['image'] ) ) {
-		// Get local URL if image caching is enabled (returns original URL as fallback).
-		$current_artwork_url = Podloom_Image_Cache::get_local_url( $current_episode['image'], 'cover', $feed_id );
+		// Get responsive image with srcset if caching enabled, otherwise simple img.
+		$artwork_img = Podloom_Image_Cache::get_responsive_img(
+			$current_episode['image'],
+			$current_episode['title'],
+			'podloom-playlist-artwork',
+			'medium_large', // Use medium_large (768px) as base - suitable for episode artwork.
+			'(max-width: 480px) 70px, (max-width: 768px) 100px, 200px'
+		);
 
 		$output .= '<div class="rss-episode-artwork-column">';
-		$output .= sprintf(
-			'<div class="rss-episode-artwork"><img src="%s" alt="%s" class="podloom-playlist-artwork" /></div>',
-			esc_url( $current_artwork_url ),
-			esc_attr( $current_episode['title'] )
-		);
+		$output .= '<div class="rss-episode-artwork">' . $artwork_img . '</div>';
 
 		// Desktop funding button
 		if ( ! empty( $funding_button ) ) {
@@ -893,15 +910,17 @@ function podloom_render_rss_episode( $attributes ) {
 
 	// Episode artwork column (includes artwork + funding button on desktop/tablet)
 	if ( $show_artwork && ! empty( $episode['image'] ) ) {
-		// Get local URL if image caching is enabled (returns original URL as fallback).
-		$artwork_url = Podloom_Image_Cache::get_local_url( $episode['image'], 'cover', $feed_id );
+		// Get responsive image with srcset if caching enabled, otherwise simple img.
+		$artwork_img = Podloom_Image_Cache::get_responsive_img(
+			$episode['image'],
+			$episode['title'],
+			'',
+			'medium_large', // Use medium_large (768px) as base - suitable for episode artwork.
+			'(max-width: 480px) 70px, (max-width: 768px) 100px, 200px'
+		);
 
 		$output .= '<div class="rss-episode-artwork-column">';
-		$output .= sprintf(
-			'<div class="rss-episode-artwork"><img src="%s" alt="%s" /></div>',
-			esc_url( $artwork_url ),
-			esc_attr( $episode['title'] )
-		);
+		$output .= '<div class="rss-episode-artwork">' . $artwork_img . '</div>';
 
 		// Desktop/tablet funding button (below artwork, hidden on mobile via CSS)
 		if ( ! empty( $funding_button ) ) {

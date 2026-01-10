@@ -327,6 +327,30 @@ class Podloom_RSS {
 			);
 		}
 
+		// Check retry count and apply exponential backoff for failing feeds.
+		$retry_count = isset( $feed_data['retry_count'] ) ? (int) $feed_data['retry_count'] : 0;
+		$max_retries = 3;
+
+		if ( $retry_count >= $max_retries && ! $force ) {
+			$last_retry   = isset( $feed_data['last_retry'] ) ? (int) $feed_data['last_retry'] : 0;
+			$backoff_time = min( pow( 2, $retry_count ) * HOUR_IN_SECONDS, DAY_IN_SECONDS );
+
+			if ( ( time() - $last_retry ) < $backoff_time ) {
+				// Still in backoff period - return cached data if available.
+				$cached = podloom_cache_get( 'rss_episodes_' . $feed_id );
+				if ( $cached ) {
+					return array(
+						'success'     => true,
+						'message'     => 'Using cached data during backoff period',
+						'status_code' => 0,
+						'episodes'    => $cached,
+						'from_cache'  => true,
+						'in_backoff'  => true,
+					);
+				}
+			}
+		}
+
 		// Clear SimplePie cache for this feed (separate from our episode cache)
 		$cache_location = WP_CONTENT_DIR . '/cache/simplepie';
 		if ( file_exists( $cache_location ) ) {
@@ -363,11 +387,14 @@ class Podloom_RSS {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			// Mark feed as having issues, but DO NOT delete existing cache
-			// This preserves last-known-good data when the feed is temporarily unavailable
+			// Mark feed as having issues, but DO NOT delete existing cache.
+			// This preserves last-known-good data when the feed is temporarily unavailable.
 			$feeds                             = self::get_feeds();
 			$feeds[ $feed_id ]['valid']        = false;
 			$feeds[ $feed_id ]['last_checked'] = time();
+			$feeds[ $feed_id ]['retry_count']  = $retry_count + 1;
+			$feeds[ $feed_id ]['last_retry']   = time();
+			$feeds[ $feed_id ]['last_error']   = $response->get_error_message();
 			update_option( 'podloom_rss_feeds', $feeds );
 
 			return array(
@@ -400,6 +427,9 @@ class Podloom_RSS {
 			$feeds                             = self::get_feeds();
 			$feeds[ $feed_id ]['valid']        = false;
 			$feeds[ $feed_id ]['last_checked'] = time();
+			$feeds[ $feed_id ]['retry_count']  = $retry_count + 1;
+			$feeds[ $feed_id ]['last_retry']   = time();
+			$feeds[ $feed_id ]['last_error']   = 'HTTP ' . $status_code;
 			update_option( 'podloom_rss_feeds', $feeds );
 
 			return array(
@@ -507,7 +537,9 @@ class Podloom_RSS {
 		 *
 		 * @see Settings → General → Cache Duration
 		 */
-		$cache_duration = get_option( 'podloom_cache_duration', 21600 ); // Default: 6 hours
+		$default_duration = (int) get_option( 'podloom_cache_duration', 21600 ); // Default: 6 hours
+		$dynamic_duration = self::calculate_cache_duration( $episodes );
+		$cache_duration   = min( $default_duration, $dynamic_duration ); // Use shorter of the two
 
 		/**
 		 * Filter the cache duration for a specific RSS feed.
@@ -519,10 +551,16 @@ class Podloom_RSS {
 		 * @param int    $cache_duration Cache duration in seconds.
 		 * @param string $feed_id        RSS feed ID.
 		 * @param array  $feed           Feed configuration array.
+		 * @param array  $episodes       Parsed episodes array (for analysis).
 		 */
-		$cache_duration = apply_filters( 'podloom_cache_duration', $cache_duration, $feed_id, $feed );
+		$cache_duration = apply_filters( 'podloom_cache_duration', $cache_duration, $feed_id, $feed, $episodes );
 
 		podloom_cache_set( 'rss_episodes_' . $feed_id, $episodes, 'podloom', $cache_duration );
+
+		// Store to persistent storage as fallback for cache misses.
+		if ( class_exists( 'Podloom_RSS_Storage' ) ) {
+			Podloom_RSS_Storage::store_episodes( $feed_id, $episodes );
+		}
 
 		// Increment render cache version to invalidate all rendered episode HTML
 		// This ensures editor shows updated content after feed refresh
@@ -536,10 +574,13 @@ class Podloom_RSS {
 		$response_last_modified = wp_remote_retrieve_header( $response, 'last-modified' );
 
 		// Update feed metadata including conditional request headers
-		$feeds                              = self::get_feeds();
-		$feeds[ $feed_id ]['valid']         = true;
-		$feeds[ $feed_id ]['last_checked']  = time();
-		$feeds[ $feed_id ]['episode_count'] = count( $episodes );
+		$feeds                               = self::get_feeds();
+		$feeds[ $feed_id ]['valid']          = true;
+		$feeds[ $feed_id ]['last_checked']   = time();
+		$feeds[ $feed_id ]['episode_count']  = count( $episodes );
+		$feeds[ $feed_id ]['cache_duration'] = $cache_duration; // Store for per-feed cron scheduling
+		$feeds[ $feed_id ]['retry_count']    = 0; // Reset retry count on success.
+		$feeds[ $feed_id ]['last_error']     = null; // Clear last error on success.
 
 		// Store headers for conditional requests (may be empty if server doesn't support them)
 		if ( ! empty( $response_etag ) ) {
@@ -561,6 +602,115 @@ class Podloom_RSS {
 	}
 
 	/**
+	 * Calculate optimal cache duration based on podcast release patterns.
+	 *
+	 * Analyzes recent episode dates to determine how frequently a podcast releases
+	 * and adjusts cache duration accordingly:
+	 * - Inactive podcasts (>90 days): 7 day cache
+	 * - Active podcasts near release: 30 min to 6 hour cache
+	 * - Active podcasts not near release: 1 day cache
+	 *
+	 * @since 2.16.0
+	 * @param array $episodes Array of episode data with 'date' keys.
+	 * @return int Cache duration in seconds.
+	 */
+	private static function calculate_cache_duration( $episodes ) {
+		// Default durations.
+		$inactive_duration = 7 * DAY_IN_SECONDS;    // 7 days for inactive podcasts.
+		$active_duration   = DAY_IN_SECONDS;        // 1 day default for active podcasts.
+		$near_duration     = 6 * HOUR_IN_SECONDS;   // 6 hours when near expected release.
+		$close_duration    = HOUR_IN_SECONDS;       // 1 hour when very close.
+		$imminent_duration = 30 * MINUTE_IN_SECONDS; // 30 min when release is imminent.
+
+		if ( empty( $episodes ) || count( $episodes ) < 2 ) {
+			return $active_duration;
+		}
+
+		// Sort episodes by date (newest first).
+		$sorted = $episodes;
+		usort(
+			$sorted,
+			function ( $a, $b ) {
+				return strtotime( $b['date'] ?? 0 ) - strtotime( $a['date'] ?? 0 );
+			}
+		);
+
+		// Get episodes from last 6 months for analysis.
+		$six_months_ago   = strtotime( '-6 months' );
+		$recent_episodes  = array_filter(
+			$sorted,
+			function ( $ep ) use ( $six_months_ago ) {
+				return strtotime( $ep['date'] ?? 0 ) > $six_months_ago;
+			}
+		);
+
+		// Check if podcast is active (episode within last 90 days).
+		$latest_date     = strtotime( $sorted[0]['date'] ?? 0 );
+		$days_since_last = ( time() - $latest_date ) / DAY_IN_SECONDS;
+
+		if ( $days_since_last > 90 ) {
+			// Inactive podcast - check weekly.
+			return $inactive_duration;
+		}
+
+		// Calculate average release interval from recent episodes.
+		if ( count( $recent_episodes ) < 2 ) {
+			return $active_duration;
+		}
+
+		$intervals       = array();
+		$recent_episodes = array_values( $recent_episodes );
+
+		for ( $i = 0; $i < count( $recent_episodes ) - 1; $i++ ) {
+			$date1 = strtotime( $recent_episodes[ $i ]['date'] ?? 0 );
+			$date2 = strtotime( $recent_episodes[ $i + 1 ]['date'] ?? 0 );
+			if ( $date1 && $date2 ) {
+				$intervals[] = ( $date1 - $date2 ) / DAY_IN_SECONDS;
+			}
+		}
+
+		if ( empty( $intervals ) ) {
+			return $active_duration;
+		}
+
+		// Remove outliers (more than 2x standard deviation).
+		$avg     = array_sum( $intervals ) / count( $intervals );
+		$std_dev = sqrt(
+			array_sum(
+				array_map(
+					function ( $x ) use ( $avg ) {
+						return pow( $x - $avg, 2 );
+					},
+					$intervals
+				)
+			) / count( $intervals )
+		);
+
+		$filtered = array_filter(
+			$intervals,
+			function ( $x ) use ( $avg, $std_dev ) {
+				return abs( $x - $avg ) <= 2 * $std_dev;
+			}
+		);
+
+		$release_cycle = ! empty( $filtered ) ? array_sum( $filtered ) / count( $filtered ) : $avg;
+
+		// Calculate days until expected next release.
+		$days_until_next = $release_cycle - $days_since_last;
+
+		// Return appropriate cache duration based on proximity to expected release.
+		if ( $days_until_next <= 1 ) {
+			return $imminent_duration; // 30 minutes.
+		} elseif ( $days_until_next <= 2 ) {
+			return $close_duration; // 1 hour.
+		} elseif ( $days_until_next <= 7 ) {
+			return $near_duration; // 6 hours.
+		}
+
+		return $active_duration; // 1 day.
+	}
+
+	/**
 	 * Get cached episodes for a feed
 	 *
 	 * @param string $feed_id Feed ID
@@ -579,8 +729,20 @@ class Podloom_RSS {
 			$episodes = false;
 		}
 
-		// If no cache, handle based on context
-		if ( $episodes === false ) {
+		// If no cache, try persistent storage as fallback.
+		if ( $episodes === false && class_exists( 'Podloom_RSS_Storage' ) ) {
+			$max_episodes = (int) get_option( 'podloom_max_episodes', self::DEFAULT_MAX_EPISODES );
+			$episodes     = Podloom_RSS_Storage::get_episodes( $feed_id, $max_episodes );
+
+			// If we got episodes from storage, re-cache them.
+			if ( ! empty( $episodes ) && $enable_cache ) {
+				$cache_duration = (int) get_option( 'podloom_cache_duration', 21600 );
+				podloom_cache_set( 'rss_episodes_' . $feed_id, $episodes, 'podloom', $cache_duration );
+			}
+		}
+
+		// If still no episodes, handle based on context
+		if ( empty( $episodes ) ) {
 			// If remote fetch is disabled (e.g. in editor), return empty result immediately
 			if ( ! $allow_remote_fetch ) {
 				return array(
@@ -656,6 +818,8 @@ class Podloom_RSS {
 			'total'    => $total,
 			'page'     => $page,
 			'pages'    => $pages,
+			'offset'   => $offset,
+			'has_more' => ( $offset + count( $paginated ) ) < $total,
 		);
 	}
 

@@ -3,6 +3,45 @@
  * Static styles for RSS episode players
  */
 
+/**
+ * FOUC Prevention
+ * Hide players until JavaScript initializes them, preventing flash of unstyled content.
+ * The .podloom-ready class is added by JS after initialization completes.
+ */
+.podloom-player-container,
+.rss-playlist-player {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.podloom-player-container.podloom-ready,
+.rss-playlist-player.podloom-ready {
+    opacity: 1;
+}
+
+/* No-JS fallback: show players if JavaScript is disabled */
+.no-js .podloom-player-container,
+.no-js .rss-playlist-player,
+noscript + .podloom-player-container,
+noscript + .rss-playlist-player {
+    opacity: 1;
+}
+
+/**
+ * Lazy Initialization Animation Trigger
+ * Fires when a player is inserted into the DOM, allowing JS to detect and initialize
+ * dynamically loaded players (AJAX, page builders, lazy loading).
+ */
+@keyframes podloomNodeInserted {
+    from { opacity: 0.99; }
+    to { opacity: 1; }
+}
+
+.podloom-player-container:not(.podloom-ready),
+.rss-playlist-player:not(.podloom-ready) {
+    animation: podloomNodeInserted 0.001s;
+}
+
 .wp-block-podloom-episode-player.rss-episode-player {
     /* border and border-radius are now set dynamically */
     padding: 20px;

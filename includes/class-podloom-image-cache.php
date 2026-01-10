@@ -539,6 +539,93 @@ class Podloom_Image_Cache {
 	}
 
 	/**
+	 * Get responsive image attributes (srcset and sizes) for a cached image.
+	 *
+	 * Returns srcset and sizes attributes for use in <img> tags to serve
+	 * appropriately sized images based on viewport/container size.
+	 *
+	 * @param string $url     External image URL.
+	 * @param string $size    WordPress image size (default 'large').
+	 * @param string $sizes   Custom sizes attribute (optional).
+	 * @return array|false Array with 'src', 'srcset', 'sizes' or false if not cached.
+	 */
+	public static function get_responsive_attrs( $url, $size = 'large', $sizes = '' ) {
+		// Check if image caching is enabled.
+		if ( ! self::is_enabled() ) {
+			return false;
+		}
+
+		// Get cache mapping.
+		$cached = self::get_mapping( $url );
+		if ( ! $cached || empty( $cached['attachment_id'] ) ) {
+			return false;
+		}
+
+		$attachment_id = $cached['attachment_id'];
+
+		// Get the main image URL.
+		$src = wp_get_attachment_image_url( $attachment_id, $size );
+		if ( ! $src ) {
+			return false;
+		}
+
+		// Get srcset.
+		$srcset = wp_get_attachment_image_srcset( $attachment_id, $size );
+
+		// Get sizes if not provided.
+		if ( empty( $sizes ) ) {
+			$sizes = wp_get_attachment_image_sizes( $attachment_id, $size );
+		}
+
+		return array(
+			'src'    => $src,
+			'srcset' => $srcset ? $srcset : '',
+			'sizes'  => $sizes ? $sizes : '',
+		);
+	}
+
+	/**
+	 * Get a complete <img> tag with responsive attributes.
+	 *
+	 * @param string $url     External image URL.
+	 * @param string $alt     Alt text.
+	 * @param string $class   CSS class(es).
+	 * @param string $size    WordPress image size.
+	 * @param string $sizes   Custom sizes attribute.
+	 * @return string HTML img tag.
+	 */
+	public static function get_responsive_img( $url, $alt = '', $class = '', $size = 'large', $sizes = '' ) {
+		$attrs = self::get_responsive_attrs( $url, $size, $sizes );
+
+		if ( $attrs && ! empty( $attrs['srcset'] ) ) {
+			// Use responsive attributes.
+			$html = sprintf(
+				'<img src="%s" srcset="%s" sizes="%s" alt="%s" loading="lazy"',
+				esc_url( $attrs['src'] ),
+				esc_attr( $attrs['srcset'] ),
+				esc_attr( $attrs['sizes'] ),
+				esc_attr( $alt )
+			);
+		} else {
+			// Fallback to simple image.
+			$local_url = self::get_local_url( $url );
+			$html      = sprintf(
+				'<img src="%s" alt="%s" loading="lazy"',
+				esc_url( $local_url ? $local_url : $url ),
+				esc_attr( $alt )
+			);
+		}
+
+		if ( ! empty( $class ) ) {
+			$html .= sprintf( ' class="%s"', esc_attr( $class ) );
+		}
+
+		$html .= ' />';
+
+		return $html;
+	}
+
+	/**
 	 * Get statistics about cached images.
 	 *
 	 * @return array Statistics array.

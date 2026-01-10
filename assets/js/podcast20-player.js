@@ -867,6 +867,102 @@
     }
 
     /**
+     * Episode Prefetcher - loads additional episodes in background
+     * Used by playlist players to seamlessly load more content
+     */
+    function createPrefetcher(feedId, initialEpisodes, totalCount) {
+        var buffer = [];           // Prefetched but not yet rendered
+        var displayed = initialEpisodes.slice(); // Currently shown episodes
+        var loading = false;
+        var hasMore = displayed.length < totalCount;
+        var offset = displayed.length;
+        var bufferSize = 20;       // Keep 20 episodes ahead
+        var fetchSize = 20;        // Fetch 20 at a time
+
+        function prefetch() {
+            if (loading || !hasMore) return Promise.resolve([]);
+
+            // Check if we need to prefetch (buffer running low)
+            if (buffer.length >= bufferSize / 2) return Promise.resolve([]);
+
+            loading = true;
+
+            var ajaxUrl = typeof podloomPlaylist !== 'undefined' && podloomPlaylist.ajaxUrl
+                ? podloomPlaylist.ajaxUrl
+                : (typeof ajaxurl !== 'undefined' ? ajaxurl : '/wp-admin/admin-ajax.php');
+
+            var nonce = typeof podloomPlaylist !== 'undefined' && podloomPlaylist.nonce
+                ? podloomPlaylist.nonce
+                : '';
+
+            return fetch(ajaxUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=podloom_get_rss_episodes_public' +
+                      '&feed_id=' + encodeURIComponent(feedId) +
+                      '&offset=' + offset +
+                      '&limit=' + fetchSize +
+                      '&nonce=' + encodeURIComponent(nonce)
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                loading = false;
+                if (data.success && data.data && data.data.episodes) {
+                    var newEpisodes = data.data.episodes;
+                    buffer = buffer.concat(newEpisodes);
+                    offset += newEpisodes.length;
+                    hasMore = data.data.has_more;
+                    return newEpisodes;
+                }
+                return [];
+            })
+            .catch(function() {
+                loading = false;
+                return [];
+            });
+        }
+
+        function getMore(count) {
+            count = count || 10;
+
+            // If buffer has enough, use it
+            if (buffer.length >= count) {
+                var toShow = buffer.splice(0, count);
+                displayed = displayed.concat(toShow);
+
+                // Trigger prefetch if buffer running low
+                if (buffer.length < bufferSize / 2 && hasMore) {
+                    prefetch();
+                }
+
+                return Promise.resolve(toShow);
+            }
+
+            // Need to fetch first
+            return prefetch().then(function() {
+                if (buffer.length > 0) {
+                    var toShow = buffer.splice(0, Math.min(count, buffer.length));
+                    displayed = displayed.concat(toShow);
+                    return toShow;
+                }
+                return [];
+            });
+        }
+
+        // Start prefetching immediately if more episodes exist
+        if (hasMore) {
+            setTimeout(prefetch, 1000); // Delay 1s to let page settle
+        }
+
+        return {
+            getMore: getMore,
+            hasMore: function() { return hasMore || buffer.length > 0; },
+            getDisplayed: function() { return displayed; },
+            isLoading: function() { return loading; }
+        };
+    }
+
+    /**
      * Initialize RSS playlist player functionality
      * Handles episode switching, now-playing indicators, and auto-play next
      */
@@ -913,6 +1009,10 @@
 
             var currentIndex = 0;
             var feedId = playerContainer.getAttribute('data-feed-id') || '';
+
+            // Get total episode count and create prefetcher
+            var totalCount = parseInt(playerContainer.getAttribute('data-total-episodes') || episodes.length, 10);
+            var prefetcher = createPrefetcher(feedId, episodes, totalCount);
 
             /**
              * Format duration in seconds to human-readable format
@@ -1521,6 +1621,93 @@
                     }
                 }
             });
+
+            /**
+             * Render additional episode items to the list
+             */
+            function renderMoreEpisodes(newEpisodes) {
+                newEpisodes.forEach(function(episode, idx) {
+                    var index = episodes.length;
+                    episodes.push(episode); // Add to main episodes array
+
+                    var item = document.createElement('div');
+                    item.className = 'podloom-episode-item';
+                    item.setAttribute('data-episode-index', index);
+                    item.setAttribute('role', 'button');
+                    item.setAttribute('tabindex', '0');
+                    item.style.cursor = 'pointer';
+
+                    var thumb = document.createElement('div');
+                    thumb.className = 'podloom-episode-thumb';
+                    if (episode.image) {
+                        thumb.innerHTML = '<img src="' + escapeHTML(episode.image) + '" alt="' + escapeHTML(episode.title || '') + '" loading="lazy">';
+                    } else {
+                        thumb.classList.add('podloom-episode-thumb-placeholder');
+                    }
+
+                    var overlay = document.createElement('div');
+                    overlay.className = 'podloom-episode-play-overlay';
+                    overlay.innerHTML = '<span class="podloom-play-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></span>';
+                    thumb.appendChild(overlay);
+
+                    var info = document.createElement('div');
+                    info.className = 'podloom-episode-info';
+
+                    var titleRow = document.createElement('div');
+                    titleRow.className = 'podloom-episode-title-row';
+                    titleRow.innerHTML = '<div class="podloom-episode-item-title">' + escapeHTML(episode.title || '') + '</div>';
+                    info.appendChild(titleRow);
+
+                    var metaRow = document.createElement('div');
+                    metaRow.className = 'podloom-episode-meta-row';
+                    if (episode.date) {
+                        metaRow.innerHTML += '<span class="podloom-episode-item-date">' + formatDate(episode.date) + '</span>';
+                    }
+                    if (episode.duration) {
+                        metaRow.innerHTML += '<span class="podloom-episode-item-duration">' + formatDuration(episode.duration) + '</span>';
+                    }
+                    info.appendChild(metaRow);
+
+                    item.appendChild(thumb);
+                    item.appendChild(info);
+                    episodesList.appendChild(item);
+
+                    // Add click handler
+                    item.addEventListener('click', function() {
+                        if (index !== currentIndex) {
+                            switchToEpisode(index);
+                        } else if (audioPlayer.paused) {
+                            audioPlayer.play().catch(function() {});
+                        }
+                    });
+
+                    // Keyboard support
+                    item.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            item.click();
+                        }
+                    });
+                });
+            }
+
+            // Scroll-based prefetch loading
+            var loadingMore = false;
+            episodesList.addEventListener('scroll', function() {
+                if (loadingMore || !prefetcher.hasMore()) return;
+
+                // Load more when scrolled within 200px of bottom
+                var scrollBottom = episodesList.scrollHeight - episodesList.scrollTop - episodesList.clientHeight;
+                if (scrollBottom < 200) {
+                    loadingMore = true;
+                    prefetcher.getMore(10).then(function(newEpisodes) {
+                        if (newEpisodes.length > 0) {
+                            renderMoreEpisodes(newEpisodes);
+                        }
+                        loadingMore = false;
+                    });
+                }
+            });
         });
     }
 
@@ -1538,6 +1725,15 @@
 
             var audio = container.querySelector('.podloom-audio-element');
             if (!audio) return;
+
+            // Audio element cleanup: ensure it's hidden from assistive tech
+            // (custom controls handle accessibility) and remove native controls
+            audio.setAttribute('aria-hidden', 'true');
+            audio.removeAttribute('controls');
+            audio.setAttribute('tabindex', '-1'); // Prevent keyboard focus
+
+            // Store reference on container for external access if needed
+            container.podloomAudio = audio;
 
             var playToggle = container.querySelector('.podloom-play-toggle');
             var timelineContainer = container.querySelector('.podloom-timeline-container');
@@ -1707,6 +1903,11 @@
         initPlaylistPlayer();
         initCustomPlayer();
 
+        // Mark all players as ready (reveals them via CSS transition)
+        document.querySelectorAll('.podloom-player-container:not(.podloom-ready), .rss-playlist-player:not(.podloom-ready)').forEach(function(player) {
+            player.classList.add('podloom-ready');
+        });
+
         // Process image cache queue after a short delay (let page render first)
         setTimeout(processImageCacheQueue, 500);
     }
@@ -1745,4 +1946,20 @@
             subtree: true
         });
     }
+
+    // CSS animation detection for lazy-loaded players
+    // Fires when podloomNodeInserted animation starts on uninitialized players
+    // More reliable than MutationObserver for async DOM insertions (page builders, AJAX)
+    function handlePlayerAnimationStart(event) {
+        if (event.animationName === 'podloomNodeInserted') {
+            var player = event.target;
+            // Only initialize if not already ready
+            if (!player.classList.contains('podloom-ready')) {
+                init();
+            }
+        }
+    }
+    document.addEventListener('animationstart', handlePlayerAnimationStart, false);
+    // Webkit prefix for older Safari
+    document.addEventListener('webkitAnimationStart', handlePlayerAnimationStart, false);
 })();
