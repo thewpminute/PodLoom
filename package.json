@@ -1,6 +1,6 @@
 {
   "name": "podloom-podcast-player",
-  "version": "2.15.0",
+  "version": "2.16.0",
   "description": "Build tools for PodLoom Podcast Player",
   "private": true,
   "scripts": {

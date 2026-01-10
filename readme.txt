@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.15.0
+Stable tag: 2.16.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -173,6 +173,17 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.16.0 =
+* **Smart Cache Duration**: Cache duration now dynamically adjusts based on podcast release patterns (daily shows refresh more often, inactive feeds less)
+* **Per-Feed Scheduling**: Cron system checks each feed against its own optimal refresh interval
+* **Retry with Backoff**: Failed feed fetches now use exponential backoff to avoid hammering unresponsive servers
+* **Persistent Storage**: New database-backed storage ensures episodes survive cache clears
+* **FOUC Prevention**: Players now fade in smoothly instead of flashing unstyled content
+* **Lazy Initialization**: Dynamically-loaded players (AJAX, page builders) auto-initialize via CSS animation detection
+* **Playlist Prefetching**: Large playlists automatically prefetch more episodes as you scroll
+* **Responsive Images**: Episode artwork now uses srcset for optimal image sizes across devices
+* **Audio Accessibility**: Native audio elements properly hidden from assistive tech (custom controls handle accessibility)
+
 = 2.15.0 =
 * **Configurable Episode Limit**: New "Max Episodes" setting in General tab to control how many episodes are parsed from RSS feeds (default: 50)
 * **Removed Playlist Cap**: Playlist mode no longer limited to 100 episodes in both Gutenberg block and Elementor widget
@@ -289,6 +300,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.16.0 =
+Major caching and performance improvements! Smart cache duration adapts to podcast release patterns, playlist prefetching for smoother scrolling, and responsive images for faster loading.
 
 = 2.15.0 =
 New configurable episode limit! Control how many episodes are parsed from RSS feeds via Settings > General. Playlist mode cap of 100 episodes has been removed.
