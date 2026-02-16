@@ -436,7 +436,7 @@ function podloom_render_subscribe_block( $attributes ) {
 	);
 
 	// Enqueue frontend styles.
-	wp_enqueue_style( 'podloom-subscribe-buttons' );
+	Podloom_Assets::enqueue_subscribe_assets();
 
 	return Podloom_Subscribe_Render::render_block( $sanitized_attributes );
 }
@@ -631,6 +631,9 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 
 	$episodes = $episodes_data['episodes'];
 
+	// Enqueue RSS assets only when a playlist player is rendered.
+	Podloom_Assets::enqueue_rss_player_assets();
+
 	// Sort episodes based on playlistOrder attribute
 	// 'episodic' = newest first (default RSS order), 'serial' = oldest first (reversed)
 	$playlist_order = isset( $attributes['playlistOrder'] ) ? $attributes['playlistOrder'] : 'episodic';
@@ -644,6 +647,7 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 	// Set global flag to indicate P2.0 content is used
 	global $podloom_has_podcast20_content;
 	$podloom_has_podcast20_content = true;
+	Podloom_Assets::enqueue_podcast20_assets( true );
 
 	// Get display settings
 	$show_artwork      = get_option( 'podloom_rss_display_artwork', true );
@@ -874,6 +878,9 @@ function podloom_render_rss_episode( $attributes ) {
 	// Character limit is now applied later when preparing description for tabs
 	// This preserves HTML formatting while limiting character count
 
+	// Enqueue RSS assets only when an RSS episode player is rendered.
+	Podloom_Assets::enqueue_rss_player_assets();
+
 	// Get display settings
 	$show_artwork      = get_option( 'podloom_rss_display_artwork', true );
 	$show_title        = get_option( 'podloom_rss_display_title', true );
@@ -1059,6 +1066,7 @@ function podloom_render_rss_episode( $attributes ) {
 		// Set global flag to indicate P2.0 content is used
 		global $podloom_has_podcast20_content;
 		$podloom_has_podcast20_content = true;
+		Podloom_Assets::enqueue_podcast20_assets( true );
 
 		$output .= podloom_render_podcast20_tabs(
 			$episode['podcast20'] ?? array(),
@@ -1864,4 +1872,3 @@ function podloom_render_episodes_list( $episodes, $current_episode, $colors ) {
 
 	return $output;
 }
-
