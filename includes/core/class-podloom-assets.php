@@ -20,71 +20,148 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Podloom_Assets {
 
 	/**
+	 * Whether frontend asset handles have been registered.
+	 *
+	 * @var bool
+	 */
+	private static $frontend_assets_registered = false;
+
+	/**
+	 * Whether RSS dynamic inline CSS has been attached.
+	 *
+	 * @var bool
+	 */
+	private static $rss_inline_css_added = false;
+
+	/**
+	 * Whether Podcasting 2.0 script data has been localized.
+	 *
+	 * @var bool
+	 */
+	private static $podcast20_script_localized = false;
+
+	/**
 	 * Initialize asset hooks.
 	 */
 	public static function init() {
-		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_styles' ) );
-		add_action( 'wp_footer', array( __CLASS__, 'enqueue_podcast20_assets' ), 5 );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'register_frontend_assets' ), 5 );
 		add_action( 'enqueue_block_editor_assets', array( __CLASS__, 'enqueue_editor_styles' ) );
 	}
 
 	/**
-	 * Enqueue frontend styles for RSS player (base styles always loaded).
+	 * Register frontend asset handles.
 	 */
-	public static function enqueue_frontend_styles() {
-		// Always enqueue base player styles.
-		wp_enqueue_style(
+	public static function register_frontend_assets() {
+		if ( self::$frontend_assets_registered ) {
+			return;
+		}
+
+		wp_register_style(
 			'podloom-rss-player',
 			PODLOOM_PLUGIN_URL . 'assets/css/rss-player' . PODLOOM_SCRIPT_SUFFIX . '.css',
 			array(),
 			PODLOOM_PLUGIN_VERSION
 		);
 
-		$custom_css = self::get_dynamic_css();
-		if ( $custom_css ) {
-			wp_add_inline_style( 'podloom-rss-player', $custom_css );
-		}
+		wp_register_style(
+			'podloom-podcast20',
+			PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles' . PODLOOM_SCRIPT_SUFFIX . '.css',
+			array( 'podloom-rss-player' ),
+			PODLOOM_PLUGIN_VERSION
+		);
 
-		// Register subscribe buttons styles (enqueued on-demand by blocks/widgets).
+		wp_register_script(
+			'podloom-podcast20-player',
+			PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player' . PODLOOM_SCRIPT_SUFFIX . '.js',
+			array(),
+			PODLOOM_PLUGIN_VERSION,
+			true
+		);
+
 		wp_register_style(
 			'podloom-subscribe-buttons',
 			PODLOOM_PLUGIN_URL . 'assets/css/subscribe-buttons' . PODLOOM_SCRIPT_SUFFIX . '.css',
 			array(),
 			PODLOOM_PLUGIN_VERSION
 		);
+
+		self::$frontend_assets_registered = true;
 	}
 
 	/**
-	 * Conditionally enqueue Podcasting 2.0 assets in footer.
-	 * Only loads if P2.0 content was rendered on the page.
+	 * Enqueue RSS player frontend assets.
+	 *
+	 * @since 2.16.0
 	 */
-	public static function enqueue_podcast20_assets() {
+	public static function enqueue_rss_player_assets() {
+		self::register_frontend_assets();
+
+		if ( ! wp_style_is( 'podloom-rss-player', 'enqueued' ) ) {
+			wp_enqueue_style( 'podloom-rss-player' );
+		}
+
+		if ( ! self::$rss_inline_css_added ) {
+			$custom_css = self::get_dynamic_css();
+			if ( $custom_css ) {
+				wp_add_inline_style( 'podloom-rss-player', $custom_css );
+			}
+			self::$rss_inline_css_added = true;
+		}
+	}
+
+	/**
+	 * Enqueue subscribe button frontend assets.
+	 *
+	 * @since 2.16.0
+	 */
+	public static function enqueue_subscribe_assets() {
+		self::register_frontend_assets();
+
+		if ( ! wp_style_is( 'podloom-subscribe-buttons', 'enqueued' ) ) {
+			wp_enqueue_style( 'podloom-subscribe-buttons' );
+		}
+	}
+
+	/**
+	 * Backwards-compatibility wrapper for RSS frontend assets.
+	 */
+	public static function enqueue_frontend_styles() {
+		self::enqueue_rss_player_assets();
+	}
+
+	/**
+	 * Conditionally enqueue Podcasting 2.0 assets.
+	 *
+	 * @param bool $force Whether to bypass legacy global content checks.
+	 */
+	public static function enqueue_podcast20_assets( $force = false ) {
 		global $podloom_has_podcast20_content;
 
-		// Only load P2.0 assets if content exists.
-		if ( ! $podloom_has_podcast20_content ) {
-			echo '<!-- PodLoom: No P2.0 content detected, assets not loaded -->';
+		if ( ! $force && ! $podloom_has_podcast20_content ) {
 			return;
 		}
 
-		// Enqueue Podcasting 2.0 styles.
-		wp_enqueue_style(
-			'podloom-podcast20',
-			PODLOOM_PLUGIN_URL . 'assets/css/podcast20-styles' . PODLOOM_SCRIPT_SUFFIX . '.css',
-			array(),
-			PODLOOM_PLUGIN_VERSION
-		);
+		self::register_frontend_assets();
 
-		// Enqueue Podcasting 2.0 chapter navigation script.
-		wp_enqueue_script(
-			'podloom-podcast20-player',
-			PODLOOM_PLUGIN_URL . 'assets/js/podcast20-player' . PODLOOM_SCRIPT_SUFFIX . '.js',
-			array(),
-			PODLOOM_PLUGIN_VERSION,
-			true // Load in footer.
-		);
+		if ( ! wp_style_is( 'podloom-podcast20', 'enqueued' ) ) {
+			wp_enqueue_style( 'podloom-podcast20' );
+		}
 
-		// Pass AJAX URL to the script for transcript proxy.
+		if ( ! wp_script_is( 'podloom-podcast20-player', 'enqueued' ) ) {
+			wp_enqueue_script( 'podloom-podcast20-player' );
+		}
+
+		self::localize_podcast20_script();
+	}
+
+	/**
+	 * Localize frontend Podcasting 2.0 script data once.
+	 */
+	private static function localize_podcast20_script() {
+		if ( self::$podcast20_script_localized ) {
+			return;
+		}
+
 		wp_localize_script(
 			'podloom-podcast20-player',
 			'podloomTranscript',
@@ -93,7 +170,6 @@ class Podloom_Assets {
 			)
 		);
 
-		// Pass AJAX URL for background image caching (only if enabled).
 		if ( Podloom_Image_Cache::is_enabled() ) {
 			wp_localize_script(
 				'podloom-podcast20-player',
@@ -104,7 +180,6 @@ class Podloom_Assets {
 			);
 		}
 
-		// Pass AJAX URL for playlist P2.0 data fetching.
 		wp_localize_script(
 			'podloom-podcast20-player',
 			'podloomPlaylist',
@@ -114,7 +189,7 @@ class Podloom_Assets {
 			)
 		);
 
-		echo '<!-- PodLoom: P2.0 assets loaded -->';
+		self::$podcast20_script_localized = true;
 	}
 
 	/**
