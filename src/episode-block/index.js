@@ -131,6 +131,76 @@ const cleanHtmlForBlocks = ( html ) => {
 };
 
 /**
+ * Sanitize rich HTML for editor preview rendering.
+ */
+const sanitizeHtmlForPreview = ( html ) => {
+	if ( ! html ) return '';
+
+	const tempDiv = document.createElement( 'div' );
+	tempDiv.innerHTML = html;
+
+	const allowedTags = new Set( [
+		'p',
+		'br',
+		'strong',
+		'b',
+		'em',
+		'i',
+		'u',
+		'a',
+		'ul',
+		'ol',
+		'li',
+		'blockquote',
+		'code',
+		'pre',
+	] );
+
+	const sanitizeNode = ( node ) => {
+		if ( node.nodeType === Node.TEXT_NODE ) {
+			return node.textContent;
+		}
+
+		if ( node.nodeType !== Node.ELEMENT_NODE ) {
+			return '';
+		}
+
+		const tagName = node.tagName.toLowerCase();
+		const childContent = Array.from( node.childNodes )
+			.map( ( child ) => sanitizeNode( child ) )
+			.join( '' );
+
+		if ( ! allowedTags.has( tagName ) ) {
+			return childContent;
+		}
+
+		if ( tagName === 'a' ) {
+			const href = sanitizeUrl( node.getAttribute( 'href' ) );
+			if ( ! href ) {
+				return childContent;
+			}
+
+			const target =
+				node.getAttribute( 'target' ) === '_blank'
+					? ' target="_blank" rel="noopener noreferrer"'
+					: '';
+
+			return `<a href="${ href }"${ target }>${ childContent }</a>`;
+		}
+
+		if ( tagName === 'br' ) {
+			return '<br>';
+		}
+
+		return `<${ tagName }>${ childContent }</${ tagName }>`;
+	};
+
+	return Array.from( tempDiv.childNodes )
+		.map( ( child ) => sanitizeNode( child ) )
+		.join( '' );
+};
+
+/**
  * Edit component for the episode block
  */
 function EditComponent( { attributes, setAttributes, clientId } ) {
@@ -321,6 +391,7 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 			}
 			return `${ minutes }:${ String( secs ).padStart( 2, '0' ) }`;
 		};
+		const safeDescription = sanitizeHtmlForPreview( episode.description || '' );
 
 		return (
 			<div className="wp-block-podloom-episode-player rss-episode-player">
@@ -346,32 +417,32 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 								</span>
 							) }
 						</div>
-						{ episode.audio_url && (
-							<audio
-								className={
-									display.description && episode.description
-										? 'rss-episode-audio'
-										: 'rss-episode-audio rss-audio-last'
-								}
-								controls
-								preload="metadata"
-							>
-								<source
-									src={ episode.audio_url }
-									type={ episode.audio_type || 'audio/mpeg' }
+							{ episode.audio_url && (
+								<audio
+									className={
+										display.description && safeDescription
+											? 'rss-episode-audio'
+											: 'rss-episode-audio rss-audio-last'
+									}
+									controls
+									preload="metadata"
+								>
+									<source
+										src={ episode.audio_url }
+										type={ episode.audio_type || 'audio/mpeg' }
+									/>
+									{ __(
+										'Your browser does not support the audio player.',
+										'podloom-podcast-player'
+									) }
+								</audio>
+							) }
+							{ display.description && safeDescription && (
+								<div
+									className="rss-episode-description"
+									dangerouslySetInnerHTML={ { __html: safeDescription } }
 								/>
-								{ __(
-									'Your browser does not support the audio player.',
-									'podloom-podcast-player'
-								) }
-							</audio>
-						) }
-						{ display.description && episode.description && (
-							<div
-								className="rss-episode-description"
-								dangerouslySetInnerHTML={ { __html: episode.description } }
-							/>
-						) }
+							) }
 					</div>
 				</div>
 			</div>

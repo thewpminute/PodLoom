@@ -95,11 +95,17 @@ class Podloom_Assets {
 
 		// Pass AJAX URL for background image caching (only if enabled).
 		if ( Podloom_Image_Cache::is_enabled() ) {
+			$image_cache_nonce = wp_create_nonce( 'podloom_image_cache_nonce' );
 			wp_localize_script(
 				'podloom-podcast20-player',
 				'podloomImageCache',
 				array(
-					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'ajaxUrl' => add_query_arg(
+						'podloom_image_cache_nonce',
+						$image_cache_nonce,
+						admin_url( 'admin-ajax.php' )
+					),
+					'nonce'   => $image_cache_nonce,
 				)
 			);
 		}
@@ -157,11 +163,17 @@ class Podloom_Assets {
 
 		// Pass AJAX URL for background image caching (only if enabled).
 		if ( Podloom_Image_Cache::is_enabled() ) {
+			$image_cache_nonce = wp_create_nonce( 'podloom_image_cache_nonce' );
 			wp_localize_script(
 				'podloom-podcast20-player-editor',
 				'podloomImageCache',
 				array(
-					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'ajaxUrl' => add_query_arg(
+						'podloom_image_cache_nonce',
+						$image_cache_nonce,
+						admin_url( 'admin-ajax.php' )
+					),
+					'nonce'   => $image_cache_nonce,
 				)
 			);
 		}

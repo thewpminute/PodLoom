@@ -126,7 +126,7 @@ require_once PODLOOM_PLUGIN_DIR . 'admin/admin-functions.php';
  * - Rate limiting: 15 requests/minute per IP (configurable via filter)
  * - SSRF protection: WordPress core's reject_unsafe_urls blocks internal IPs
  * - URL validation: Only http/https URLs allowed
- * - Size limits: 2MB max transcript size (configurable via filter)
+ * - Size limits: 2MB max transcript size (configurable via filter), enforced pre-download
  *
  * Nonce verification is not used because:
  * 1. This is a read-only endpoint (no data modification)
@@ -155,9 +155,17 @@ function podloom_fetch_transcript() {
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public CORS proxy endpoint, rate-limited.
 	$url = sanitize_text_field( wp_unslash( $_GET['url'] ) );
 
-	// Basic URL validation
+	// Basic URL validation.
 	if ( empty( $url ) || ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
 		wp_send_json_error( array( 'message' => 'Invalid URL' ), 400 );
+	}
+
+	$parsed_url = wp_parse_url( $url );
+	$scheme     = isset( $parsed_url['scheme'] ) ? strtolower( $parsed_url['scheme'] ) : '';
+	$is_http_valid = wp_http_validate_url( $url );
+	$is_http_valid = apply_filters( 'podloom_transcript_http_validate_url', $is_http_valid, $url );
+	if ( ! in_array( $scheme, array( 'http', 'https' ), true ) || ! $is_http_valid ) {
+		wp_send_json_error( array( 'message' => 'Only valid HTTP/HTTPS URLs are allowed' ), 400 );
 	}
 
 	// Allow users to add custom validation via filter
@@ -166,22 +174,29 @@ function podloom_fetch_transcript() {
 		wp_send_json_error( array( 'message' => $validation_error ), 403 );
 	}
 
+	// Check transcript size limit before download to prevent memory exhaustion.
+	$max_size = (int) apply_filters( 'podloom_transcript_max_size', 2 * 1024 * 1024 ); // 2MB default.
+
+	$request_args = apply_filters(
+		'podloom_transcript_request_args',
+		array(
+			'timeout'            => 15,
+			'sslverify'          => true,
+			'redirection'        => 2,
+			'reject_unsafe_urls' => true,
+			'user-agent'         => 'PodLoom/' . PODLOOM_PLUGIN_VERSION . '; ' . get_bloginfo( 'url' ),
+		),
+		$url
+	);
+
+	// Enforce bounded response size unless explicitly overridden.
+	if ( $max_size > 0 && ! isset( $request_args['limit_response_size'] ) ) {
+		$request_args['limit_response_size'] = $max_size + 1;
+	}
+
 	// Fetch the transcript using WordPress HTTP API
 	// WordPress's 'reject_unsafe_urls' handles SSRF protection (blocks private IPs, localhost, etc.)
-	$response = wp_remote_get(
-		$url,
-		apply_filters(
-			'podloom_transcript_request_args',
-			array(
-				'timeout'            => 15,
-				'sslverify'          => true,
-				'redirection'        => 2,
-				'reject_unsafe_urls' => true,
-				'user-agent'         => 'PodLoom/' . PODLOOM_PLUGIN_VERSION . '; ' . get_bloginfo( 'url' ),
-			),
-			$url
-		)
-	);
+	$response = wp_remote_get( $url, $request_args );
 
 	// Check for errors
 	if ( is_wp_error( $response ) ) {
@@ -195,7 +210,6 @@ function podloom_fetch_transcript() {
 	}
 
 	$status_code = wp_remote_retrieve_response_code( $response );
-	$body        = wp_remote_retrieve_body( $response );
 
 	if ( $status_code !== 200 ) {
 		wp_send_json_error(
@@ -207,9 +221,21 @@ function podloom_fetch_transcript() {
 		);
 	}
 
-	// Check transcript size limit to prevent memory exhaustion
-	// Default: 2MB (configurable via filter for sites with larger transcripts)
-	$max_size  = apply_filters( 'podloom_transcript_max_size', 2 * 1024 * 1024 ); // 2MB default
+	$content_type   = (string) wp_remote_retrieve_header( $response, 'content-type' );
+	$content_length = (int) wp_remote_retrieve_header( $response, 'content-length' );
+
+	if ( $max_size > 0 && $content_length > 0 && $content_length > $max_size ) {
+		wp_send_json_error(
+			array(
+				'message' => 'Transcript too large',
+				'size'    => size_format( $content_length ),
+				'limit'   => size_format( $max_size ),
+			),
+			413
+		);
+	}
+
+	$body      = wp_remote_retrieve_body( $response );
 	$body_size = strlen( $body );
 
 	if ( $max_size > 0 && $body_size > $max_size ) {
@@ -227,7 +253,6 @@ function podloom_fetch_transcript() {
 	// Users can enable strict validation via filter if needed for their environment
 	$strict_content_type = apply_filters( 'podloom_transcript_strict_content_type', false );
 	if ( $strict_content_type ) {
-		$content_type  = wp_remote_retrieve_header( $response, 'content-type' );
 		$allowed_types = apply_filters(
 			'podloom_transcript_allowed_content_types',
 			array(
@@ -750,33 +775,11 @@ function podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes ) {
 	$output .= podloom_render_playlist_tabs( $episodes, $current_episode, $show_description, $colors );
 
 	// Store all episode data as JSON for JavaScript
-	// Define allowed HTML tags for description/content sanitization (same as in podloom_render_playlist_tabs).
-	$allowed_html = array(
-		'p'          => array(),
-		'br'         => array(),
-		'strong'     => array(),
-		'b'          => array(),
-		'em'         => array(),
-		'i'          => array(),
-		'u'          => array(),
-		'a'          => array(
-			'href'   => array(),
-			'title'  => array(),
-			'target' => array(),
-			'rel'    => array(),
-		),
-		'ul'         => array(),
-		'ol'         => array(),
-		'li'         => array(),
-		'blockquote' => array(),
-		'code'       => array(),
-		'pre'        => array(),
-	);
 	$episodes_json = array();
 	foreach ( $episodes as $index => $ep ) {
 		// Sanitize description and content to prevent XSS when JavaScript updates the DOM.
-		$sanitized_description = ! empty( $ep['description'] ) ? wp_kses( $ep['description'], $allowed_html ) : '';
-		$sanitized_content     = ! empty( $ep['content'] ) ? wp_kses( $ep['content'], $allowed_html ) : '';
+		$sanitized_description = ! empty( $ep['description'] ) ? podloom_sanitize_rss_description_html( $ep['description'] ) : '';
+		$sanitized_content     = ! empty( $ep['content'] ) ? podloom_sanitize_rss_description_html( $ep['content'] ) : '';
 
 		// Get local URL if image caching is enabled (returns original URL as fallback).
 		$ep_image_url = ! empty( $ep['image'] ) ? Podloom_Image_Cache::get_local_url( $ep['image'], 'cover', $feed_id ) : '';
@@ -991,60 +994,7 @@ function podloom_render_rss_episode( $attributes ) {
 	// Prefer 'content' over 'description' as SimplePie's get_description() truncates by default
 	$description_source = ! empty( $episode['content'] ) ? $episode['content'] : ( $episode['description'] ?? '' );
 	if ( $show_description && ! empty( $description_source ) ) {
-		// Use restrictive HTML sanitization to prevent XSS from untrusted RSS feeds
-		$allowed_html     = array(
-			'p'          => array(),
-			'br'         => array(),
-			'strong'     => array(),
-			'b'          => array(),
-			'em'         => array(),
-			'i'          => array(),
-			'u'          => array(),
-			'a'          => array(
-				'href'   => array(),
-				'title'  => array(),
-				'target' => array(),
-				'rel'    => array(),
-			),
-			'ul'         => array(),
-			'ol'         => array(),
-			'li'         => array(),
-			'blockquote' => array(),
-			'code'       => array(),
-			'pre'        => array(),
-		);
-		$description_html = wp_kses( $description_source, $allowed_html );
-
-		// Additional security: validate href attributes to prevent javascript: and data: URLs
-		if ( ! empty( $description_html ) && strpos( $description_html, '<a ' ) !== false ) {
-			$dom = new DOMDocument();
-			libxml_use_internal_errors( true );
-			@$dom->loadHTML( '<?xml encoding="UTF-8">' . $description_html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
-			libxml_clear_errors();
-
-			$links = $dom->getElementsByTagName( 'a' );
-			foreach ( $links as $link ) {
-				$href = $link->getAttribute( 'href' );
-				if ( $href ) {
-					$href_lower = strtolower( trim( $href ) );
-					// Remove dangerous URL schemes
-					if ( strpos( $href_lower, 'javascript:' ) === 0 ||
-						strpos( $href_lower, 'data:' ) === 0 ||
-						strpos( $href_lower, 'vbscript:' ) === 0 ) {
-						$link->removeAttribute( 'href' );
-					}
-				}
-				// Ensure external links have proper rel attribute for security
-				if ( $link->hasAttribute( 'href' ) && $link->getAttribute( 'target' ) === '_blank' ) {
-					$link->setAttribute( 'rel', 'noopener noreferrer' );
-				}
-			}
-
-			$description_html = '';
-			foreach ( $dom->childNodes as $child ) {
-				$description_html .= $dom->saveHTML( $child );
-			}
-		}
+		$description_html = podloom_sanitize_rss_description_html( $description_source );
 
 		// Apply character limit if set (while preserving HTML)
 		$char_limit = get_option( 'podloom_rss_description_limit', 0 );
@@ -1616,28 +1566,7 @@ function podloom_render_playlist_tabs( $episodes, $current_episode, $show_descri
 	$description_html = '';
 	$description_source = ! empty( $current_episode['content'] ) ? $current_episode['content'] : ( $current_episode['description'] ?? '' );
 	if ( $show_description && ! empty( $description_source ) ) {
-		$allowed_html = array(
-			'p'          => array(),
-			'br'         => array(),
-			'strong'     => array(),
-			'b'          => array(),
-			'em'         => array(),
-			'i'          => array(),
-			'u'          => array(),
-			'a'          => array(
-				'href'   => array(),
-				'title'  => array(),
-				'target' => array(),
-				'rel'    => array(),
-			),
-			'ul'         => array(),
-			'ol'         => array(),
-			'li'         => array(),
-			'blockquote' => array(),
-			'code'       => array(),
-			'pre'        => array(),
-		);
-		$description_html = wp_kses( $description_source, $allowed_html );
+		$description_html = podloom_sanitize_rss_description_html( $description_source );
 
 		// Apply character limit if set
 		$char_limit = get_option( 'podloom_rss_description_limit', 0 );
@@ -1864,4 +1793,3 @@ function podloom_render_episodes_list( $episodes, $current_episode, $colors ) {
 
 	return $output;
 }
-

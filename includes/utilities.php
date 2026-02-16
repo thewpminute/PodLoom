@@ -14,6 +14,97 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Get allowed HTML tags for RSS description/content rendering.
+ *
+ * Uses a restrictive subset to prevent XSS from untrusted feed content while
+ * preserving common formatting tags.
+ *
+ * @return array
+ */
+function podloom_get_rss_description_allowed_html() {
+	$allowed_html = array(
+		'p'          => array(),
+		'br'         => array(),
+		'strong'     => array(),
+		'b'          => array(),
+		'em'         => array(),
+		'i'          => array(),
+		'u'          => array(),
+		'a'          => array(
+			'href'   => array(),
+			'title'  => array(),
+			'target' => array(),
+			'rel'    => array(),
+		),
+		'ul'         => array(),
+		'ol'         => array(),
+		'li'         => array(),
+		'blockquote' => array(),
+		'code'       => array(),
+		'pre'        => array(),
+	);
+
+	/**
+	 * Filter allowed HTML tags for RSS description/content output.
+	 *
+	 * @since 2.16.1
+	 * @param array $allowed_html Allowed HTML array for wp_kses().
+	 */
+	return apply_filters( 'podloom_rss_description_allowed_html', $allowed_html );
+}
+
+/**
+ * Sanitize RSS description/content HTML.
+ *
+ * @param string $html Raw HTML from feed.
+ * @return string Sanitized HTML safe for rendering.
+ */
+function podloom_sanitize_rss_description_html( $html ) {
+	if ( ! is_string( $html ) || '' === $html ) {
+		return '';
+	}
+
+	$sanitized = wp_kses( $html, podloom_get_rss_description_allowed_html() );
+
+	// Fast path if there are no links or DOMDocument is unavailable.
+	if ( false === strpos( $sanitized, '<a ' ) || ! class_exists( 'DOMDocument' ) ) {
+		return $sanitized;
+	}
+
+	$dom            = new DOMDocument();
+	$previous_state = libxml_use_internal_errors( true );
+	$loaded         = $dom->loadHTML( '<?xml encoding="UTF-8">' . $sanitized, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+	libxml_clear_errors();
+	libxml_use_internal_errors( $previous_state );
+
+	if ( false === $loaded ) {
+		return $sanitized;
+	}
+
+	$links = $dom->getElementsByTagName( 'a' );
+	foreach ( $links as $link ) {
+		$href = trim( $link->getAttribute( 'href' ) );
+		if ( '' !== $href ) {
+			$href_lower = strtolower( $href );
+			if ( 0 === strpos( $href_lower, 'javascript:' ) || 0 === strpos( $href_lower, 'data:' ) || 0 === strpos( $href_lower, 'vbscript:' ) ) {
+				$link->removeAttribute( 'href' );
+			}
+		}
+
+		if ( '_blank' === $link->getAttribute( 'target' ) ) {
+			$link->setAttribute( 'rel', 'noopener noreferrer' );
+		}
+	}
+
+	$output = '';
+	foreach ( $dom->childNodes as $child ) {
+		$output .= $dom->saveHTML( $child );
+	}
+
+	return $output;
+}
+
+/**
  * Truncate HTML content while preserving tags and structure
  *
  * @param string $html The HTML content to truncate

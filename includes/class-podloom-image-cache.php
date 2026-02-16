@@ -251,6 +251,17 @@ class Podloom_Image_Cache {
 	 * @return array|false Result array with attachment_id, or false on failure.
 	 */
 	public static function cache_image( $url, $type = 'cover', $feed_id = '', $cached = null ) {
+		$validated_url = esc_url_raw( $url );
+		if ( empty( $validated_url ) || ! wp_http_validate_url( $validated_url ) ) {
+			return false;
+		}
+
+		$parsed_url = wp_parse_url( $validated_url );
+		$scheme     = isset( $parsed_url['scheme'] ) ? strtolower( $parsed_url['scheme'] ) : '';
+		if ( ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+			return false;
+		}
+
 		// Build request headers.
 		$request_headers = array(
 			'User-Agent' => 'PodLoom WordPress Plugin',
@@ -268,12 +279,13 @@ class Podloom_Image_Cache {
 
 		// Fetch the image.
 		$response = wp_remote_get(
-			$url,
+			$validated_url,
 			array(
-				'timeout'            => 30,
-				'redirection'        => 3,
-				'reject_unsafe_urls' => true,
-				'headers'            => $request_headers,
+				'timeout'             => 30,
+				'redirection'         => 3,
+				'reject_unsafe_urls'  => true,
+				'limit_response_size' => self::MAX_FILE_SIZE + 1,
+				'headers'             => $request_headers,
 			)
 		);
 
@@ -295,7 +307,7 @@ class Podloom_Image_Cache {
 		if ( 304 === $status_code && $cached ) {
 			// Update last checked time but keep existing attachment.
 			self::save_mapping(
-				$url,
+				$validated_url,
 				$cached['attachment_id'],
 				$cached['etag'],
 				$cached['last_modified'],
@@ -325,6 +337,11 @@ class Podloom_Image_Cache {
 		$content_type = wp_remote_retrieve_header( $response, 'content-type' );
 		$content_type = strtolower( explode( ';', $content_type )[0] ); // Remove charset if present.
 
+		$content_length = (int) wp_remote_retrieve_header( $response, 'content-length' );
+		if ( $content_length > self::MAX_FILE_SIZE ) {
+			return false;
+		}
+
 		if ( ! in_array( $content_type, self::ALLOWED_TYPES, true ) ) {
 			return false;
 		}
@@ -342,7 +359,7 @@ class Podloom_Image_Cache {
 		$response_last_modified = wp_remote_retrieve_header( $response, 'last-modified' );
 
 		// Generate filename from URL.
-		$filename = self::generate_filename( $url, $content_type, $type );
+		$filename = self::generate_filename( $validated_url, $content_type, $type );
 
 		// Sideload to media library.
 		$attachment_id = self::sideload_image( $image_data, $filename, $type );
@@ -365,7 +382,7 @@ class Podloom_Image_Cache {
 
 		// Save the mapping.
 		self::save_mapping(
-			$url,
+			$validated_url,
 			$attachment_id,
 			$response_etag,
 			$response_last_modified,

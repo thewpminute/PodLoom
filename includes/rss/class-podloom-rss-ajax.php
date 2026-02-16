@@ -203,12 +203,12 @@ function podloom_ajax_get_rss_episodes() {
 	// If offset is provided, use offset/limit mode for prefetch-friendly pagination.
 	if ( isset( $_POST['offset'] ) ) {
 		$offset = absint( wp_unslash( $_POST['offset'] ) );
-		$limit  = isset( $_POST['limit'] ) ? min( absint( wp_unslash( $_POST['limit'] ) ), 50 ) : 20; // Cap at 50.
+		$limit  = isset( $_POST['limit'] ) ? max( 1, min( absint( wp_unslash( $_POST['limit'] ) ), 50 ) ) : 20; // Clamp to 1-50.
 		$page   = floor( $offset / $limit ) + 1;
 	} else {
 		$page     = isset( $_POST['page'] ) ? absint( wp_unslash( $_POST['page'] ) ) : 1;
 		$per_page = isset( $_POST['per_page'] ) ? absint( wp_unslash( $_POST['per_page'] ) ) : 20;
-		$limit    = $per_page;
+		$limit    = max( 1, min( $per_page, 50 ) );
 	}
 
 	$result = Podloom_RSS::get_episodes( $feed_id, $page, $limit );
@@ -245,7 +245,7 @@ function podloom_ajax_get_rss_episodes_public() {
 
 	// Support offset/limit for prefetching.
 	$offset = isset( $_POST['offset'] ) ? absint( wp_unslash( $_POST['offset'] ) ) : 0;
-	$limit  = isset( $_POST['limit'] ) ? min( absint( wp_unslash( $_POST['limit'] ) ), 50 ) : 20; // Cap at 50.
+	$limit  = isset( $_POST['limit'] ) ? max( 1, min( absint( wp_unslash( $_POST['limit'] ) ), 50 ) ) : 20; // Clamp to 1-50.
 	$page   = floor( $offset / $limit ) + 1;
 
 	// Get episodes (disallow remote fetch to prevent blocking).
@@ -503,11 +503,14 @@ add_action( 'wp_ajax_podloom_render_rss_episode', 'podloom_ajax_render_rss_episo
  *
  * Processes queued images for background caching.
  * Called via AJAX after page load to avoid blocking rendering.
+ * Protected by a public nonce in the localized request URL.
  */
 function podloom_ajax_process_image_cache() {
-	// No nonce check - this is a background process that runs on page load.
-	// Security is handled by: rate limiting, URL validation in cache_image(),
-	// and the fact that it only processes URLs already queued during rendering.
+	$nonce = isset( $_REQUEST['podloom_image_cache_nonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['podloom_image_cache_nonce'] ) ) : '';
+	if ( empty( $nonce ) || ! wp_verify_nonce( $nonce, 'podloom_image_cache_nonce' ) ) {
+		wp_send_json_error( array( 'message' => 'Invalid security token' ), 403 );
+		return;
+	}
 
 	// Rate limiting: 20 requests per minute per IP.
 	if ( ! Podloom_RSS::check_rate_limit( 'image_cache', 20, 60 ) ) {
@@ -539,10 +542,15 @@ function podloom_ajax_process_image_cache() {
 			break;
 		}
 
+		if ( ! is_array( $item ) || empty( $item['url'] ) || empty( $item['type'] ) ) {
+			unset( $queue[ $key ] );
+			continue;
+		}
+
 		$result = Podloom_Image_Cache::process_queued_image(
 			$item['url'],
 			$item['type'],
-			$item['feed_id']
+			$item['feed_id'] ?? ''
 		);
 
 		$results[ $key ] = $result;

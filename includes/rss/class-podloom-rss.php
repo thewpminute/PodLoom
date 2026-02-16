@@ -511,8 +511,8 @@ class Podloom_RSS {
 			$episode = array(
 				'id'          => md5( $item->get_permalink() ),
 				'title'       => $item->get_title(),
-				'description' => $item->get_description(),
-				'content'     => $item->get_content(),
+				'description' => self::sanitize_episode_html( $item->get_description() ),
+				'content'     => self::sanitize_episode_html( $item->get_content() ),
 				'link'        => $item->get_permalink(),
 				'date'        => $item->get_date( 'U' ),
 				'author'      => $item->get_author() ? $item->get_author()->get_name() : '',
@@ -720,6 +720,9 @@ class Podloom_RSS {
 	 * @return array Episodes array with pagination info
 	 */
 	public static function get_episodes( $feed_id, $page = 1, $per_page = 20, $allow_remote_fetch = true ) {
+		$page     = max( 1, (int) $page );
+		$per_page = max( 1, (int) $per_page );
+
 		// Check if caching is enabled
 		$enable_cache = get_option( 'podloom_enable_cache', true );
 
@@ -806,6 +809,7 @@ class Podloom_RSS {
 		// Note: Character limit for descriptions is applied at render time (not here)
 		// to preserve HTML formatting and avoid redundant processing on every retrieval.
 		// See podloom_truncate_html() in podloom-podcast-player.php for HTML-aware truncation.
+		$episodes = array_map( array( __CLASS__, 'sanitize_episode_fields_for_output' ), $episodes );
 
 		// Paginate episodes
 		$total     = count( $episodes );
@@ -821,6 +825,47 @@ class Podloom_RSS {
 			'offset'   => $offset,
 			'has_more' => ( $offset + count( $paginated ) ) < $total,
 		);
+	}
+
+	/**
+	 * Sanitize rich HTML fields from untrusted RSS data.
+	 *
+	 * @param string $html Raw HTML.
+	 * @return string Sanitized HTML.
+	 */
+	private static function sanitize_episode_html( $html ) {
+		if ( ! is_string( $html ) || '' === $html ) {
+			return '';
+		}
+
+		if ( function_exists( 'podloom_sanitize_rss_description_html' ) ) {
+			return podloom_sanitize_rss_description_html( $html );
+		}
+
+		// Fallback (should not normally run, utilities are loaded before this class).
+		return wp_kses_post( $html );
+	}
+
+	/**
+	 * Normalize episode output so legacy cached entries are also sanitized.
+	 *
+	 * @param array $episode Episode array.
+	 * @return array Sanitized episode array.
+	 */
+	private static function sanitize_episode_fields_for_output( $episode ) {
+		if ( ! is_array( $episode ) ) {
+			return array();
+		}
+
+		if ( isset( $episode['description'] ) ) {
+			$episode['description'] = self::sanitize_episode_html( $episode['description'] );
+		}
+
+		if ( isset( $episode['content'] ) ) {
+			$episode['content'] = self::sanitize_episode_html( $episode['content'] );
+		}
+
+		return $episode;
 	}
 
 	/**
