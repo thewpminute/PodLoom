@@ -18,61 +18,18 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function podloom_render_general_tab( $all_options, $shows ) {
 	$api_key        = $all_options['podloom_api_key'] ?? '';
-	$default_show   = $all_options['podloom_default_show'] ?? '';
 	$enable_cache   = $all_options['podloom_enable_cache'] ?? true;
 	$cache_duration = $all_options['podloom_cache_duration'] ?? 21600;
 	$cache_images   = $all_options['podloom_cache_images'] ?? false;
 	$max_episodes   = $all_options['podloom_max_episodes'] ?? 50;
 
-	// Get RSS feeds
-	$rss_feeds = Podloom_RSS::get_feeds();
-
 	// Get image cache stats if enabled.
 	$image_stats = Podloom_Image_Cache::get_stats();
-
-	// Check if we have any shows or feeds to display
-	$has_options = ! empty( $shows ) || ! empty( $rss_feeds );
 	?>
 	<form method="post" action="">
 		<?php wp_nonce_field( 'podloom_settings_save', 'podloom_settings_nonce' ); ?>
 		<input type="hidden" name="podloom_settings_tab" value="general" />
 		<input type="hidden" name="podloom_api_key" value="<?php echo esc_attr( $api_key ); ?>" />
-
-		<?php if ( $has_options ) : ?>
-		<!-- Default Show Card -->
-		<div class="podloom-settings-card">
-			<h3 class="podloom-card-title"><?php esc_html_e( 'Default Show', 'podloom-podcast-player' ); ?></h3>
-			<p class="description" id="default_show_desc">
-				<?php esc_html_e( 'Select the default show to use in the episode block.', 'podloom-podcast-player' ); ?>
-			</p>
-			<label for="podloom_default_show" class="screen-reader-text"><?php esc_html_e( 'Default Show', 'podloom-podcast-player' ); ?></label>
-			<select id="podloom_default_show" name="podloom_default_show" class="regular-text" aria-describedby="default_show_desc">
-				<option value="">
-					<?php esc_html_e( '-- Select a default show --', 'podloom-podcast-player' ); ?>
-				</option>
-				<?php if ( ! empty( $shows ) ) : ?>
-					<optgroup label="<?php esc_attr_e( 'Transistor Shows', 'podloom-podcast-player' ); ?>">
-						<?php foreach ( $shows as $show ) : ?>
-							<option value="<?php echo esc_attr( $show['id'] ); ?>" <?php selected( $default_show, $show['id'] ); ?>>
-								<?php echo esc_html( $show['attributes']['title'] ); ?>
-							</option>
-						<?php endforeach; ?>
-					</optgroup>
-				<?php endif; ?>
-				<?php if ( ! empty( $rss_feeds ) ) : ?>
-					<optgroup label="<?php esc_attr_e( 'RSS Feeds', 'podloom-podcast-player' ); ?>">
-						<?php foreach ( $rss_feeds as $feed_id => $feed ) : ?>
-							<option value="<?php echo esc_attr( $feed_id ); ?>" <?php selected( $default_show, $feed_id ); ?>>
-								<?php echo esc_html( $feed['name'] ); ?>
-							</option>
-						<?php endforeach; ?>
-					</optgroup>
-				<?php endif; ?>
-			</select>
-		</div>
-		<?php else : ?>
-			<input type="hidden" name="podloom_default_show" value="<?php echo esc_attr( $default_show ); ?>" />
-		<?php endif; ?>
 
 		<!-- Cache Settings Card -->
 		<div class="podloom-settings-card">
@@ -197,7 +154,6 @@ function podloom_render_general_tab( $all_options, $shows ) {
 				<ul style="margin-left: 20px; list-style-type: disc;">
 					<li><?php esc_html_e( 'Your Transistor API key', 'podloom-podcast-player' ); ?></li>
 					<li><?php esc_html_e( 'All RSS feeds and settings', 'podloom-podcast-player' ); ?></li>
-					<li><?php esc_html_e( 'Default show setting', 'podloom-podcast-player' ); ?></li>
 					<li><?php esc_html_e( 'Cache settings and all cached data', 'podloom-podcast-player' ); ?></li>
 					<li><?php esc_html_e( 'All cached images from the media library', 'podloom-podcast-player' ); ?></li>
 					<li><?php esc_html_e( 'All other PodLoom plugin settings', 'podloom-podcast-player' ); ?></li>

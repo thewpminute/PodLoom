@@ -17,6 +17,8 @@ import {
 	SET_SUBSCRIBE_PODCASTS,
 	SET_SUBSCRIBE_PREVIEW,
 	SET_RENDERED_EPISODE_HTML,
+	SET_RENDERED_PLAYLIST_HTML,
+	SET_PLAYLIST_HTML_LOADING,
 	SET_ERROR,
 	CLEAR_ERROR,
 } from './constants';
@@ -45,6 +47,10 @@ const DEFAULT_STATE = {
 
 	// Rendered episode HTML cache (for P2.0 tabs)
 	renderedEpisodeHtml: {},
+
+	// Rendered playlist HTML cache (keyed by playlistKey = feedId_maxEpisodes_order)
+	renderedPlaylistHtml: {},
+	playlistHtmlLoading: {},
 
 	// Error states keyed by identifier
 	errors: {},
@@ -154,6 +160,28 @@ export default function reducer( state = DEFAULT_STATE, action ) {
 				renderedEpisodeHtml: {
 					...state.renderedEpisodeHtml,
 					[ action.episodeKey ]: action.html,
+				},
+			};
+
+		case SET_RENDERED_PLAYLIST_HTML:
+			return {
+				...state,
+				renderedPlaylistHtml: {
+					...state.renderedPlaylistHtml,
+					[ action.playlistKey ]: action.html,
+				},
+				playlistHtmlLoading: {
+					...state.playlistHtmlLoading,
+					[ action.playlistKey ]: false,
+				},
+			};
+
+		case SET_PLAYLIST_HTML_LOADING:
+			return {
+				...state,
+				playlistHtmlLoading: {
+					...state.playlistHtmlLoading,
+					[ action.playlistKey ]: action.loading,
 				},
 			};
 

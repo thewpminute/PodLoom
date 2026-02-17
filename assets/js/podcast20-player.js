@@ -1712,6 +1712,525 @@
     }
 
     /**
+     * Initialize playlist search and pagination
+     * Handles search filtering (local + server) and "Load More" button
+     */
+    function initPlaylistSearchAndPagination() {
+        var playlistPlayers = document.querySelectorAll('.rss-playlist-player');
+
+        playlistPlayers.forEach(function (playerContainer) {
+            // Skip if already initialized for search/pagination
+            if (playerContainer.hasAttribute('data-search-pagination-initialized')) return;
+            playerContainer.setAttribute('data-search-pagination-initialized', 'true');
+
+            var feedId = playerContainer.getAttribute('data-feed-id');
+            var totalEpisodes = parseInt(playerContainer.getAttribute('data-total'), 10) || 0;
+            var loadedCount = parseInt(playerContainer.getAttribute('data-loaded'), 10) || 0;
+            var loadStep = parseInt(playerContainer.getAttribute('data-step'), 10) || 20;
+            var playlistOrder = playerContainer.getAttribute('data-order') || 'episodic';
+
+            var searchInput = playerContainer.querySelector('.podloom-episodes-search-input');
+            var searchClear = playerContainer.querySelector('.podloom-episodes-search-clear');
+            var searchStatus = playerContainer.querySelector('.podloom-search-status');
+            var episodesList = playerContainer.querySelector('.podloom-episodes-list');
+            var loadMoreBtn = playerContainer.querySelector('.podloom-episodes-load-more');
+            var noResultsEl = playerContainer.querySelector('.podloom-episodes-no-results');
+
+            var localDebounceTimer = null;
+            var serverDebounceTimer = null;
+            var currentSearchTerm = '';
+            var isSearching = false;
+
+            // Get episodes data from embedded JSON
+            var dataScript = playerContainer.querySelector('.podloom-playlist-data');
+            var episodes = [];
+            if (dataScript) {
+                try {
+                    episodes = JSON.parse(dataScript.textContent);
+                } catch (e) {
+                    console.error('PodLoom: Failed to parse playlist data');
+                }
+            }
+
+            /**
+             * Filter loaded episodes locally (fast)
+             */
+            function filterLocal(searchTerm) {
+                searchTerm = searchTerm.toLowerCase().trim();
+                var items = episodesList.querySelectorAll('.podloom-episode-item');
+                var visibleCount = 0;
+
+                items.forEach(function (item) {
+                    var itemTerm = (item.getAttribute('data-search-term') || '').toLowerCase();
+                    var matches = !searchTerm || itemTerm.indexOf(searchTerm) !== -1;
+
+                    if (matches) {
+                        item.classList.remove('podloom-search-hidden');
+                        visibleCount++;
+                    } else {
+                        item.classList.add('podloom-search-hidden');
+                    }
+                });
+
+                // Hide load more during search
+                if (loadMoreBtn) {
+                    loadMoreBtn.closest('.podloom-episodes-load-more-wrapper').style.display = searchTerm ? 'none' : '';
+                }
+
+                return visibleCount;
+            }
+
+            /**
+             * Search server for more results (when local results are insufficient)
+             */
+            function searchServer(searchTerm) {
+                if (!searchTerm || searchTerm.length < 2 || isSearching) return;
+
+                isSearching = true;
+
+                // Show loading state
+                if (searchStatus) {
+                    searchStatus.textContent = 'Searching...';
+                }
+
+                var ajaxUrl = typeof podloomPlaylist !== 'undefined' && podloomPlaylist.ajaxUrl
+                    ? podloomPlaylist.ajaxUrl
+                    : '/wp-admin/admin-ajax.php';
+
+                var formData = new FormData();
+                formData.append('action', 'podloom_search_episodes');
+                formData.append('feed_id', feedId);
+                formData.append('search', searchTerm);
+                formData.append('order', playlistOrder);
+                formData.append('limit', '50');
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    isSearching = false;
+
+                    if (data.success && data.data.episodes) {
+                        displaySearchResults(data.data.episodes, searchTerm);
+                    } else {
+                        if (searchStatus) {
+                            searchStatus.textContent = '';
+                        }
+                    }
+                })
+                .catch(function (error) {
+                    isSearching = false;
+                    console.error('PodLoom: Search failed', error);
+                    if (searchStatus) {
+                        searchStatus.textContent = '';
+                    }
+                });
+            }
+
+            /**
+             * Display search results from server
+             */
+            function displaySearchResults(results, searchTerm) {
+                // Hide all existing items first
+                var existingItems = episodesList.querySelectorAll('.podloom-episode-item');
+                existingItems.forEach(function (item) {
+                    item.classList.add('podloom-search-hidden');
+                });
+
+                var visibleCount = 0;
+
+                results.forEach(function (episode, idx) {
+                    // Check if episode is already in DOM (by title match)
+                    var existingItem = null;
+                    existingItems.forEach(function (item) {
+                        var titleEl = item.querySelector('.podloom-episode-item-title');
+                        if (titleEl && titleEl.textContent === episode.title) {
+                            existingItem = item;
+                        }
+                    });
+
+                    if (existingItem) {
+                        // Show existing item
+                        existingItem.classList.remove('podloom-search-hidden');
+                        visibleCount++;
+                    } else {
+                        // Add new item to DOM (from search results)
+                        var newItem = createEpisodeItem(episode, 'search-' + idx);
+                        newItem.classList.add('podloom-search-result');
+                        episodesList.appendChild(newItem);
+                        initEpisodeItemClick(newItem, playerContainer, episode);
+                        visibleCount++;
+                    }
+                });
+
+                // Update status
+                if (searchStatus) {
+                    searchStatus.textContent = visibleCount + ' episode' + (visibleCount !== 1 ? 's' : '') + ' found';
+                }
+
+                // Show/hide no results
+                if (noResultsEl) {
+                    noResultsEl.style.display = visibleCount === 0 ? '' : 'none';
+                    if (visibleCount === 0) {
+                        noResultsEl.textContent = 'No episodes found for "' + searchTerm + '"';
+                    }
+                }
+
+                // Announce to screen readers
+                announceToScreenReader(visibleCount + ' episode' + (visibleCount !== 1 ? 's' : '') + ' found');
+            }
+
+            /**
+             * Create episode item HTML element
+             */
+            function createEpisodeItem(episode, index) {
+                var div = document.createElement('div');
+                div.className = 'podloom-episode-item';
+                div.setAttribute('data-episode-index', index);
+                div.setAttribute('data-search-term', (episode.title || '').toLowerCase());
+                div.setAttribute('role', 'button');
+                div.setAttribute('tabindex', '0');
+                div.style.cursor = 'pointer';
+
+                var date = episode.date ? new Date(episode.date * 1000).toLocaleDateString() : '';
+                var duration = episode.duration ? formatDurationSimple(episode.duration) : '';
+
+                var thumbHtml = '<div class="podloom-episode-thumb' + (!episode.image ? ' podloom-episode-thumb-placeholder' : '') + '">';
+                if (episode.image) {
+                    thumbHtml += '<img src="' + escapeHTMLAttr(episode.image) + '" alt="' + escapeHTMLAttr(episode.title) + '" loading="lazy" />';
+                }
+                thumbHtml += '<div class="podloom-episode-play-overlay">' +
+                    '<span class="podloom-play-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></span>' +
+                    '</div></div>';
+
+                var infoHtml = '<div class="podloom-episode-info">' +
+                    '<div class="podloom-episode-title-row">' +
+                    '<span class="podloom-episode-item-title">' + escapeHTMLAttr(episode.title) + '</span>' +
+                    '</div>' +
+                    '<div class="podloom-episode-meta-row">' +
+                    (date ? '<span class="podloom-episode-item-date">' + date + '</span>' : '') +
+                    (duration ? '<span class="podloom-episode-item-duration">' + duration + '</span>' : '') +
+                    '</div></div>';
+
+                div.innerHTML = thumbHtml + infoHtml;
+
+                // Store episode data on element for later use
+                div.podloomEpisodeData = episode;
+
+                return div;
+            }
+
+            /**
+             * Format duration in seconds to human readable
+             */
+            function formatDurationSimple(seconds) {
+                if (!seconds || isNaN(seconds)) return '';
+                seconds = parseInt(seconds, 10);
+                var hours = Math.floor(seconds / 3600);
+                var minutes = Math.floor((seconds % 3600) / 60);
+                var secs = seconds % 60;
+                if (hours > 0) {
+                    return hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (secs < 10 ? '0' : '') + secs;
+                }
+                return minutes + ':' + (secs < 10 ? '0' : '') + secs;
+            }
+
+            /**
+             * Escape HTML for attribute values
+             */
+            function escapeHTMLAttr(text) {
+                if (!text) return '';
+                var div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            /**
+             * Clear search and restore original state
+             */
+            function clearSearch() {
+                currentSearchTerm = '';
+
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+
+                if (searchClear) {
+                    searchClear.style.display = 'none';
+                }
+
+                if (searchStatus) {
+                    searchStatus.textContent = '';
+                }
+
+                // Remove search result items (dynamically added)
+                var searchResults = episodesList.querySelectorAll('.podloom-search-result');
+                searchResults.forEach(function (item) {
+                    item.remove();
+                });
+
+                // Show all original items
+                var items = episodesList.querySelectorAll('.podloom-episode-item');
+                items.forEach(function (item) {
+                    item.classList.remove('podloom-search-hidden');
+                });
+
+                // Show load more wrapper if there are more episodes
+                if (loadMoreBtn) {
+                    var wrapper = loadMoreBtn.closest('.podloom-episodes-load-more-wrapper');
+                    if (wrapper) {
+                        wrapper.style.display = '';
+                    }
+                }
+
+                // Hide no results
+                if (noResultsEl) {
+                    noResultsEl.style.display = 'none';
+                }
+            }
+
+            /**
+             * Handle search input
+             */
+            function handleSearchInput() {
+                var searchTerm = searchInput.value.trim();
+                currentSearchTerm = searchTerm;
+
+                // Show/hide clear button
+                if (searchClear) {
+                    searchClear.style.display = searchTerm ? '' : 'none';
+                }
+
+                // Clear timers
+                clearTimeout(localDebounceTimer);
+                clearTimeout(serverDebounceTimer);
+
+                if (!searchTerm) {
+                    clearSearch();
+                    return;
+                }
+
+                // Local filter (fast, 100ms debounce)
+                localDebounceTimer = setTimeout(function () {
+                    var localCount = filterLocal(searchTerm);
+
+                    // Update status
+                    if (searchStatus) {
+                        if (totalEpisodes > loadedCount && searchTerm.length >= 2) {
+                            searchStatus.textContent = localCount + ' found (searching...)';
+                        } else {
+                            searchStatus.textContent = localCount + ' episode' + (localCount !== 1 ? 's' : '') + ' found';
+                        }
+                    }
+
+                    // If we have more episodes than loaded, also search server
+                    if (totalEpisodes > loadedCount && searchTerm.length >= 2) {
+                        // Server search (slower, 500ms total debounce)
+                        serverDebounceTimer = setTimeout(function () {
+                            if (currentSearchTerm === searchTerm) {
+                                searchServer(searchTerm);
+                            }
+                        }, 400); // 400ms after local = 500ms total
+                    } else {
+                        // Show no results message if needed
+                        if (noResultsEl) {
+                            noResultsEl.style.display = localCount === 0 ? '' : 'none';
+                            if (localCount === 0) {
+                                noResultsEl.textContent = 'No episodes found for "' + searchTerm + '"';
+                            }
+                        }
+                    }
+                }, 100);
+            }
+
+            /**
+             * Initialize click handler for an episode item
+             */
+            function initEpisodeItemClick(item, container, episodeData) {
+                function activateEpisode() {
+                    var data = episodeData || item.podloomEpisodeData;
+                    if (!data || !data.audio_url) return;
+
+                    // Find the audio player
+                    var audio = container.querySelector('.podloom-playlist-audio');
+                    if (!audio) return;
+
+                    // Update audio source
+                    var sourceEl = audio.querySelector('source');
+                    if (sourceEl) {
+                        sourceEl.src = data.audio_url;
+                    } else {
+                        audio.src = data.audio_url;
+                    }
+
+                    // Load and play
+                    audio.load();
+                    audio.play().catch(function (e) {
+                        console.warn('PodLoom: Could not play', e);
+                    });
+
+                    // Update player metadata
+                    updatePlayerMetadataFromEpisode(container, data);
+
+                    // Update now-playing indicators
+                    var allItems = container.querySelectorAll('.podloom-episode-item');
+                    allItems.forEach(function (i) {
+                        i.classList.remove('podloom-episode-current');
+                        i.removeAttribute('aria-current');
+                        // Reset play icon
+                        var overlay = i.querySelector('.podloom-episode-play-overlay');
+                        if (overlay) {
+                            overlay.innerHTML = '<span class="podloom-play-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></span>';
+                        }
+                    });
+                    item.classList.add('podloom-episode-current');
+                    item.setAttribute('aria-current', 'true');
+                    // Update to now-playing icon
+                    var overlay = item.querySelector('.podloom-episode-play-overlay');
+                    if (overlay) {
+                        overlay.innerHTML = '<span class="podloom-now-playing-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
+                            '<rect x="4" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite"/></rect>' +
+                            '<rect x="10" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="8;16;8" dur="0.8s" repeatCount="indefinite"/><animate attributeName="y" values="8;4;8" dur="0.8s" repeatCount="indefinite"/></rect>' +
+                            '<rect x="16" y="4" width="4" height="16" rx="1"><animate attributeName="height" values="16;8;16" dur="0.8s" repeatCount="indefinite" begin="0.2s"/><animate attributeName="y" values="4;8;4" dur="0.8s" repeatCount="indefinite" begin="0.2s"/></rect>' +
+                            '</svg></span>';
+                    }
+
+                    // Announce to screen readers
+                    announceToScreenReader('Now playing: ' + (data.title || 'Episode'));
+                }
+
+                item.addEventListener('click', activateEpisode);
+                item.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        activateEpisode();
+                    }
+                });
+            }
+
+            /**
+             * Update player metadata from episode data
+             */
+            function updatePlayerMetadataFromEpisode(container, episode) {
+                var titleEl = container.querySelector('.podloom-playlist-title');
+                var dateEl = container.querySelector('.podloom-playlist-date');
+                var durationEl = container.querySelector('.podloom-playlist-duration');
+                var artworkEl = container.querySelector('.podloom-playlist-artwork');
+
+                if (titleEl && episode.title) {
+                    titleEl.textContent = episode.title;
+                }
+
+                if (dateEl && episode.date) {
+                    dateEl.textContent = new Date(episode.date * 1000).toLocaleDateString();
+                }
+
+                if (durationEl && episode.duration) {
+                    durationEl.textContent = formatDurationSimple(episode.duration);
+                }
+
+                if (artworkEl && episode.image) {
+                    artworkEl.src = episode.image;
+                    artworkEl.alt = episode.title || '';
+                    artworkEl.setAttribute('data-original-src', episode.image);
+                }
+            }
+
+            /**
+             * Load more episodes via AJAX
+             */
+            function loadMoreEpisodes() {
+                if (!loadMoreBtn || loadMoreBtn.hasAttribute('disabled')) return;
+
+                loadMoreBtn.setAttribute('disabled', 'true');
+                var loadMoreText = loadMoreBtn.querySelector('.podloom-load-more-text');
+                var loadMoreLoading = loadMoreBtn.querySelector('.podloom-load-more-loading');
+                if (loadMoreText) loadMoreText.style.display = 'none';
+                if (loadMoreLoading) loadMoreLoading.style.display = '';
+
+                var ajaxUrl = typeof podloomPlaylist !== 'undefined' && podloomPlaylist.ajaxUrl
+                    ? podloomPlaylist.ajaxUrl
+                    : '/wp-admin/admin-ajax.php';
+
+                var formData = new FormData();
+                formData.append('action', 'podloom_playlist_episodes');
+                formData.append('feed_id', feedId);
+                formData.append('offset', loadedCount);
+                formData.append('limit', loadStep);
+                formData.append('order', playlistOrder);
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    loadMoreBtn.removeAttribute('disabled');
+                    if (loadMoreText) loadMoreText.style.display = '';
+                    if (loadMoreLoading) loadMoreLoading.style.display = 'none';
+
+                    if (data.success && data.data.episodes) {
+                        var newEpisodes = data.data.episodes;
+
+                        // Add new episodes to DOM
+                        newEpisodes.forEach(function (episode, idx) {
+                            var newIndex = loadedCount + idx;
+                            var newItem = createEpisodeItem(episode, newIndex);
+                            episodesList.appendChild(newItem);
+                            initEpisodeItemClick(newItem, playerContainer, episode);
+
+                            // Add to episodes array
+                            episodes.push(episode);
+                        });
+
+                        loadedCount += newEpisodes.length;
+                        playerContainer.setAttribute('data-loaded', loadedCount);
+
+                        // Update button
+                        var remaining = totalEpisodes - loadedCount;
+                        if (remaining <= 0 || !data.data.has_more) {
+                            var wrapper = loadMoreBtn.closest('.podloom-episodes-load-more-wrapper');
+                            if (wrapper) wrapper.style.display = 'none';
+                        } else if (loadMoreText) {
+                            loadMoreText.textContent = 'Load More (' + remaining + ' remaining)';
+                        }
+                    }
+                })
+                .catch(function (error) {
+                    loadMoreBtn.removeAttribute('disabled');
+                    if (loadMoreText) loadMoreText.style.display = '';
+                    if (loadMoreLoading) loadMoreLoading.style.display = 'none';
+                    console.error('PodLoom: Load more failed', error);
+                });
+            }
+
+            // Event listeners
+            if (searchInput) {
+                searchInput.addEventListener('input', handleSearchInput);
+                searchInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        clearSearch();
+                        searchInput.blur();
+                    }
+                });
+            }
+
+            if (searchClear) {
+                searchClear.addEventListener('click', function () {
+                    clearSearch();
+                    if (searchInput) searchInput.focus();
+                });
+            }
+
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', loadMoreEpisodes);
+            }
+        });
+    }
+
+    /**
      * Initialize custom audio player controls
      * Replaces native HTML5 audio controls with custom UI
      */
@@ -1901,6 +2420,7 @@
         initTranscriptLoaders();
         initSkipButtons();
         initPlaylistPlayer();
+        initPlaylistSearchAndPagination();
         initCustomPlayer();
 
         // Mark all players as ready (reveals them via CSS transition)
