@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.16.0
+Stable tag: 2.17.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -173,6 +173,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.17.0 =
+* **Playlist Search**: Added real-time search and filtering to the podcast episode playlist
+
 = 2.16.0 =
 * **Smart Cache Duration**: Cache duration now dynamically adjusts based on podcast release patterns (daily shows refresh more often, inactive feeds less)
 * **Per-Feed Scheduling**: Cron system checks each feed against its own optimal refresh interval
@@ -300,6 +303,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.17.0 =
+New playlist search! Filter podcast episodes in real time directly within the player.
 
 = 2.16.0 =
 Major caching and performance improvements! Smart cache duration adapts to podcast release patterns, playlist prefetching for smoother scrolling, and responsive images for faster loading.
