@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Render the Transistor API tab
  */
-function podloom_render_transistor_tab( $api_key, $default_show, $enable_cache, $cache_duration, $connection_status, $shows ) {
+function podloom_render_transistor_tab( $api_key, $enable_cache, $cache_duration, $connection_status, $shows ) {
 	?>
 	<?php echo wp_kses_post( $connection_status ); ?>
 
@@ -38,7 +38,6 @@ function podloom_render_transistor_tab( $api_key, $default_show, $enable_cache, 
 		<form method="post" action="">
 			<?php wp_nonce_field( 'podloom_settings_save', 'podloom_settings_nonce' ); ?>
 			<input type="hidden" name="podloom_settings_tab" value="transistor" />
-			<input type="hidden" name="podloom_default_show" value="<?php echo esc_attr( $default_show ); ?>" />
 			<input type="hidden" name="podloom_enable_cache" value="<?php echo $enable_cache ? '1' : '0'; ?>" />
 			<input type="hidden" name="podloom_cache_duration" value="<?php echo esc_attr( $cache_duration ); ?>" />
 

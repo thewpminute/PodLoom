@@ -52,6 +52,17 @@ class Podloom_Blocks {
 			$store_asset['version'],
 			false
 		);
+
+		// Pass shared data to the store (available to all blocks).
+		wp_localize_script(
+			'podloom-data-store',
+			'podloomData',
+			array(
+				'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+				'nonce'     => wp_create_nonce( 'podloom_nonce' ),
+				'hasApiKey' => ! empty( get_option( 'podloom_api_key', '' ) ),
+			)
+		);
 	}
 
 	/**
@@ -75,18 +86,6 @@ class Podloom_Blocks {
 			$episode_dependencies,
 			$episode_asset['version'],
 			false
-		);
-
-		// Pass data to episode block.
-		wp_localize_script(
-			'podloom-episode-block-editor',
-			'podloomData',
-			array(
-				'defaultShow' => get_option( 'podloom_default_show', '' ),
-				'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
-				'nonce'       => wp_create_nonce( 'podloom_nonce' ),
-				'hasApiKey'   => ! empty( get_option( 'podloom_api_key', '' ) ),
-			)
 		);
 
 		// Register the episode block type.

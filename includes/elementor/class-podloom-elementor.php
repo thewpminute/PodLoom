@@ -153,7 +153,6 @@ class Podloom_Elementor {
 				'nonce'            => wp_create_nonce( 'podloom_nonce' ),
 				'sources'          => $shows_data['sources'],
 				'hasApiKey'        => ! empty( get_option( 'podloom_api_key' ) ),
-				'defaultShow'      => get_option( 'podloom_default_show', '' ),
 				'strings'          => array(
 					'selectSource'       => esc_html__( '-- Select a source --', 'podloom-podcast-player' ),
 					'transistorHeader'   => esc_html__( 'Transistor.fm', 'podloom-podcast-player' ),

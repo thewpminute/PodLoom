@@ -40,10 +40,26 @@ class Podloom_RSS {
 	}
 
 	/**
-	 * Default maximum number of episodes to cache per feed.
+	 * Default maximum number of episodes to cache per feed (0 = unlimited).
 	 * Can be overridden via the podloom_max_episodes option in settings.
 	 */
-	const DEFAULT_MAX_EPISODES = 50;
+	const DEFAULT_MAX_EPISODES = 0;
+
+	/**
+	 * Get maximum episodes to cache per feed.
+	 *
+	 * @return int Maximum episode count (0 = unlimited).
+	 */
+	public static function get_max_episodes() {
+		$max = (int) get_option( 'podloom_max_episodes', self::DEFAULT_MAX_EPISODES );
+
+		/**
+		 * Filter the maximum number of episodes to cache per feed.
+		 *
+		 * @param int $max Maximum episodes (0 = unlimited).
+		 */
+		return apply_filters( 'podloom_max_episodes', $max );
+	}
 
 	/**
 	 * Get all RSS feeds
@@ -469,9 +485,9 @@ class Podloom_RSS {
 			);
 		}
 
-		// Get episodes up to the configured maximum
-		$max_episodes = (int) get_option( 'podloom_max_episodes', self::DEFAULT_MAX_EPISODES );
-		$items        = $feed->get_items( 0, $max_episodes );
+		// Get episodes up to the configured maximum (0 = unlimited)
+		$max_episodes = self::get_max_episodes();
+		$items        = $max_episodes > 0 ? $feed->get_items( 0, $max_episodes ) : $feed->get_items();
 		$episodes = array();
 
 		// Initialize P2.0 parser
@@ -731,7 +747,7 @@ class Podloom_RSS {
 
 		// If no cache, try persistent storage as fallback.
 		if ( $episodes === false && class_exists( 'Podloom_RSS_Storage' ) ) {
-			$max_episodes = (int) get_option( 'podloom_max_episodes', self::DEFAULT_MAX_EPISODES );
+			$max_episodes = self::get_max_episodes();
 			$episodes     = Podloom_RSS_Storage::get_episodes( $feed_id, $max_episodes );
 
 			// If we got episodes from storage, re-cache them.

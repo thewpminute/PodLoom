@@ -499,6 +499,75 @@ function podloom_ajax_render_rss_episode() {
 add_action( 'wp_ajax_podloom_render_rss_episode', 'podloom_ajax_render_rss_episode' );
 
 /**
+ * AJAX Handler: Render RSS Playlist HTML (for block editor preview)
+ * Returns fully rendered playlist HTML including episodes tab and player
+ */
+function podloom_ajax_render_rss_playlist() {
+	check_ajax_referer( 'podloom_nonce', 'nonce' );
+
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => 'Insufficient permissions' ) );
+		return;
+	}
+
+	$feed_id       = isset( $_POST['feed_id'] ) ? sanitize_text_field( wp_unslash( $_POST['feed_id'] ) ) : '';
+	$max_episodes  = isset( $_POST['max_episodes'] ) ? absint( $_POST['max_episodes'] ) : 25;
+	$playlist_order = isset( $_POST['playlist_order'] ) ? sanitize_text_field( wp_unslash( $_POST['playlist_order'] ) ) : 'episodic';
+
+	if ( empty( $feed_id ) ) {
+		wp_send_json_error( array( 'message' => 'Missing feed ID' ) );
+		return;
+	}
+
+	// Validate feed exists.
+	$feeds = get_option( 'podloom_rss_feeds', array() );
+	if ( ! isset( $feeds[ $feed_id ] ) ) {
+		wp_send_json_error( array( 'message' => 'Feed not found' ) );
+		return;
+	}
+
+	// Generate cache key.
+	$cache_key = 'playlist_editor_' . $feed_id . '_' . $max_episodes . '_' . $playlist_order;
+
+	// Check cache first.
+	$cached_html = podloom_cache_get( $cache_key, 'podloom_editor' );
+	if ( false !== $cached_html ) {
+		wp_send_json_success(
+			array(
+				'html'   => $cached_html,
+				'cached' => true,
+			)
+		);
+		return;
+	}
+
+	// Build attributes array for the render function.
+	$attributes = array(
+		'playlistMaxEpisodes' => $max_episodes,
+		'playlistOrder'       => $playlist_order,
+	);
+
+	// Render the playlist HTML.
+	$html = podloom_render_rss_playlist( $feed_id, $max_episodes, $attributes );
+
+	if ( empty( $html ) ) {
+		wp_send_json_error( array( 'message' => 'Failed to render playlist HTML' ) );
+		return;
+	}
+
+	// Cache the rendered HTML for 6 hours.
+	podloom_cache_set( $cache_key, $html, 'podloom_editor', 21600 );
+
+	wp_send_json_success(
+		array(
+			'html'   => $html,
+			'cached' => false,
+		)
+	);
+}
+add_action( 'wp_ajax_podloom_render_rss_playlist', 'podloom_ajax_render_rss_playlist' );
+
+/**
  * AJAX Handler: Process Image Cache Queue
  *
  * Processes queued images for background caching.
@@ -627,3 +696,201 @@ function podloom_ajax_get_episode_p20() {
 }
 add_action( 'wp_ajax_podloom_get_episode_p20', 'podloom_ajax_get_episode_p20' );
 add_action( 'wp_ajax_nopriv_podloom_get_episode_p20', 'podloom_ajax_get_episode_p20' );
+
+/**
+ * AJAX Handler: Get Paginated Playlist Episodes
+ *
+ * Public endpoint for loading more episodes in the playlist player.
+ * No nonce required - this is a read-only endpoint for public visitors.
+ *
+ * @return void Outputs JSON response.
+ */
+function podloom_ajax_playlist_episodes() {
+	// Rate limiting: 60 requests per minute per IP.
+	if ( ! Podloom_RSS::check_rate_limit( 'playlist_episodes', 60, 60 ) ) {
+		wp_send_json_error( array( 'message' => 'Rate limit exceeded' ), 429 );
+		return;
+	}
+
+	$feed_id = isset( $_POST['feed_id'] ) ? sanitize_text_field( wp_unslash( $_POST['feed_id'] ) ) : '';
+	$offset  = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+	$limit   = isset( $_POST['limit'] ) ? min( 50, absint( $_POST['limit'] ) ) : 20;
+	$order   = isset( $_POST['order'] ) ? sanitize_text_field( wp_unslash( $_POST['order'] ) ) : 'episodic';
+
+	if ( empty( $feed_id ) ) {
+		wp_send_json_error( array( 'message' => 'Missing feed ID' ) );
+		return;
+	}
+
+	// Get all episodes from cache.
+	$all_episodes = podloom_cache_get( 'rss_episodes_' . $feed_id );
+
+	if ( $all_episodes === false ) {
+		// Try to refresh the feed.
+		$result = Podloom_RSS::refresh_feed( $feed_id );
+		if ( ! $result['success'] ) {
+			wp_send_json_error( array( 'message' => 'Feed not available' ) );
+			return;
+		}
+		$all_episodes = podloom_cache_get( 'rss_episodes_' . $feed_id );
+	}
+
+	if ( ! is_array( $all_episodes ) ) {
+		wp_send_json_success(
+			array(
+				'episodes' => array(),
+				'total'    => 0,
+				'has_more' => false,
+			)
+		);
+		return;
+	}
+
+	// Apply order.
+	if ( 'serial' === $order ) {
+		$all_episodes = array_reverse( $all_episodes );
+	}
+
+	$total = count( $all_episodes );
+
+	// Paginate.
+	$episodes = array_slice( $all_episodes, $offset, $limit );
+
+	// Sanitize output.
+	$episodes = podloom_sanitize_episodes_for_output( $episodes, $feed_id );
+
+	wp_send_json_success(
+		array(
+			'episodes' => $episodes,
+			'total'    => $total,
+			'offset'   => $offset,
+			'has_more' => ( $offset + $limit ) < $total,
+		)
+	);
+}
+add_action( 'wp_ajax_podloom_playlist_episodes', 'podloom_ajax_playlist_episodes' );
+add_action( 'wp_ajax_nopriv_podloom_playlist_episodes', 'podloom_ajax_playlist_episodes' );
+
+/**
+ * AJAX Handler: Search Episodes
+ *
+ * Public endpoint for searching episodes in the playlist player.
+ * No nonce required - this is a read-only endpoint for public visitors.
+ *
+ * @return void Outputs JSON response.
+ */
+function podloom_ajax_search_episodes() {
+	// Rate limiting: 30 requests per minute (more restrictive for search).
+	if ( ! Podloom_RSS::check_rate_limit( 'search_episodes', 30, 60 ) ) {
+		wp_send_json_error( array( 'message' => 'Rate limit exceeded' ), 429 );
+		return;
+	}
+
+	$feed_id = isset( $_POST['feed_id'] ) ? sanitize_text_field( wp_unslash( $_POST['feed_id'] ) ) : '';
+	$search  = isset( $_POST['search'] ) ? sanitize_text_field( wp_unslash( $_POST['search'] ) ) : '';
+	$limit   = isset( $_POST['limit'] ) ? min( 50, absint( $_POST['limit'] ) ) : 20;
+	$order   = isset( $_POST['order'] ) ? sanitize_text_field( wp_unslash( $_POST['order'] ) ) : 'episodic';
+
+	if ( empty( $feed_id ) ) {
+		wp_send_json_error( array( 'message' => 'Missing feed ID' ) );
+		return;
+	}
+
+	// Require minimum search term length.
+	if ( strlen( $search ) < 2 ) {
+		wp_send_json_error( array( 'message' => 'Search term too short' ) );
+		return;
+	}
+
+	// Get all episodes from cache.
+	$all_episodes = podloom_cache_get( 'rss_episodes_' . $feed_id );
+
+	if ( ! is_array( $all_episodes ) || empty( $all_episodes ) ) {
+		wp_send_json_success(
+			array(
+				'episodes' => array(),
+				'total'    => 0,
+			)
+		);
+		return;
+	}
+
+	// Apply order first.
+	if ( 'serial' === $order ) {
+		$all_episodes = array_reverse( $all_episodes );
+	}
+
+	// Search (case-insensitive, title only for speed).
+	$search_lower = strtolower( $search );
+	$results      = array();
+
+	foreach ( $all_episodes as $episode ) {
+		$title = strtolower( $episode['title'] ?? '' );
+
+		if ( strpos( $title, $search_lower ) !== false ) {
+			$results[] = $episode;
+
+			// Limit results.
+			if ( count( $results ) >= $limit ) {
+				break;
+			}
+		}
+	}
+
+	// Sanitize output.
+	$results = podloom_sanitize_episodes_for_output( $results, $feed_id );
+
+	wp_send_json_success(
+		array(
+			'episodes'    => $results,
+			'total'       => count( $results ),
+			'search_term' => $search,
+		)
+	);
+}
+add_action( 'wp_ajax_podloom_search_episodes', 'podloom_ajax_search_episodes' );
+add_action( 'wp_ajax_nopriv_podloom_search_episodes', 'podloom_ajax_search_episodes' );
+
+/**
+ * Sanitize episodes for JSON output.
+ *
+ * @param array  $episodes Episodes array.
+ * @param string $feed_id  Feed ID for image caching.
+ * @return array Sanitized episodes.
+ */
+function podloom_sanitize_episodes_for_output( $episodes, $feed_id ) {
+	$allowed_html = array(
+		'p'      => array(),
+		'br'     => array(),
+		'strong' => array(),
+		'b'      => array(),
+		'em'     => array(),
+		'i'      => array(),
+		'a'      => array(
+			'href'   => array(),
+			'target' => array(),
+		),
+	);
+
+	$output = array();
+	foreach ( $episodes as $index => $ep ) {
+		// Get local image URL if caching enabled.
+		$image_url = '';
+		if ( ! empty( $ep['image'] ) ) {
+			$image_url = Podloom_Image_Cache::get_local_url( $ep['image'], 'cover', $feed_id );
+		}
+
+		$output[] = array(
+			'id'          => $ep['id'] ?? $index,
+			'title'       => sanitize_text_field( $ep['title'] ?? '' ),
+			'audio_url'   => esc_url_raw( $ep['audio_url'] ?? '' ),
+			'image'       => esc_url_raw( $image_url ),
+			'date'        => $ep['date'] ?? 0,
+			'duration'    => $ep['duration'] ?? 0,
+			'description' => wp_kses( $ep['description'] ?? '', $allowed_html ),
+			'podcast20'   => $ep['podcast20'] ?? null,
+		);
+	}
+
+	return $output;
+}

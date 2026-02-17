@@ -308,7 +308,6 @@ function podloom_render_settings_page() {
 		$settings_tab = isset( $_POST['podloom_settings_tab'] ) ? sanitize_text_field( wp_unslash( $_POST['podloom_settings_tab'] ) ) : '';
 
 		$api_key      = isset( $_POST['podloom_api_key'] ) ? sanitize_text_field( wp_unslash( $_POST['podloom_api_key'] ) ) : '';
-		$default_show = isset( $_POST['podloom_default_show'] ) ? sanitize_text_field( wp_unslash( $_POST['podloom_default_show'] ) ) : '';
 
 		// Handle checkbox - when checked it's '1', when unchecked the field is not submitted
 		$enable_cache   = isset( $_POST['podloom_enable_cache'] ) && sanitize_text_field( wp_unslash( $_POST['podloom_enable_cache'] ) ) === '1';
@@ -317,7 +316,6 @@ function podloom_render_settings_page() {
 		$max_episodes   = isset( $_POST['podloom_max_episodes'] ) ? max( 1, absint( wp_unslash( $_POST['podloom_max_episodes'] ) ) ) : 50;
 
 		update_option( 'podloom_api_key', $api_key );
-		update_option( 'podloom_default_show', $default_show );
 		update_option( 'podloom_enable_cache', $enable_cache );
 		update_option( 'podloom_cache_duration', $cache_duration );
 		update_option( 'podloom_cache_images', $cache_images );
@@ -360,7 +358,6 @@ function podloom_render_settings_page() {
 	// Get current settings (optimized - single query for all autoload options)
 	$all_options    = wp_load_alloptions();
 	$api_key        = $all_options['podloom_api_key'] ?? '';
-	$default_show   = $all_options['podloom_default_show'] ?? '';
 	$enable_cache   = $all_options['podloom_enable_cache'] ?? true;
 	$cache_duration = $all_options['podloom_cache_duration'] ?? 21600;
 
@@ -425,7 +422,7 @@ function podloom_render_settings_page() {
 
 
 		<?php elseif ( $current_tab === 'transistor' ) : ?>
-			<?php podloom_render_transistor_tab( $api_key, $default_show, $enable_cache, $cache_duration, $connection_status, $shows ); ?>
+			<?php podloom_render_transistor_tab( $api_key, $enable_cache, $cache_duration, $connection_status, $shows ); ?>
 
 
 		<?php elseif ( $current_tab === 'rss' ) : ?>

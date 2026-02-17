@@ -167,6 +167,7 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 		isEpisodesLoading,
 		hasMore,
 		renderedHtml,
+		playlistHtml,
 	} = useSelect(
 		( storeSelect ) => {
 			const store = storeSelect( STORE_NAME );
@@ -190,42 +191,16 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 				renderedHtml: rssEpisodeData
 					? store.getRenderedEpisodeHtml( rssEpisodeData.id || rssEpisodeData.title )
 					: null,
+				playlistHtml: rssFeedId
+					? store.getRenderedPlaylistHtml( `${ rssFeedId }_${ playlistMaxEpisodes }_${ playlistOrder }` )
+					: null,
 			};
 		},
-		[ sourceType, showId, rssFeedId, rssEpisodeData ]
+		[ sourceType, showId, rssFeedId, rssEpisodeData, playlistMaxEpisodes, playlistOrder ]
 	);
 
 	// Get dispatch functions
-	const { fetchMoreEpisodes, fetchRenderedEpisodeHtml } = useDispatch( STORE_NAME );
-
-	// Set default show if available and no show is selected
-	useEffect( () => {
-		if ( ! showId && ! rssFeedId && window.podloomData?.defaultShow && isLoaded ) {
-			const defaultTransistorShow = transistorShows.find(
-				( show ) => show.id === window.podloomData.defaultShow
-			);
-			if ( defaultTransistorShow ) {
-				setAttributes( {
-					sourceType: 'transistor',
-					showId: defaultTransistorShow.id,
-					showTitle: defaultTransistorShow.attributes.title,
-					showSlug: defaultTransistorShow.attributes.slug,
-				} );
-				return;
-			}
-
-			const defaultRssFeed = rssFeeds.find(
-				( feed ) => feed.id === window.podloomData.defaultShow
-			);
-			if ( defaultRssFeed ) {
-				setAttributes( {
-					sourceType: 'rss',
-					rssFeedId: defaultRssFeed.id,
-					showTitle: defaultRssFeed.name,
-				} );
-			}
-		}
-	}, [ transistorShows, rssFeeds, showId, rssFeedId, isLoaded ] );
+	const { fetchMoreEpisodes, fetchRenderedEpisodeHtml, fetchRenderedPlaylistHtml } = useDispatch( STORE_NAME );
 
 	// Validate selected RSS feed still exists
 	useEffect( () => {
@@ -279,6 +254,13 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 			}
 		}
 	}, [ sourceType, displayMode, rssFeedId, episodes ] );
+
+	// Fetch rendered HTML for RSS playlist mode
+	useEffect( () => {
+		if ( sourceType === 'rss' && displayMode === 'playlist' && rssFeedId ) {
+			fetchRenderedPlaylistHtml( rssFeedId, playlistMaxEpisodes, playlistOrder );
+		}
+	}, [ sourceType, displayMode, rssFeedId, playlistMaxEpisodes, playlistOrder ] );
 
 	/**
 	 * Load more episodes
@@ -745,6 +727,9 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 
 		// Playlist Mode - RSS
 		if ( displayMode === 'playlist' && sourceType === 'rss' && rssFeedId ) {
+			if ( playlistHtml ) {
+				return <div dangerouslySetInnerHTML={ { __html: playlistHtml } } />;
+			}
 			return (
 				<div
 					style={ {
@@ -759,42 +744,9 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 						alignItems: 'center',
 					} }
 				>
-					<span
-						className="dashicons dashicons-playlist-audio"
-						style={ { fontSize: '48px', color: '#4caf50', marginBottom: '10px' } }
-					/>
-					<p
-						style={ {
-							margin: '0',
-							fontSize: '16px',
-							color: '#333',
-							textAlign: 'center',
-							fontWeight: '600',
-						} }
-					>
-						{ __( 'RSS Playlist Player', 'podloom-podcast-player' ) }
-					</p>
-					<p
-						style={ {
-							margin: '8px 0 0 0',
-							fontSize: '13px',
-							color: '#666',
-							textAlign: 'center',
-						} }
-					>
-						{ __( 'Displays ', 'podloom-podcast-player' ) }
-						{ playlistMaxEpisodes }
-						{ __( ' episodes with an Episodes tab', 'podloom-podcast-player' ) }
-					</p>
-					<p
-						style={ {
-							margin: '4px 0 0 0',
-							fontSize: '12px',
-							color: '#999',
-							textAlign: 'center',
-						} }
-					>
-						{ __( 'Preview available on frontend', 'podloom-podcast-player' ) }
+					<Spinner />
+					<p style={ { margin: '10px 0 0 0', fontSize: '14px', color: '#666' } }>
+						{ __( 'Loading playlist...', 'podloom-podcast-player' ) }
 					</p>
 				</div>
 			);

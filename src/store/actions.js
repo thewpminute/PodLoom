@@ -17,6 +17,8 @@ import {
 	SET_SUBSCRIBE_PODCASTS,
 	SET_SUBSCRIBE_PREVIEW,
 	SET_RENDERED_EPISODE_HTML,
+	SET_RENDERED_PLAYLIST_HTML,
+	SET_PLAYLIST_HTML_LOADING,
 	SET_ERROR,
 	CLEAR_ERROR,
 	STORE_NAME,
@@ -169,6 +171,36 @@ export function setRenderedEpisodeHtml( episodeKey, html ) {
 		type: SET_RENDERED_EPISODE_HTML,
 		episodeKey,
 		html,
+	};
+}
+
+/**
+ * Set rendered playlist HTML (for editor preview cache)
+ *
+ * @param {string} playlistKey Unique playlist identifier (feedId_maxEpisodes_order)
+ * @param {string} html        Rendered HTML string
+ * @return {Object} Action object
+ */
+export function setRenderedPlaylistHtml( playlistKey, html ) {
+	return {
+		type: SET_RENDERED_PLAYLIST_HTML,
+		playlistKey,
+		html,
+	};
+}
+
+/**
+ * Set playlist HTML loading state
+ *
+ * @param {string}  playlistKey Unique playlist identifier
+ * @param {boolean} loading     Loading state
+ * @return {Object} Action object
+ */
+export function setPlaylistHtmlLoading( playlistKey, loading ) {
+	return {
+		type: SET_PLAYLIST_HTML_LOADING,
+		playlistKey,
+		loading,
 	};
 }
 
@@ -358,6 +390,50 @@ export function* fetchRenderedEpisodeHtml( episode, feedId ) {
 	} catch ( error ) {
 		// Silently fail - will fall back to JavaScript rendering
 		console.warn( 'PodLoom: Failed to fetch rendered episode HTML', error );
+	}
+}
+
+/**
+ * Fetch rendered playlist HTML from server
+ *
+ * @param {string} feedId        RSS feed ID
+ * @param {number} maxEpisodes   Maximum episodes to display
+ * @param {string} playlistOrder Episode order ('episodic' or 'serial')
+ */
+export function* fetchRenderedPlaylistHtml( feedId, maxEpisodes, playlistOrder ) {
+	if ( ! feedId ) {
+		return;
+	}
+
+	const playlistKey = `${ feedId }_${ maxEpisodes }_${ playlistOrder }`;
+
+	try {
+		const formData = new FormData();
+		formData.append( 'action', 'podloom_render_rss_playlist' );
+		formData.append( 'nonce', window.podloomData.nonce );
+		formData.append( 'feed_id', feedId );
+		formData.append( 'max_episodes', maxEpisodes.toString() );
+		formData.append( 'playlist_order', playlistOrder );
+
+		const fetchResponse = yield {
+			type: 'FETCH',
+			url: window.podloomData.ajaxUrl,
+			options: {
+				method: 'POST',
+				body: formData,
+			},
+		};
+		const response = yield {
+			type: 'PARSE_JSON',
+			response: fetchResponse,
+		};
+
+		if ( response.success && response.data.html ) {
+			yield setRenderedPlaylistHtml( playlistKey, response.data.html );
+		}
+	} catch ( error ) {
+		// Silently fail - will show placeholder
+		console.warn( 'PodLoom: Failed to fetch rendered playlist HTML', error );
 	}
 }
 

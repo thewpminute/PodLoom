@@ -48,11 +48,11 @@ export function* getAllSources() {
 				yield setTransistorShows( result.data.podloom_shows.data );
 			}
 
-			// Set RSS feeds (filter to valid only)
+			// Set RSS feeds (filter to valid only, preserve ID from key)
 			if ( result.data.rss_feeds ) {
-				const feedsArray = Object.values( result.data.rss_feeds ).filter(
-					( feed ) => feed.valid
-				);
+				const feedsArray = Object.entries( result.data.rss_feeds )
+					.filter( ( [ , feed ] ) => feed.valid )
+					.map( ( [ feedId, feed ] ) => ( { ...feed, id: feedId } ) );
 				yield setRssFeeds( feedsArray );
 			}
 

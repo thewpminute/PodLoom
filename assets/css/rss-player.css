@@ -487,3 +487,172 @@ noscript + .rss-playlist-player {
         overflow: hidden;
     }
 }
+
+/* ============================================
+   Episode Search & Pagination
+   ============================================ */
+
+/* Search Container */
+.podloom-episodes-search {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 8px;
+}
+
+.podloom-search-input-wrapper {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    padding: 0 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.podloom-search-input-wrapper:focus-within {
+    border-color: var(--podloom-player-accent, #0073aa);
+    box-shadow: 0 0 0 3px rgba(0, 115, 170, 0.15);
+}
+
+.podloom-search-icon {
+    flex-shrink: 0;
+    color: #999;
+    margin-right: 8px;
+}
+
+.podloom-episodes-search-input {
+    flex: 1;
+    padding: 10px 0;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    outline: none;
+    min-width: 0;
+}
+
+.podloom-episodes-search-input::placeholder {
+    color: #999;
+}
+
+.podloom-episodes-search-clear {
+    flex-shrink: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    margin-left: 8px;
+    border: none;
+    background: rgba(0, 0, 0, 0.05);
+    color: #666;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.podloom-episodes-search-clear:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: #333;
+}
+
+.podloom-search-status {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #666;
+    min-height: 16px;
+}
+
+/* Hidden during search */
+.podloom-episode-item.podloom-search-hidden {
+    display: none !important;
+}
+
+/* Search result items */
+.podloom-episode-item.podloom-search-result {
+    animation: podloom-fade-in 0.2s ease;
+}
+
+@keyframes podloom-fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* No Results */
+.podloom-episodes-no-results {
+    padding: 32px 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+/* Load More */
+.podloom-episodes-load-more-wrapper {
+    padding: 12px;
+    text-align: center;
+}
+
+.podloom-episodes-load-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 24px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    background: #fff;
+    color: #333;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    min-width: 180px;
+}
+
+.podloom-episodes-load-more:hover:not([disabled]) {
+    background: #f5f5f5;
+    border-color: rgba(0, 0, 0, 0.25);
+}
+
+.podloom-episodes-load-more:focus {
+    outline: 2px solid var(--podloom-player-accent, #0073aa);
+    outline-offset: 2px;
+}
+
+.podloom-episodes-load-more[disabled] {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.podloom-load-more-loading {
+    display: inline-flex;
+    align-items: center;
+}
+
+.podloom-load-more-loading::before {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 8px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-top-color: #333;
+    border-radius: 50%;
+    animation: podloom-spin 0.8s linear infinite;
+}
+
+@keyframes podloom-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Screen reader announcements */
+.podloom-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}

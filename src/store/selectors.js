@@ -194,6 +194,28 @@ export function getRenderedEpisodeHtml( state, episodeKey ) {
 }
 
 /**
+ * Get rendered playlist HTML from cache
+ *
+ * @param {Object} state       Store state
+ * @param {string} playlistKey Playlist identifier (feedId_maxEpisodes_order)
+ * @return {string|null} Rendered HTML or null if not cached
+ */
+export function getRenderedPlaylistHtml( state, playlistKey ) {
+	return state.renderedPlaylistHtml[ playlistKey ] || null;
+}
+
+/**
+ * Check if playlist HTML is loading
+ *
+ * @param {Object} state       Store state
+ * @param {string} playlistKey Playlist identifier
+ * @return {boolean} True if loading
+ */
+export function isPlaylistHtmlLoading( state, playlistKey ) {
+	return state.playlistHtmlLoading[ playlistKey ] || false;
+}
+
+/**
  * Get error for a specific key
  *
  * @param {Object} state Store state

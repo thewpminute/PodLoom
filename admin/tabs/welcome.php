@@ -53,7 +53,7 @@ function podloom_render_welcome_tab() {
 
 				<div style="background: #f0f0f1; border-left: 4px solid #646970; padding: 15px; margin: 15px 0;">
 					<h4 style="margin-top: 0;"><?php esc_html_e( 'General Settings', 'podloom-podcast-player' ); ?></h4>
-					<p><?php esc_html_e( 'Configure your default show, manage caching settings, and control global plugin options. Fine-tune performance and set defaults that work across your entire site.', 'podloom-podcast-player' ); ?></p>
+					<p><?php esc_html_e( 'Manage caching settings and control global plugin options. Fine-tune performance settings that work across your entire site.', 'podloom-podcast-player' ); ?></p>
 					<p><a href="<?php echo esc_url( wp_nonce_url( '?page=podloom-settings&tab=general', 'podloom_switch_tab' ) ); ?>" class="button"><?php esc_html_e( 'View General Settings', 'podloom-podcast-player' ); ?></a></p>
 				</div>
 
