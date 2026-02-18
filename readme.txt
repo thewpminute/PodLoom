@@ -4,7 +4,7 @@ Tags: podcast, podcasting 2.0, chapters, transcripts, audio
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 2.17.0
+Stable tag: 2.17.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -173,6 +173,14 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 
 == Changelog ==
 
+= 2.17.1 =
+* **Security: HTML Sanitization**: Centralized RSS description sanitization strips `javascript:`, `data:`, and `vbscript:` hrefs and adds `rel="noopener noreferrer"` to external links
+* **Security: Transcript Proxy**: Enforces `http`/`https` scheme, adds a second SSRF validation layer, and caps response size before reading the body into memory
+* **Security: Image Cache**: URL validation and scheme check before fetching; response size capped at the HTTP client level via `limit_response_size`
+* **Security: Image Cache AJAX**: Endpoint now requires a nonce; queue items validated before processing
+* **Security: Pagination**: Public episode endpoints clamp `limit` to a minimum of 1 to prevent division-by-zero edge cases
+* **Security: Block Editor**: Client-side HTML sanitizer added to episode preview to strip unsafe content before rendering
+
 = 2.17.0 =
 * **Playlist Search**: Added real-time search and filtering to the podcast episode playlist
 
@@ -303,6 +311,9 @@ Yes! You can use the built-in typography controls, or enable "Minimal Styling Mo
 * Gutenberg block with three display modes
 
 == Upgrade Notice ==
+
+= 2.17.1 =
+Security patch. Hardens RSS description rendering, the transcript proxy, image caching, and public AJAX endpoints. Recommended for all users.
 
 = 2.17.0 =
 New playlist search! Filter podcast episodes in real time directly within the player.
