@@ -2393,12 +2393,13 @@
         }
 
         // Use fetch to process the queue in the background
+        var nonce = podloomImageCache.nonce ? encodeURIComponent(podloomImageCache.nonce) : '';
         fetch(podloomImageCache.ajaxUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: 'action=podloom_process_image_cache'
+            body: 'action=podloom_process_image_cache&podloom_image_cache_nonce=' + nonce
         })
             .then(function (response) {
                 return response.json();

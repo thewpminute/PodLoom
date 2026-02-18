@@ -62,6 +62,42 @@ class Podloom_RSS {
 	}
 
 	/**
+	 * Sanitize episode HTML fields (description and content) at ingest/output time.
+	 *
+	 * Delegates to podloom_sanitize_rss_description_html() when available (loaded
+	 * from includes/utilities.php). Falls back to wp_kses_post() so this method
+	 * is safe to call even if utilities.php is not yet loaded.
+	 *
+	 * @param string $html Raw HTML string.
+	 * @return string Sanitized HTML.
+	 */
+	private static function sanitize_episode_html( $html ) {
+		if ( function_exists( 'podloom_sanitize_rss_description_html' ) ) {
+			return podloom_sanitize_rss_description_html( $html );
+		}
+		return wp_kses_post( $html );
+	}
+
+	/**
+	 * Re-sanitize description and content fields on every episode returned to callers.
+	 *
+	 * Provides defense-in-depth for episodes that were cached before this security
+	 * patch was applied and may still contain un-sanitized HTML.
+	 *
+	 * @param array $episode Single episode array.
+	 * @return array Episode with sanitized description and content fields.
+	 */
+	private static function sanitize_episode_fields_for_output( $episode ) {
+		if ( ! empty( $episode['description'] ) ) {
+			$episode['description'] = self::sanitize_episode_html( $episode['description'] );
+		}
+		if ( ! empty( $episode['content'] ) ) {
+			$episode['content'] = self::sanitize_episode_html( $episode['content'] );
+		}
+		return $episode;
+	}
+
+	/**
 	 * Get all RSS feeds
 	 *
 	 * @return array Array of RSS feeds
@@ -527,8 +563,8 @@ class Podloom_RSS {
 			$episode = array(
 				'id'          => md5( $item->get_permalink() ),
 				'title'       => $item->get_title(),
-				'description' => $item->get_description(),
-				'content'     => $item->get_content(),
+				'description' => self::sanitize_episode_html( (string) $item->get_description() ),
+				'content'     => self::sanitize_episode_html( (string) $item->get_content() ),
 				'link'        => $item->get_permalink(),
 				'date'        => $item->get_date( 'U' ),
 				'author'      => $item->get_author() ? $item->get_author()->get_name() : '',
@@ -736,6 +772,10 @@ class Podloom_RSS {
 	 * @return array Episodes array with pagination info
 	 */
 	public static function get_episodes( $feed_id, $page = 1, $per_page = 20, $allow_remote_fetch = true ) {
+		// Clamp pagination integers to safe ranges.
+		$page     = max( 1, (int) $page );
+		$per_page = max( 1, (int) $per_page );
+
 		// Check if caching is enabled
 		$enable_cache = get_option( 'podloom_enable_cache', true );
 
@@ -822,6 +862,10 @@ class Podloom_RSS {
 		// Note: Character limit for descriptions is applied at render time (not here)
 		// to preserve HTML formatting and avoid redundant processing on every retrieval.
 		// See podloom_truncate_html() in podloom-podcast-player.php for HTML-aware truncation.
+
+		// Defense-in-depth: re-sanitize HTML fields on episodes that may have been cached
+		// before this security patch was applied.
+		$episodes = array_map( array( __CLASS__, 'sanitize_episode_fields_for_output' ), $episodes );
 
 		// Paginate episodes
 		$total     = count( $episodes );

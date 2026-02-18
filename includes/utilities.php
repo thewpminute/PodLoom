@@ -138,6 +138,97 @@ function podloom_format_duration( $seconds ) {
 }
 
 /**
+ * Get allowed HTML tags for RSS episode descriptions.
+ *
+ * Returns a single canonical allowlist used by all description rendering paths.
+ * Site owners can extend it via the 'podloom_rss_description_allowed_html' filter.
+ *
+ * @return array wp_kses-compatible allowlist array.
+ */
+function podloom_get_rss_description_allowed_html() {
+	$allowed_html = array(
+		'p'          => array(),
+		'br'         => array(),
+		'strong'     => array(),
+		'b'          => array(),
+		'em'         => array(),
+		'i'          => array(),
+		'u'          => array(),
+		'a'          => array(
+			'href'   => array(),
+			'title'  => array(),
+			'target' => array(),
+			'rel'    => array(),
+		),
+		'ul'         => array(),
+		'ol'         => array(),
+		'li'         => array(),
+		'blockquote' => array(),
+		'code'       => array(),
+		'pre'        => array(),
+	);
+
+	/**
+	 * Filter the allowed HTML tags for RSS episode descriptions.
+	 *
+	 * @param array $allowed_html wp_kses-compatible allowlist.
+	 */
+	return apply_filters( 'podloom_rss_description_allowed_html', $allowed_html );
+}
+
+/**
+ * Sanitize RSS episode description HTML.
+ *
+ * Runs HTML through wp_kses() with the canonical allowlist, then does a second
+ * DOM pass to strip dangerous href schemes (javascript:, data:, vbscript:) and
+ * add rel="noopener noreferrer" to target="_blank" links.
+ *
+ * @param string $html Raw HTML from an RSS feed.
+ * @return string Sanitized HTML safe for output.
+ */
+function podloom_sanitize_rss_description_html( $html ) {
+	if ( empty( $html ) ) {
+		return '';
+	}
+
+	$allowed_html = podloom_get_rss_description_allowed_html();
+	$sanitized    = wp_kses( $html, $allowed_html );
+
+	// Second pass: fix link security via DOMDocument (only when links are present).
+	if ( ! empty( $sanitized ) && strpos( $sanitized, '<a ' ) !== false && class_exists( 'DOMDocument' ) ) {
+		$dom = new DOMDocument();
+		libxml_use_internal_errors( true );
+		@$dom->loadHTML( '<?xml encoding="UTF-8">' . $sanitized, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		libxml_clear_errors();
+
+		$links = $dom->getElementsByTagName( 'a' );
+		foreach ( $links as $link ) {
+			$href = $link->getAttribute( 'href' );
+			if ( $href ) {
+				$href_lower = strtolower( trim( $href ) );
+				// Remove dangerous URL schemes entirely.
+				if ( strpos( $href_lower, 'javascript:' ) === 0 ||
+					strpos( $href_lower, 'data:' ) === 0 ||
+					strpos( $href_lower, 'vbscript:' ) === 0 ) {
+					$link->removeAttribute( 'href' );
+				}
+			}
+			// Ensure external links have a safe rel attribute.
+			if ( $link->hasAttribute( 'href' ) && $link->getAttribute( 'target' ) === '_blank' ) {
+				$link->setAttribute( 'rel', 'noopener noreferrer' );
+			}
+		}
+
+		$sanitized = '';
+		foreach ( $dom->childNodes as $child ) {
+			$sanitized .= $dom->saveHTML( $child );
+		}
+	}
+
+	return $sanitized;
+}
+
+/**
  * Format timestamp for P2.0 elements (chapters, transcripts)
  *
  * @param float $seconds Timestamp in seconds

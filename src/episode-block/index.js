@@ -52,6 +52,73 @@ const sanitizeUrl = ( url ) => {
 };
 
 /**
+ * Sanitize HTML for safe use in dangerouslySetInnerHTML editor previews.
+ *
+ * Walks the DOM tree and rebuilds only allowed tags, stripping anything
+ * that could execute script (event handlers, javascript: hrefs, etc.).
+ * Uses the browser's own DOM parser so no regex string manipulation is needed.
+ *
+ * @param {string} html Raw HTML string from an RSS feed.
+ * @return {string} Safe HTML string.
+ */
+const sanitizeHtmlForPreview = ( html ) => {
+	if ( ! html ) return '';
+
+	const tempDiv = document.createElement( 'div' );
+	tempDiv.innerHTML = html;
+
+	const ALLOWED_TAGS = new Set( [
+		'p', 'br', 'strong', 'b', 'em', 'i', 'u',
+		'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
+	] );
+
+	const sanitizeNode = ( node ) => {
+		// Text nodes: return DOM-escaped text content (no raw HTML).
+		if ( node.nodeType === Node.TEXT_NODE ) {
+			return node.textContent
+				.replace( /&/g, '&amp;' )
+				.replace( /</g, '&lt;' )
+				.replace( />/g, '&gt;' );
+		}
+
+		// Non-element nodes (comments, processing instructions, etc.): strip.
+		if ( node.nodeType !== Node.ELEMENT_NODE ) {
+			return '';
+		}
+
+		const tag = node.tagName.toLowerCase();
+
+		// Tags not in the allowlist: strip the tag but recurse into children.
+		if ( ! ALLOWED_TAGS.has( tag ) ) {
+			return Array.from( node.childNodes ).map( sanitizeNode ).join( '' );
+		}
+
+		const children = Array.from( node.childNodes ).map( sanitizeNode ).join( '' );
+
+		if ( tag === 'br' ) {
+			return '<br>';
+		}
+
+		if ( tag === 'a' ) {
+			const href = sanitizeUrl( node.getAttribute( 'href' ) || '' );
+			if ( ! href ) {
+				// Dangerous href stripped — render the link text only.
+				return children;
+			}
+			const target = node.getAttribute( 'target' ) === '_blank' ? '_blank' : '';
+			const rel    = target === '_blank' ? ' rel="noopener noreferrer"' : '';
+			const targetAttr = target ? ` target="${ target }"` : '';
+			return `<a href="${ href }"${ targetAttr }${ rel }>${ children }</a>`;
+		}
+
+		// All other allowed tags: reconstruct with no attributes.
+		return `<${ tag }>${ children }</${ tag }>`;
+	};
+
+	return Array.from( tempDiv.childNodes ).map( sanitizeNode ).join( '' );
+};
+
+/**
  * Clean HTML for WordPress blocks
  */
 const cleanHtmlForBlocks = ( html ) => {
@@ -348,12 +415,15 @@ function EditComponent( { attributes, setAttributes, clientId } ) {
 								) }
 							</audio>
 						) }
-						{ display.description && episode.description && (
-							<div
-								className="rss-episode-description"
-								dangerouslySetInnerHTML={ { __html: episode.description } }
-							/>
-						) }
+						{ display.description && episode.description && ( () => {
+							const safeDescription = sanitizeHtmlForPreview( episode.description || '' );
+							return safeDescription ? (
+								<div
+									className="rss-episode-description"
+									dangerouslySetInnerHTML={ { __html: safeDescription } }
+								/>
+							) : null;
+						} )() }
 					</div>
 				</div>
 			</div>

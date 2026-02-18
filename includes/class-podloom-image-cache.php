@@ -251,6 +251,18 @@ class Podloom_Image_Cache {
 	 * @return array|false Result array with attachment_id, or false on failure.
 	 */
 	public static function cache_image( $url, $type = 'cover', $feed_id = '', $cached = null ) {
+		// Validate and sanitize URL before any network operation.
+		$validated_url = esc_url_raw( $url );
+		if ( empty( $validated_url ) || ! wp_http_validate_url( $validated_url ) ) {
+			return false;
+		}
+
+		// Scheme check: only http and https are permitted for image fetching.
+		$scheme = strtolower( (string) wp_parse_url( $validated_url, PHP_URL_SCHEME ) );
+		if ( ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+			return false;
+		}
+
 		// Build request headers.
 		$request_headers = array(
 			'User-Agent' => 'PodLoom WordPress Plugin',
@@ -266,14 +278,16 @@ class Podloom_Image_Cache {
 			}
 		}
 
-		// Fetch the image.
+		// Fetch the image. 'limit_response_size' aborts the download before the full
+		// body is read into memory when the server streams more than MAX_FILE_SIZE bytes.
 		$response = wp_remote_get(
-			$url,
+			$validated_url,
 			array(
-				'timeout'            => 30,
-				'redirection'        => 3,
-				'reject_unsafe_urls' => true,
-				'headers'            => $request_headers,
+				'timeout'             => 30,
+				'redirection'         => 3,
+				'reject_unsafe_urls'  => true,
+				'limit_response_size' => self::MAX_FILE_SIZE + 1,
+				'headers'             => $request_headers,
 			)
 		);
 
@@ -295,7 +309,7 @@ class Podloom_Image_Cache {
 		if ( 304 === $status_code && $cached ) {
 			// Update last checked time but keep existing attachment.
 			self::save_mapping(
-				$url,
+				$validated_url,
 				$cached['attachment_id'],
 				$cached['etag'],
 				$cached['last_modified'],
@@ -329,10 +343,16 @@ class Podloom_Image_Cache {
 			return false;
 		}
 
-		// Get image data.
+		// Check Content-Length header before reading the body into memory.
+		$content_length = wp_remote_retrieve_header( $response, 'content-length' );
+		if ( '' !== $content_length && (int) $content_length > self::MAX_FILE_SIZE ) {
+			return false;
+		}
+
+		// Get image data (only after all header checks pass).
 		$image_data = wp_remote_retrieve_body( $response );
 
-		// Validate file size.
+		// Validate actual body size as a final safety net.
 		if ( strlen( $image_data ) > self::MAX_FILE_SIZE ) {
 			return false;
 		}
@@ -341,8 +361,8 @@ class Podloom_Image_Cache {
 		$response_etag          = wp_remote_retrieve_header( $response, 'etag' );
 		$response_last_modified = wp_remote_retrieve_header( $response, 'last-modified' );
 
-		// Generate filename from URL.
-		$filename = self::generate_filename( $url, $content_type, $type );
+		// Generate filename from validated URL.
+		$filename = self::generate_filename( $validated_url, $content_type, $type );
 
 		// Sideload to media library.
 		$attachment_id = self::sideload_image( $image_data, $filename, $type );
@@ -363,9 +383,9 @@ class Podloom_Image_Cache {
 			wp_delete_attachment( $cached['attachment_id'], true );
 		}
 
-		// Save the mapping.
+		// Save the mapping using the validated URL.
 		self::save_mapping(
-			$url,
+			$validated_url,
 			$attachment_id,
 			$response_etag,
 			$response_last_modified,

@@ -100,6 +100,7 @@ class Podloom_Assets {
 				'podloomImageCache',
 				array(
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'nonce'   => wp_create_nonce( 'podloom_image_cache_nonce' ),
 				)
 			);
 		}
@@ -162,6 +163,7 @@ class Podloom_Assets {
 				'podloomImageCache',
 				array(
 					'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+					'nonce'   => wp_create_nonce( 'podloom_image_cache_nonce' ),
 				)
 			);
 		}
